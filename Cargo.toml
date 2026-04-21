@@ -1,0 +1,17 @@
+[package]
+name = "flint"
+version = "0.1.0"
+edition = "2024"
+description = "A fast, native build_runner replacement for Dart/Flutter projects"
+license = "MIT"
+
+[dependencies]
+rayon = "1.10"
+walkdir = "2"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
+notify = "8.2"
+notify-debouncer-mini = "0.7"
+anyhow = "1"
+colored = "3.1"
