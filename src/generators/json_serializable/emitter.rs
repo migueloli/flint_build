@@ -10,9 +10,10 @@ pub fn generate_json_code(class: &DartClass) -> String {
         name, name, name
     ));
     for field in &class.fields {
+        let null_suffix = if field.is_nullable { "?" } else { "" };
         code.push_str(&format!(
-            "      {}: json['{}'] as {},\n",
-            field.name, field.name, field.dart_type
+            "      {}: json['{}'] as {}{},\n",
+            field.name, field.name, field.dart_type, null_suffix
         ));
     }
     code.push_str("    );\n\n");

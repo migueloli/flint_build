@@ -12,6 +12,7 @@ pub enum DartType {
     Custom(String),
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct DartField {
     pub name: String,
