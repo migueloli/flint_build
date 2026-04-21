@@ -2,6 +2,7 @@ use std::fs;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use rayon::prelude::*;
 
 mod config;
 mod discovery;
@@ -68,7 +69,18 @@ fn run_build(delete_conflicting_outputs: bool) -> Result<()> {
     let files = discovery::find_dart_files("lib");
     println!("🔍 Found {} .dart files to process", files.len());
 
-    for path in &files {
+    files.par_iter().try_for_each(|path| -> Result<()> {
+        let output_path = path.with_extension("g.dart");
+        if output_path.exists() {
+            let input_meta = fs::metadata(path)?;
+            let output_meta = fs::metadata(&output_path)?;
+
+            if input_meta.modified()? <= output_meta.modified()? {
+                println!("  ⚠️  Skipping {:?}", path);
+                return Ok(());
+            }
+        }
+
         let classes = parser::parse_file(path)?;
         if !classes.is_empty() {
             let mut output_code = String::new();
@@ -80,10 +92,9 @@ fn run_build(delete_conflicting_outputs: bool) -> Result<()> {
                 let generated = generators::json_serializable::emitter::generate_json_code(class);
                 output_code.push_str(&generated);
             }
-            let output_path = path.with_extension("g.dart");
             fs::write(&output_path, output_code)?;
-            println!("  ✅ Generated: {:?}", output_path);
+            println!("  ✅ Generated: {:?}", path.with_extension("g.dart"));
         }
-    }
-    Ok(())
+        Ok(())
+    })
 }
