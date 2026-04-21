@@ -1,5 +1,5 @@
 [package]
-name = "flint"
+name = "flint_build"
 version = "0.1.0"
 edition = "2024"
 description = "A fast, native build_runner replacement for Dart/Flutter projects"

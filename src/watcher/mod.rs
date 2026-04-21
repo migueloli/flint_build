@@ -23,7 +23,7 @@ where
     println!(
         "{} {} {} {}",
         "👀".bold(),
-        "flint".cyan().bold(),
+        "flint_build".cyan().bold(),
         "is watching in".white(),
         dir.underline()
     );
