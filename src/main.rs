@@ -1,4 +1,4 @@
-use std::fs;
+use std::{fs, time::Instant};
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -39,6 +39,7 @@ enum Commands {
 
 fn main() -> Result<()> {
     env_logger::init();
+    let start = Instant::now();
 
     let cli = Cli::parse();
 
@@ -52,11 +53,19 @@ fn main() -> Result<()> {
         Commands::Clean => run_clean()?,
     }
 
+    let duration = start.elapsed();
+    println!(
+        "\n{} {} in {:2.2?}",
+        "✨".bold(),
+        "Done".green().bold(),
+        duration
+    );
     Ok(())
 }
 
 fn run_build(delete_conflicting_outputs: bool) -> Result<()> {
     let pubspec = config::Pubspec::load()?;
+    log::info!("Initializing build for package: {}", pubspec.name);
     println!(
         "{} {} {}",
         "🚀".bold(),
@@ -65,6 +74,7 @@ fn run_build(delete_conflicting_outputs: bool) -> Result<()> {
     );
 
     let files = discovery::find_dart_files("lib");
+    log::debug!("Discovery found {} potential Dart files", files.len());
     println!("{} Found {} .dart files", "🔍".blue(), files.len());
 
     files.par_iter().try_for_each(|path| -> Result<()> {

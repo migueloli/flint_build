@@ -31,7 +31,8 @@ where
     // 4. The Event Loop
     for res in rx {
         match res {
-            Ok(_) => {
+            Ok(events) => {
+                log::debug!("Watcher events: {:?}", events);
                 println!(
                     "\n{} {}",
                     "🔄".yellow().bold(),

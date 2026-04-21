@@ -5,6 +5,7 @@ use std::path::Path;
 use tree_sitter::{Node, Parser, Query, QueryCursor, StreamingIterator};
 
 pub fn parse_file(path: &Path) -> Result<Vec<DartClass>> {
+    log::debug!("Tree-Sitter: Parsing file {:?}", path);
     let content = fs::read_to_string(path)?;
 
     let mut parser = Parser::new();
@@ -56,6 +57,11 @@ pub fn parse_file(path: &Path) -> Result<Vec<DartClass>> {
             }
         }
         if is_json_serializable {
+            log::info!(
+                "Found @JsonSerializable class: {} in {:?}",
+                class_name,
+                path
+            );
             let mut fields = Vec::new();
             if let Some(body) = class_body_node {
                 fields = extract_fields_from_tree(body, &content);
