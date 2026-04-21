@@ -47,6 +47,11 @@ fn main() -> Result<()> {
         } => watcher::watch("lib", || run_build(*delete_conflicting_outputs))?,
         Commands::Clean => {
             println!("🧹 Cleaning generated files...");
+            let files = discovery::find_generated_files("lib");
+            for path in &files {
+                fs::remove_file(path)?;
+                println!("  ✅ Removed: {:?}", path);
+            }
         }
     }
 
