@@ -1,71 +1,108 @@
 use crate::parser::dart_types::{DartClass, DartField, DartType};
-use anyhow::Result;
+use anyhow::{Context, Result};
 use std::fs;
 use std::path::Path;
+use tree_sitter::{Node, Parser, Query, QueryCursor, StreamingIterator};
 
-/// Scans a file for classes annotated with @JsonSerializable.
 pub fn parse_file(path: &Path) -> Result<Vec<DartClass>> {
     let content = fs::read_to_string(path)?;
+
+    // 1. Initialize the parser
+    let mut parser = Parser::new();
+    parser
+        .set_language(&tree_sitter_dart::LANGUAGE.into())
+        .context("Error loading Dart grammar")?;
+
+    // 2. Parse the code into a Tree
+    let tree = parser
+        .parse(&content, None)
+        .context("Could not parse file")?;
+
     let mut classes = Vec::new();
 
-    let mut lines = content.lines().peekable();
+    // 3. Define the query (look for classes with ANY annotation)
+    let query_str = r#"
+        (class_declaration
+          (annotation
+            (_) @annotation_name
+          )
+          (_) @class_name
+          (class_body) @class_body
+        )
+    "#;
 
-    while let Some(line) = lines.next() {
-        let trimmed = line.trim();
+    let query = Query::new(&tree_sitter_dart::LANGUAGE.into(), query_str)
+        .context("Failed to create query")?;
 
-        // 1. Look for the annotation
-        if trimmed == "@JsonSerializable()" || trimmed == "@jsonSerializable" {
-            // 2. The next non-empty line should be the class declaration
-            while let Some(next_line) = lines.next() {
-                let next_trimmed = next_line.trim();
-                if next_trimmed.starts_with("class ") {
-                    let class_name = extract_class_name(next_trimmed);
+    let mut cursor = QueryCursor::new();
+    let mut matches = cursor.matches(&query, tree.root_node(), content.as_bytes());
 
-                    // 3. Simple field extraction (MVP level)
-                    let fields = extract_fields(&mut lines);
+    while let Some(m) = matches.next() {
+        let mut class_name = String::new();
+        let mut is_json_serializable = false;
+        let mut class_body_node = None;
 
-                    classes.push(DartClass {
-                        name: class_name,
-                        fields,
-                    });
-                    break;
-                }
+        for capture in m.captures {
+            let node = capture.node;
+            let capture_name = query.capture_names()[capture.index as usize];
+            let text = &content[node.start_byte()..node.end_byte()];
+            if capture_name == "annotation_name"
+                && (text == "JsonSerializable" || text == "jsonSerializable")
+            {
+                is_json_serializable = true;
             }
+            if capture_name == "class_name" {
+                class_name = text.to_string();
+            }
+            if capture_name == "class_body" {
+                class_body_node = Some(node);
+            }
+        }
+        if is_json_serializable {
+            let mut fields = Vec::new();
+            if let Some(body) = class_body_node {
+                fields = extract_fields_from_tree(body, &content);
+            }
+            classes.push(DartClass {
+                name: class_name,
+                fields,
+            });
         }
     }
 
     Ok(classes)
 }
 
-fn extract_class_name(line: &str) -> String {
-    // "class User {" -> "User"
-    line.split_whitespace()
-        .nth(1)
-        .unwrap_or("Unknown")
-        .replace('{', "")
-        .to_string()
-}
-
-fn extract_fields(lines: &mut std::iter::Peekable<std::str::Lines>) -> Vec<DartField> {
+fn extract_fields_from_tree(body: Node, content: &str) -> Vec<DartField> {
     let mut fields = Vec::new();
-    while let Some(line) = lines.peek() {
-        let trimmed = line.trim();
-        if trimmed == "}" {
-            break;
-        }
+    let mut cursor = body.walk();
 
-        if (trimmed.starts_with("final ") || trimmed.contains(" ")) && trimmed.ends_with(";") {
-            let parts = trimmed.split_whitespace().collect::<Vec<&str>>();
-            if let Some(field) = parse_field(parts) {
+    for child in body.children(&mut cursor) {
+        if child.kind() == "class_member" {
+            let mut inner_cursor = child.walk();
+            for inner in child.children(&mut inner_cursor) {
+                if inner.kind() == "declaration" {
+                    let text = &content[inner.start_byte()..inner.end_byte()];
+
+                    if let Some(field) = parse_field(text) {
+                        fields.push(field);
+                    }
+                }
+            }
+        } else if child.kind() == "field_declaration" || child.kind() == "declaration" {
+            let text = &content[child.start_byte()..child.end_byte()];
+
+            if let Some(field) = parse_field(text) {
                 fields.push(field);
             }
         }
-        lines.next();
     }
     fields
 }
 
-fn parse_field(parts: Vec<&str>) -> Option<DartField> {
+fn parse_field(text: &str) -> Option<DartField> {
+    let parts: Vec<&str> = text.split_whitespace().collect();
+
     match parts.len() {
         2 => {
             let is_nullable = parts[0].ends_with("?");
