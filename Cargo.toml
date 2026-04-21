@@ -6,14 +6,16 @@ description = "A fast, native build_runner replacement for Dart/Flutter projects
 license = "MIT"
 
 [dependencies]
-rayon = "1"
-walkdir = "2"
+rayon = "1.12"
+walkdir = "2.5"
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
-serde_yaml = "0"
-notify = "8"
-notify-debouncer-mini = "0"
-anyhow = "1"
-colored = "3"
-tree-sitter = "0"
-tree-sitter-dart = "0"
+serde_yaml = "0.9"
+notify = "8.2"
+notify-debouncer-mini = "0.7"
+anyhow = "1.0"
+colored = "3.1"
+tree-sitter = "0.26"
+tree-sitter-dart = "0.1"
+log = "0.4"
+env_logger = "0.11"

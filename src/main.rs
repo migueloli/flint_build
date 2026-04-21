@@ -2,6 +2,7 @@ use std::fs;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use colored::Colorize;
 use rayon::prelude::*;
 
 mod config;
@@ -37,6 +38,8 @@ enum Commands {
 }
 
 fn main() -> Result<()> {
+    env_logger::init();
+
     let cli = Cli::parse();
 
     match &cli.command {
@@ -46,14 +49,7 @@ fn main() -> Result<()> {
         Commands::Watch {
             delete_conflicting_outputs,
         } => watcher::watch("lib", || run_build(*delete_conflicting_outputs))?,
-        Commands::Clean => {
-            println!("🧹 Cleaning generated files...");
-            let files = discovery::find_generated_files("lib");
-            for path in &files {
-                fs::remove_file(path)?;
-                println!("  ✅ Removed: {:?}", path);
-            }
-        }
+        Commands::Clean => run_clean()?,
     }
 
     Ok(())
@@ -62,21 +58,27 @@ fn main() -> Result<()> {
 fn run_build(delete_conflicting_outputs: bool) -> Result<()> {
     let pubspec = config::Pubspec::load()?;
     println!(
-        "🚀 Building project: {} (delete: {})",
-        pubspec.name, delete_conflicting_outputs
+        "{} {} {}",
+        "🚀".bold(),
+        "Building project:".green().bold(),
+        pubspec.name.cyan().bold()
     );
 
     let files = discovery::find_dart_files("lib");
-    println!("🔍 Found {} .dart files to process", files.len());
+    println!("{} Found {} .dart files", "🔍".blue(), files.len());
 
     files.par_iter().try_for_each(|path| -> Result<()> {
         let output_path = path.with_extension("g.dart");
-        if output_path.exists() {
+        if output_path.exists() && !delete_conflicting_outputs {
             let input_meta = fs::metadata(path)?;
             let output_meta = fs::metadata(&output_path)?;
 
             if input_meta.modified()? <= output_meta.modified()? {
-                println!("  ⚠️  Skipping {:?}", path);
+                println!(
+                    "  {} Skipping {}",
+                    "⚠️".yellow(),
+                    path.display().to_string().dimmed()
+                );
                 return Ok(());
             }
         }
@@ -93,8 +95,30 @@ fn run_build(delete_conflicting_outputs: bool) -> Result<()> {
                 output_code.push_str(&generated);
             }
             fs::write(&output_path, output_code)?;
-            println!("  ✅ Generated: {:?}", path.with_extension("g.dart"));
+            println!(
+                "  {} Generated: {}",
+                "✅".green(),
+                output_path.display().to_string().bold()
+            );
         }
+        Ok(())
+    })
+}
+
+fn run_clean() -> Result<()> {
+    println!(
+        "{} {}",
+        "🧹".magenta(),
+        "Cleaning generated files...".bold()
+    );
+    let files = discovery::find_generated_files("lib");
+    files.par_iter().try_for_each(|path| -> Result<()> {
+        fs::remove_file(path)?;
+        println!(
+            "  {} Deleted: {}",
+            "🗑️".red().dimmed(),
+            path.display().to_string().dimmed()
+        );
         Ok(())
     })
 }

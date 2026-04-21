@@ -1,4 +1,5 @@
 use anyhow::Result;
+use colored::Colorize;
 use notify::RecursiveMode;
 use notify_debouncer_mini::new_debouncer;
 use std::path::Path;
@@ -19,18 +20,28 @@ where
         .watcher()
         .watch(Path::new(dir), RecursiveMode::Recursive)?;
 
-    println!("🚀 flint is watching for changes in {}...", dir);
+    println!(
+        "{} {} {} {}",
+        "👀".bold(),
+        "flint".cyan().bold(),
+        "is watching in".white(),
+        dir.underline()
+    );
 
     // 4. The Event Loop
     for res in rx {
         match res {
             Ok(_) => {
-                println!("🔄 Change detected! Rebuilding...");
+                println!(
+                    "\n{} {}",
+                    "🔄".yellow().bold(),
+                    "Change detected! Rebuilding...".bold()
+                );
                 if let Err(e) = on_change() {
-                    eprintln!("❌ Build failed: {}", e);
+                    eprintln!("  {} {}", "❌".red(), e.to_string().red());
                 }
             }
-            Err(e) => println!("watch error: {:?}", e),
+            Err(e) => println!("  {} {:?}", "❌".red().bold(), e.to_string().red().bold()),
         }
     }
 
