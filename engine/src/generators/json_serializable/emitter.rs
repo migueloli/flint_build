@@ -1,9 +1,17 @@
 use crate::parser::dart_types::{DartClass, DartType, TypeKind};
 use tera::{Context, Tera};
 
-pub fn generate_full_file(filename: &str, mut classes: Vec<DartClass>) -> String {
+pub fn generate_full_file(
+    filename: &str,
+    mut classes: Vec<DartClass>,
+    template_path: &str,
+) -> String {
     for class in &mut classes {
         for field in &mut class.fields {
+            if let Some(raw_key) = field.metadata.get("name") {
+                let key = raw_key.trim_matches(|c| c == '"' || c == '\'').to_string();
+                field.metadata.insert("name".to_string(), key);
+            }
             let key = field.metadata.get("name").unwrap_or(&field.name);
             let from_access = format!("json['{}']", key);
             let to_access = format!("instance.{}", field.name);
@@ -15,11 +23,8 @@ pub fn generate_full_file(filename: &str, mut classes: Vec<DartClass>) -> String
         }
     }
     let mut tera = Tera::default();
-    tera.add_template_file(
-        "src/templates/json_serializable.tera",
-        Some("json_serializable"),
-    )
-    .expect("Failed to load template");
+    tera.add_template_file(template_path, Some("json_serializable"))
+        .expect("Failed to load template");
 
     let mut context = Context::new();
     context.insert("classes", &classes);

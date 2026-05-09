@@ -133,13 +133,8 @@ fn parse_field(field: Node<'_>, content: &str, plugin: &PluginConfig) -> Option<
                                                     n.utf8_text(content.as_bytes()).unwrap_or("")
                                                 })
                                                 .unwrap_or("");
-                                            let clean_val =
-                                                val.trim_matches(|c| c == '"' || c == '\'');
 
-                                            metadata.insert(
-                                                clean_key.to_string(),
-                                                clean_val.to_string(),
-                                            );
+                                            metadata.insert(clean_key.to_string(), val.to_string());
                                         }
                                     }
                                 }

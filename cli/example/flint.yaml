@@ -4,4 +4,4 @@ plugins:
       - "@JsonSerializable"
     field_annotations:
       - "@JsonKey"
-    template_path: "src/templates/json_serializable.tera"
+    template_path: "templates/json_serializable.tera"

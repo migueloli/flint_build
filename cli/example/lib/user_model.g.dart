@@ -1,7 +1,3 @@
----
-source: tests/json_serializable_test.rs
-expression: generated
----
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: unnecessary_cast
 
@@ -56,3 +52,4 @@ Map<String, dynamic> _$UserModelToJson(UserModel instance) => <String, dynamic>{
   'optionalTags': instance.optionalTags?.map((elem) => elem).toList(),
   'optionalMetadata': instance.optionalSubModel?.toJson(),
 };
+

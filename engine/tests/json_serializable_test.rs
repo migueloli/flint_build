@@ -16,8 +16,11 @@ fn test_user_model() {
         .clone();
 
     let classes = parser::parse_file(input_path, &plugin).unwrap();
-    let generated =
-        generators::json_serializable::emitter::generate_full_file("user_model.dart", classes);
+    let generated = generators::json_serializable::emitter::generate_full_file(
+        "user_model.dart",
+        classes,
+        &plugin.template_path,
+    );
 
     insta::assert_snapshot!(generated);
 }

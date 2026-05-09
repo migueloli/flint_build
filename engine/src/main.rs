@@ -104,7 +104,9 @@ fn run_build(delete_conflicting_outputs: bool) -> Result<()> {
                 if !classes.is_empty() {
                     let filename = path.file_name().unwrap().to_str().unwrap();
                     let generated = generators::json_serializable::emitter::generate_full_file(
-                        filename, classes,
+                        filename,
+                        classes,
+                        &plugin_config.template_path,
                     );
                     fs::write(&output_path, generated)?;
                     println!(

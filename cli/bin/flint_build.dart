@@ -1,15 +1,20 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:path/path.dart' as p;
 
 void main(List<String> args) async {
-  // 1. Point to the engine binary relative to the CURRENT directory
-  // (Assuming you are running the command from inside the 'cli' folder)
-  final projectRoot = Directory.current.path;
+  final packageUri =
+      await Isolate.resolvePackageUri(Uri.parse('package:flint_build/'));
+  if (packageUri == null) {
+    print(
+        '❌ Could not resolve package:flint_build. Make sure it is in your dependencies.');
+    exit(1);
+  }
 
-  // We go up one level from 'cli' then into 'engine'
+  final cliRoot = p.dirname(packageUri.toFilePath());
   final engineDir = p.normalize(
-    p.join(projectRoot, '..', 'engine', 'target', 'release'),
+    p.join(cliRoot, '..', 'engine', 'target', 'release'),
   );
 
   final binaryName = Platform.isWindows ? 'flint_build.exe' : 'flint_build';
@@ -19,12 +24,10 @@ void main(List<String> args) async {
 
   if (!binary.existsSync()) {
     print('❌ Native engine not found at: $binaryPath');
-    print('💡 Currently looking in: ${Directory.current.path}');
     print('💡 Please run "cargo build --release" inside the "engine" folder.');
     exit(1);
   }
 
-  // 2. Forward to the Rust engine
   final process = await Process.start(
     binary.path,
     args,

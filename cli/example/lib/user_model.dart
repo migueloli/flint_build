@@ -9,8 +9,9 @@ class Metadata {
 
   const Metadata({required this.info, required this.count});
 
-  factory Metadata.fromJson(Map<String, dynamic> json) => _$Metadata(json);
-  Map<String, dynamic> toJson() => _$Metadata(this);
+  factory Metadata.fromJson(Map<String, dynamic> json) =>
+      _$MetadataFromJson(json);
+  Map<String, dynamic> toJson() => _$MetadataToJson(this);
 }
 
 @JsonSerializable()
@@ -52,6 +53,7 @@ class UserModel {
     this.optionalSubModel,
   });
 
-  factory UserModel.fromJson(Map<String, dynamic> json) => _$UserModel(json);
-  Map<String, dynamic> toJson() => _$UserModel(this);
+  factory UserModel.fromJson(Map<String, dynamic> json) =>
+      _$UserModelFromJson(json);
+  Map<String, dynamic> toJson() => _$UserModelToJson(this);
 }
