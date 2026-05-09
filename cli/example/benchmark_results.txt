@@ -1,0 +1,124 @@
+🏃 Starting Benchmark Suite...
+📦 Getting dependencies...
+
+⏳ Running build_runner (Cold Start)...
+✅ build_runner finished in 732ms
+
+⏳ Running flint_build (Cold Start)...
+✅ flint_build finished in 298ms
+
+=======================================
+🏆 RESULTS:
+=======================================
+build_runner: 732ms
+flint_build:  298ms
+🚀 Flint is 2.5x faster!
+=======================================
+
+🔍 Running Diff (build_runner vs flint_build)...
+⚠️ Outputs have differences (this is expected due to boilerplate):
+--- user_model.build_runner.dart	2026-05-09 23:47:11
++++ user_model.flint.dart	2026-05-09 23:47:11
+@@ -1,60 +1,55 @@
+ // GENERATED CODE - DO NOT MODIFY BY HAND
++// ignore_for_file: unnecessary_cast
+ 
+ part of 'user_model.dart';
+ 
+ // **************************************************************************
+-// JsonSerializableGenerator
++// JsonSerializableGenerator (Powered by Flint)
+ // **************************************************************************
+ 
+ Metadata _$MetadataFromJson(Map<String, dynamic> json) => Metadata(
+-      info: json['info'] as String,
+-      count: (json['count'] as num).toInt(),
+-    );
++  info: json['info'] as String,
++  count: (json['count'] as num).toInt(),
++);
+ 
+ Map<String, dynamic> _$MetadataToJson(Metadata instance) => <String, dynamic>{
+-      'info': instance.info,
+-      'count': instance.count,
+-    };
++  'info': instance.info,
++  'count': instance.count,
++};
+ 
+ UserModel _$UserModelFromJson(Map<String, dynamic> json) => UserModel(
+-      id: (json['id'] as num).toInt(),
+-      name: json['name'] as String,
+-      score: (json['score'] as num).toDouble(),
+-      isActive: json['isActive'] as bool,
+-      createdAt: DateTime.parse(json['createdAt'] as String),
+-      tags: (json['tags'] as List<dynamic>).map((e) => e as String).toList(),
+-      stats: Map<String, int>.from(json['stats'] as Map),
+-      subModel: Metadata.fromJson(json['metadata'] as Map<String, dynamic>),
+-      optionalTitle: json['optionalTitle'] as String?,
+-      mutableDescription:
+-          json['mutableDescription'] as String? ?? 'No Description Provided',
+-      mutableCount: (json['mutableCount'] as num?)?.toInt(),
+-      optionalInt: (json['optionalInt'] as num?)?.toInt(),
+-      optionalStats: (json['optionalStats'] as Map<String, dynamic>?)?.map(
+-        (k, e) => MapEntry(k, (e as num).toInt()),
+-      ),
+-      optionalTags: (json['optionalTags'] as List<dynamic>?)
+-          ?.map((e) => e as String)
+-          .toList(),
+-      optionalSubModel: json['optionalMetadata'] == null
+-          ? null
+-          : Metadata.fromJson(json['optionalMetadata'] as Map<String, dynamic>),
+-    );
++  id: (json['id'] as num).toInt(),
++  name: json['name'] as String,
++  score: (json['score'] as num).toDouble(),
++  isActive: json['isActive'] as bool,
++  createdAt: DateTime.parse(json['createdAt'] as String),
++  tags: (json['tags'] as List<dynamic>).map((e) => e as String).toList(),
++  stats: (json['stats'] as Map<String, dynamic>).map((k, v) => MapEntry(k as String, (v as num).toInt())),
++  subModel: Metadata.fromJson(json['metadata'] as Map<String, dynamic>),
++  optionalTitle: json['optionalTitle'] as String?,
++  mutableDescription: json['mutableDescription'] == null ? 'No Description Provided' : json['mutableDescription'] as String?,
++  mutableCount: json['mutableCount'] == null ? null : (json['mutableCount'] as num).toInt(),
++  optionalInt: json['optionalInt'] == null ? null : (json['optionalInt'] as num).toInt(),
++  optionalStats: json['optionalStats'] == null ? null : (json['optionalStats'] as Map<String, dynamic>).map((k, v) => MapEntry(k as String, (v as num).toInt())),
++  optionalTags: json['optionalTags'] == null ? null : (json['optionalTags'] as List<dynamic>).map((e) => e as String).toList(),
++  optionalSubModel: json['optionalMetadata'] == null ? null : Metadata.fromJson(json['optionalMetadata'] as Map<String, dynamic>),
++);
+ 
+ Map<String, dynamic> _$UserModelToJson(UserModel instance) => <String, dynamic>{
+-      'id': instance.id,
+-      'name': instance.name,
+-      'score': instance.score,
+-      'isActive': instance.isActive,
+-      'createdAt': instance.createdAt.toIso8601String(),
+-      'tags': instance.tags,
+-      'stats': instance.stats,
+-      'metadata': instance.subModel,
+-      'optionalTitle': instance.optionalTitle,
+-      'mutableDescription': instance.mutableDescription,
+-      'mutableCount': instance.mutableCount,
+-      'optionalInt': instance.optionalInt,
+-      'optionalStats': instance.optionalStats,
+-      'optionalTags': instance.optionalTags,
+-      'optionalMetadata': instance.optionalSubModel,
+-    };
++  'id': instance.id,
++  'name': instance.name,
++  'score': instance.score,
++  'isActive': instance.isActive,
++  'createdAt': instance.createdAt.toIso8601String(),
++  'tags': instance.tags.map((elem) => elem).toList(),
++  'stats': instance.stats.map((key, value) => MapEntry(key, value)),
++  'metadata': instance.subModel.toJson(),
++  'optionalTitle': instance.optionalTitle,
++  'mutableDescription': instance.mutableDescription,
++  'mutableCount': instance.mutableCount,
++  'optionalInt': instance.optionalInt,
++  'optionalStats': instance.optionalStats?.map((key, value) => MapEntry(key, value)),
++  'optionalTags': instance.optionalTags?.map((elem) => elem).toList(),
++  'optionalMetadata': instance.optionalSubModel?.toJson(),
++};
++
+
