@@ -1,0 +1,27 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
+part of '{{ filename }}';
+
+// **************************************************************************
+// JsonSerializableGenerator (Powered by Flint)
+// **************************************************************************
+
+{% for class in classes -%}
+{{ class.name }} _${{ class.name }}FromJson(Map<String, dynamic> json) => {{ class.name }}(
+{%- for field in class.fields %}
+{%- if field.metadata.defaultValue %}
+  {{ field.name }}: json['{{ field.metadata.name | default(value=field.name) }}'] == null ? {{ field.metadata.defaultValue }} : {{ field.from_json_expr }},
+{%- else %}
+  {{ field.name }}: {{ field.from_json_expr }},
+{%- endif %}
+{%- endfor %}
+);
+
+Map<String, dynamic> _${{ class.name }}ToJson({{ class.name }} instance) => <String, dynamic>{
+{%- for field in class.fields %}
+  '{{ field.metadata.name | default(value=field.name) }}': {{ field.to_json_expr }},
+{%- endfor %}
+};
+{% if not loop.last %}
+{% endif %}
+{%- endfor %}

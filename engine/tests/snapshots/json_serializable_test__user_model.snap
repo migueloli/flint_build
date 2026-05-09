@@ -1,5 +1,5 @@
 ---
-source: tests/gold_standard_test.rs
+source: tests/json_serializable_test.rs
 expression: generated
 ---
 // GENERATED CODE - DO NOT MODIFY BY HAND
@@ -36,6 +36,7 @@ UserModel _$UserModelFromJson(Map<String, dynamic> json) => UserModel(
   optionalStats: json['optionalStats'] == null ? null : (json['optionalStats'] as Map<String, dynamic>).map((k, v) => MapEntry(k as String, (v as num).toInt())),
   optionalTags: json['optionalTags'] == null ? null : (json['optionalTags'] as List<dynamic>).map((e) => e as String).toList(),
   optionalSubModel: json['optionalMetadata'] == null ? null : Metadata.fromJson(json['optionalMetadata'] as Map<String, dynamic>),
+  mutableDescription: json['mutableDescription'] == null ? No Description Provided : json['mutableDescription'] as String?,
 );
 
 Map<String, dynamic> _$UserModelToJson(UserModel instance) => <String, dynamic>{
@@ -54,4 +55,5 @@ Map<String, dynamic> _$UserModelToJson(UserModel instance) => <String, dynamic>{
   'optionalStats': instance.optionalStats?.map((key, value) => MapEntry(key, value)),
   'optionalTags': instance.optionalTags?.map((elem) => elem).toList(),
   'optionalMetadata': instance.optionalSubModel?.toJson(),
+  'mutableDescription': instance.mutableDescription,
 };

@@ -1,10 +1,12 @@
+use crate::config::PluginConfig;
 use crate::parser::dart_types::{DartClass, DartField, DartType, TypeKind};
 use anyhow::{Context, Result};
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use tree_sitter::{Node, Parser, Query, QueryCursor, StreamingIterator};
 
-pub fn parse_file(path: &Path) -> Result<Vec<DartClass>> {
+pub fn parse_file(path: &Path, plugin: &PluginConfig) -> Result<Vec<DartClass>> {
     log::debug!("Tree-Sitter: Parsing file {:?}", path);
     let content = fs::read_to_string(path)?;
 
@@ -37,17 +39,18 @@ pub fn parse_file(path: &Path) -> Result<Vec<DartClass>> {
 
     while let Some(m) = matches.next() {
         let mut class_name = String::new();
-        let mut is_json_serializable = false;
+        let mut has_matching_annotation = false;
         let mut class_body_node = None;
 
         for capture in m.captures {
             let node = capture.node;
             let capture_name = query.capture_names()[capture.index as usize];
             let text = &content[node.start_byte()..node.end_byte()];
+            let full_annotation = format!("@{}", text); // Make sure it has the @ symbol
             if capture_name == "annotation_name"
-                && (text == "JsonSerializable" || text == "jsonSerializable")
+                && plugin.class_annotations.contains(&full_annotation)
             {
-                is_json_serializable = true;
+                has_matching_annotation = true;
             }
             if capture_name == "class_name" {
                 class_name = text.to_string();
@@ -56,10 +59,10 @@ pub fn parse_file(path: &Path) -> Result<Vec<DartClass>> {
                 class_body_node = Some(node);
             }
         }
-        if is_json_serializable {
+        if has_matching_annotation {
             let mut fields = Vec::new();
             if let Some(body) = class_body_node {
-                fields = extract_fields_from_tree(body, &content);
+                fields = extract_fields_from_tree(body, &content, plugin);
             }
             classes.push(DartClass {
                 name: class_name,
@@ -71,7 +74,7 @@ pub fn parse_file(path: &Path) -> Result<Vec<DartClass>> {
     Ok(classes)
 }
 
-fn extract_fields_from_tree(body: Node, content: &str) -> Vec<DartField> {
+fn extract_fields_from_tree(body: Node, content: &str, plugin: &PluginConfig) -> Vec<DartField> {
     let mut fields = Vec::new();
     let mut cursor = body.walk();
 
@@ -80,13 +83,13 @@ fn extract_fields_from_tree(body: Node, content: &str) -> Vec<DartField> {
             let mut inner_cursor = child.walk();
             for inner in child.children(&mut inner_cursor) {
                 if inner.kind() == "declaration" {
-                    if let Some(field) = parse_field(inner, content) {
+                    if let Some(field) = parse_field(inner, content, plugin) {
                         fields.push(field);
                     }
                 }
             }
         } else if child.kind() == "field_declaration" || child.kind() == "declaration" {
-            if let Some(field) = parse_field(child, content) {
+            if let Some(field) = parse_field(child, content, plugin) {
                 fields.push(field);
             }
         }
@@ -94,36 +97,68 @@ fn extract_fields_from_tree(body: Node, content: &str) -> Vec<DartField> {
     fields
 }
 
-fn parse_field(field: Node<'_>, content: &str) -> Option<DartField> {
-    let check_metadata = |node: Node<'_>| -> Option<String> {
+fn parse_field(field: Node<'_>, content: &str, plugin: &PluginConfig) -> Option<DartField> {
+    let check_metadata = |node: Node<'_>| -> HashMap<String, String> {
+        let mut metadata = std::collections::HashMap::new();
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             if child.kind() == "annotation" {
-                let meta_text = child.utf8_text(content.as_bytes()).unwrap_or("");
-                if meta_text.contains("@JsonKey") {
-                    if let Some(name_idx) = meta_text.find("name:") {
-                        let after_name = &meta_text[name_idx + 5..];
-                        if let Some(start_quote) = after_name.find(|c| c == '\'' || c == '"') {
-                            let quote = after_name.chars().nth(start_quote).unwrap();
-                            let rest = &after_name[start_quote + 1..];
-                            if let Some(end_quote) = rest.find(quote) {
-                                return Some(rest[..end_quote].to_string());
+                let annotation_text = child
+                    .child(1)
+                    .map(|n| n.utf8_text(content.as_bytes()).unwrap_or(""))
+                    .unwrap_or("");
+                let full_annotation = format!("@{}", annotation_text);
+
+                if plugin.field_annotations.contains(&full_annotation) {
+                    let mut args_cursor = child.walk();
+                    for arg_node in child.children(&mut args_cursor) {
+                        if arg_node.kind() == "annotation_arguments" {
+                            let mut param_cursor = arg_node.walk();
+                            for param in arg_node.children(&mut param_cursor) {
+                                if param.kind() == "argument" {
+                                    let mut inner_cursor = param.walk();
+                                    for inner_param in param.children(&mut inner_cursor) {
+                                        if inner_param.kind() == "named_argument" {
+                                            let key = inner_param
+                                                .child(0)
+                                                .map(|n| {
+                                                    n.utf8_text(content.as_bytes()).unwrap_or("")
+                                                })
+                                                .unwrap_or("");
+                                            let clean_key = key.trim_end_matches(':');
+
+                                            let val = inner_param
+                                                .child(1)
+                                                .map(|n| {
+                                                    n.utf8_text(content.as_bytes()).unwrap_or("")
+                                                })
+                                                .unwrap_or("");
+                                            let clean_val =
+                                                val.trim_matches(|c| c == '"' || c == '\'');
+
+                                            metadata.insert(
+                                                clean_key.to_string(),
+                                                clean_val.to_string(),
+                                            );
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
         }
-        None
+        metadata
     };
 
     // First check the field node itself
-    let mut json_key = check_metadata(field);
+    let mut metadata = check_metadata(field);
 
     // If not found, check the parent node (usually `class_member`)
-    if json_key.is_none() {
+    if metadata.is_empty() {
         if let Some(parent) = field.parent() {
-            json_key = check_metadata(parent);
+            metadata = check_metadata(parent);
         }
     }
 
@@ -157,9 +192,11 @@ fn parse_field(field: Node<'_>, content: &str) -> Option<DartField> {
     if !name_str.is_empty() {
         return Some(DartField {
             name: name_str,
-            json_key: json_key,
             dart_type: parse_dart_type(&type_parts, is_nullable),
             is_final,
+            from_json_expr: None,
+            to_json_expr: None,
+            metadata: metadata,
         });
     }
 

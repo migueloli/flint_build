@@ -8,7 +8,8 @@ pub struct FlintConfig {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct PluginConfig {
-    pub annotation: String,
+    pub class_annotations: Vec<String>,
+    pub field_annotations: Vec<String>,
     pub template_path: String,
 }
 

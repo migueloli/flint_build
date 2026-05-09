@@ -3,6 +3,7 @@ use std::{fs, time::Instant};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use colored::Colorize;
+use flint_build::config::FlintConfig;
 use rayon::prelude::*;
 
 use flint_build::config;
@@ -73,40 +74,54 @@ fn run_build(delete_conflicting_outputs: bool) -> Result<()> {
         pubspec.name.cyan().bold()
     );
 
-    let files = discovery::find_dart_files("lib");
-    log::debug!("Discovery found {} potential Dart files", files.len());
-    println!("{} Found {} .dart files", "🔍".blue(), files.len());
+    let config = FlintConfig::load_from_file("flint.yaml").unwrap();
 
-    files.par_iter().try_for_each(|path| -> Result<()> {
-        let output_path = path.with_extension("g.dart");
-        if output_path.exists() && !delete_conflicting_outputs {
-            let input_meta = fs::metadata(path)?;
-            let output_meta = fs::metadata(&output_path)?;
+    if let Some(plugins) = config.plugins {
+        for (plugin_name, plugin_config) in plugins {
+            println!("🚀 Running Plugin: {}", plugin_name);
 
-            if input_meta.modified()? <= output_meta.modified()? {
-                println!(
-                    "  {} Skipping {}",
-                    "⚠️".yellow(),
-                    path.display().to_string().dimmed()
-                );
-                return Ok(());
+            let files = discovery::find_dart_files("lib");
+            log::debug!("Discovery found {} potential Dart files", files.len());
+            println!("{} Found {} .dart files", "🔍".blue(), files.len());
+
+            let result = files.par_iter().try_for_each(|path| -> Result<()> {
+                let output_path = path.with_extension("g.dart");
+                if output_path.exists() && !delete_conflicting_outputs {
+                    let input_meta = fs::metadata(path)?;
+                    let output_meta = fs::metadata(&output_path)?;
+
+                    if input_meta.modified()? <= output_meta.modified()? {
+                        println!(
+                            "  {} Skipping {}",
+                            "⚠️".yellow(),
+                            path.display().to_string().dimmed()
+                        );
+                        return Ok(());
+                    }
+                }
+
+                let classes = parser::parse_file(path, &plugin_config)?;
+                if !classes.is_empty() {
+                    let filename = path.file_name().unwrap().to_str().unwrap();
+                    let generated = generators::json_serializable::emitter::generate_full_file(
+                        filename, classes,
+                    );
+                    fs::write(&output_path, generated)?;
+                    println!(
+                        "  {} Generated: {}",
+                        "✅".green(),
+                        output_path.display().to_string().bold()
+                    );
+                }
+                Ok(())
+            });
+
+            if result.is_err() {
+                return Err(result.err().unwrap());
             }
         }
-
-        let classes = parser::parse_file(path)?;
-        if !classes.is_empty() {
-            let filename = path.file_name().unwrap().to_str().unwrap();
-            let generated =
-                generators::json_serializable::emitter::generate_full_file(filename, &classes);
-            fs::write(&output_path, generated)?;
-            println!(
-                "  {} Generated: {}",
-                "✅".green(),
-                output_path.display().to_string().bold()
-            );
-        }
-        Ok(())
-    })
+    }
+    Ok(())
 }
 
 fn run_clean() -> Result<()> {

@@ -32,6 +32,8 @@ class UserModel {
   final List<String>? optionalTags;
   @JsonKey(name: "optionalMetadata")
   final Metadata? optionalSubModel;
+  @JsonKey(defaultValue: "'No Description Provided'")
+  String? mutableDescription;
 
   UserModel({
     required this.id,

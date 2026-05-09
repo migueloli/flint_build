@@ -1,6 +1,7 @@
-use std::fmt::Display;
+use serde::Serialize;
+use std::{collections::HashMap, fmt::Display};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum TypeKind {
     String,
     Int,
@@ -12,22 +13,24 @@ pub enum TypeKind {
     Custom(String),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct DartType {
     pub kind: TypeKind,
     pub is_nullable: bool,
 }
 
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct DartField {
     pub name: String,
-    pub json_key: Option<String>,
     pub dart_type: DartType,
     pub is_final: bool,
+    pub from_json_expr: Option<String>,
+    pub to_json_expr: Option<String>,
+    pub metadata: HashMap<String, String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct DartClass {
     pub name: String,
     pub fields: Vec<DartField>,

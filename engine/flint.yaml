@@ -1,0 +1,7 @@
+plugins:
+  json_serializable:
+    class_annotations:
+      - "@JsonSerializable"
+    field_annotations:
+      - "@JsonKey"
+    template_path: "templates/json_serializable.tera"

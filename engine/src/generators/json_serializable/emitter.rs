@@ -1,58 +1,32 @@
 use crate::parser::dart_types::{DartClass, DartType, TypeKind};
+use tera::{Context, Tera};
 
-pub fn generate_full_file(filename: &str, classes: &[DartClass]) -> String {
-    let mut code = String::new();
-
-    code.push_str("// GENERATED CODE - DO NOT MODIFY BY HAND\n\n");
-    code.push_str(&format!("part of '{}';\n\n", filename));
-
-    code.push_str(&format!("// {}\n", "*".repeat(74)));
-    code.push_str("// JsonSerializableGenerator (Powered by Flint)\n");
-    code.push_str(&format!("// {}\n\n", "*".repeat(74)));
-
-    for (i, class) in classes.iter().enumerate() {
-        code.push_str(&generate_json_code(class));
-        if i < classes.len() - 1 {
-            code.push_str("\n\n");
+pub fn generate_full_file(filename: &str, mut classes: Vec<DartClass>) -> String {
+    for class in &mut classes {
+        for field in &mut class.fields {
+            let key = field.metadata.get("name").unwrap_or(&field.name);
+            let from_access = format!("json['{}']", key);
+            let to_access = format!("instance.{}", field.name);
+            field.from_json_expr = Some(generate_from_json_expression(
+                &field.dart_type,
+                &from_access,
+            ));
+            field.to_json_expr = Some(generate_to_json_expression(&field.dart_type, &to_access));
         }
     }
-    code.push_str("\n");
+    let mut tera = Tera::default();
+    tera.add_template_file(
+        "src/templates/json_serializable.tera",
+        Some("json_serializable"),
+    )
+    .expect("Failed to load template");
 
-    code
-}
+    let mut context = Context::new();
+    context.insert("classes", &classes);
+    context.insert("filename", filename);
 
-pub fn generate_json_code(class: &DartClass) -> String {
-    let mut code = String::new();
-
-    let name = &class.name;
-
-    // FromJson
-    code.push_str(&format!(
-        "{} _${}FromJson(Map<String, dynamic> json) => {}(\n",
-        name, name, name
-    ));
-    for field in &class.fields {
-        let key = field.json_key.as_ref().unwrap_or(&field.name);
-        let json_access = format!("json['{}']", key);
-        let expression = generate_from_json_expression(&field.dart_type, &json_access);
-        code.push_str(&format!("  {}: {},\n", field.name, expression));
-    }
-    code.push_str(");\n\n");
-
-    // ToJson
-    code.push_str(&format!(
-        "Map<String, dynamic> _${}ToJson({} instance) => <String, dynamic>{{\n",
-        name, name
-    ));
-    for field in &class.fields {
-        let key = field.json_key.as_ref().unwrap_or(&field.name);
-        let json_access = format!("instance.{}", field.name);
-        let expression = generate_to_json_expression(&field.dart_type, &json_access);
-        code.push_str(&format!("  '{}': {},\n", key, expression));
-    }
-    code.push_str("};");
-
-    code
+    let rendered = tera.render("json_serializable", &context).unwrap();
+    rendered
 }
 
 fn generate_from_json_expression(dart_type: &DartType, access: &str) -> String {
