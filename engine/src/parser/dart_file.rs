@@ -1,4 +1,4 @@
-use crate::parser::dart_types::{DartClass, DartField, DartType};
+use crate::parser::dart_types::{DartClass, DartField, DartType, TypeKind};
 use anyhow::{Context, Result};
 use std::fs;
 use std::path::Path;
@@ -57,11 +57,6 @@ pub fn parse_file(path: &Path) -> Result<Vec<DartClass>> {
             }
         }
         if is_json_serializable {
-            log::info!(
-                "Found @JsonSerializable class: {} in {:?}",
-                class_name,
-                path
-            );
             let mut fields = Vec::new();
             if let Some(body) = class_body_node {
                 fields = extract_fields_from_tree(body, &content);
@@ -100,6 +95,38 @@ fn extract_fields_from_tree(body: Node, content: &str) -> Vec<DartField> {
 }
 
 fn parse_field(field: Node<'_>, content: &str) -> Option<DartField> {
+    let check_metadata = |node: Node<'_>| -> Option<String> {
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            if child.kind() == "annotation" {
+                let meta_text = child.utf8_text(content.as_bytes()).unwrap_or("");
+                if meta_text.contains("@JsonKey") {
+                    if let Some(name_idx) = meta_text.find("name:") {
+                        let after_name = &meta_text[name_idx + 5..];
+                        if let Some(start_quote) = after_name.find(|c| c == '\'' || c == '"') {
+                            let quote = after_name.chars().nth(start_quote).unwrap();
+                            let rest = &after_name[start_quote + 1..];
+                            if let Some(end_quote) = rest.find(quote) {
+                                return Some(rest[..end_quote].to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        None
+    };
+
+    // First check the field node itself
+    let mut json_key = check_metadata(field);
+
+    // If not found, check the parent node (usually `class_member`)
+    if json_key.is_none() {
+        if let Some(parent) = field.parent() {
+            json_key = check_metadata(parent);
+        }
+    }
+
     let mut type_parts = String::new();
     let mut name_str = String::new();
     let mut is_final = false;
@@ -130,8 +157,8 @@ fn parse_field(field: Node<'_>, content: &str) -> Option<DartField> {
     if !name_str.is_empty() {
         return Some(DartField {
             name: name_str,
-            dart_type: parse_dart_type(&type_parts),
-            is_nullable,
+            json_key: json_key,
+            dart_type: parse_dart_type(&type_parts, is_nullable),
             is_final,
         });
     }
@@ -139,30 +166,66 @@ fn parse_field(field: Node<'_>, content: &str) -> Option<DartField> {
     None
 }
 
-fn parse_dart_type(type_str: &str) -> DartType {
+fn parse_dart_type(type_str: &str, is_nullable: bool) -> DartType {
     let type_str = type_str.trim();
 
     if type_str.starts_with("List<") && type_str.ends_with('>') {
         let inner_type = &type_str[5..type_str.len() - 1];
-        return DartType::List(Box::new(parse_dart_type(inner_type)));
+        let is_inner_nullable = inner_type.ends_with('?');
+        return DartType {
+            kind: TypeKind::List(Box::new(parse_dart_type(
+                inner_type.trim().trim_end_matches('?'),
+                is_inner_nullable,
+            ))),
+            is_nullable,
+        };
     }
 
     if type_str.starts_with("Map<") && type_str.ends_with('>') {
         let inner_content = &type_str[4..type_str.len() - 1];
         if let Some((k, v)) = inner_content.split_once(',') {
-            return DartType::Map(
-                Box::new(parse_dart_type(k.trim())),
-                Box::new(parse_dart_type(v.trim())),
-            );
+            let is_key_nullable = k.ends_with('?');
+            let is_value_nullable = v.ends_with('?');
+            return DartType {
+                kind: TypeKind::Map(
+                    Box::new(parse_dart_type(
+                        k.trim().trim_end_matches('?'),
+                        is_key_nullable,
+                    )),
+                    Box::new(parse_dart_type(
+                        v.trim().trim_end_matches('?'),
+                        is_value_nullable,
+                    )),
+                ),
+                is_nullable,
+            };
         }
     }
 
     match type_str {
-        "String" => DartType::String,
-        "int" => DartType::Int,
-        "double" => DartType::Double,
-        "bool" => DartType::Bool,
-        "DateTime" => DartType::DateTime,
-        _ => DartType::Custom(type_str.to_string()),
+        "String" => DartType {
+            kind: TypeKind::String,
+            is_nullable,
+        },
+        "int" => DartType {
+            kind: TypeKind::Int,
+            is_nullable,
+        },
+        "double" => DartType {
+            kind: TypeKind::Double,
+            is_nullable,
+        },
+        "bool" => DartType {
+            kind: TypeKind::Bool,
+            is_nullable,
+        },
+        "DateTime" => DartType {
+            kind: TypeKind::DateTime,
+            is_nullable,
+        },
+        _ => DartType {
+            kind: TypeKind::Custom(type_str.to_string()),
+            is_nullable,
+        },
     }
 }
