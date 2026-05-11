@@ -11,12 +11,12 @@ fn test_user_model() {
     let plugin = config
         .plugins
         .unwrap()
-        .get("json_serializable")
+        .get("flint_json")
         .unwrap()
         .clone();
 
     let classes = parser::parse_file(input_path, &plugin).unwrap();
-    let generated = generators::json_serializable::emitter::generate_full_file(
+    let generated = generators::flint_json::emitter::generate_full_file(
         "user_model.dart",
         classes,
         &plugin.template_path,

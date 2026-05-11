@@ -11,11 +11,11 @@ Metadata _$MetadataFromJson(Map<String, dynamic> json) => Metadata(
   info: json['info'] as String,
   count: (json['count'] as num).toInt(),
 );
-
 Map<String, dynamic> _$MetadataToJson(Metadata instance) => <String, dynamic>{
   'info': instance.info,
   'count': instance.count,
 };
+
 
 UserModel _$UserModelFromJson(Map<String, dynamic> json) => UserModel(
   id: (json['id'] as num).toInt(),
@@ -33,8 +33,8 @@ UserModel _$UserModelFromJson(Map<String, dynamic> json) => UserModel(
   optionalStats: json['optionalStats'] == null ? null : (json['optionalStats'] as Map<String, dynamic>).map((k, v) => MapEntry(k as String, (v as num).toInt())),
   optionalTags: json['optionalTags'] == null ? null : (json['optionalTags'] as List<dynamic>).map((e) => e as String).toList(),
   optionalSubModel: json['optionalMetadata'] == null ? null : Metadata.fromJson(json['optionalMetadata'] as Map<String, dynamic>),
+  status: _$StatusEnumMap.entries.firstWhere((e) => e.value == json['status']).key,
 );
-
 Map<String, dynamic> _$UserModelToJson(UserModel instance) => <String, dynamic>{
   'id': instance.id,
   'name': instance.name,
@@ -43,13 +43,20 @@ Map<String, dynamic> _$UserModelToJson(UserModel instance) => <String, dynamic>{
   'createdAt': instance.createdAt.toIso8601String(),
   'tags': instance.tags.map((elem) => elem).toList(),
   'stats': instance.stats.map((key, value) => MapEntry(key, value)),
-  'metadata': instance.subModel.toJson(),
+  'metadata': instance.subModel,
   'optionalTitle': instance.optionalTitle,
   'mutableDescription': instance.mutableDescription,
   'mutableCount': instance.mutableCount,
   'optionalInt': instance.optionalInt,
   'optionalStats': instance.optionalStats?.map((key, value) => MapEntry(key, value)),
   'optionalTags': instance.optionalTags?.map((elem) => elem).toList(),
-  'optionalMetadata': instance.optionalSubModel?.toJson(),
+  'optionalMetadata': instance.optionalSubModel,
+  'status': _$StatusEnumMap[instance.status],
+};
+
+
+const _$StatusEnumMap = {
+  Status.active: 'active',
+  Status.inactive: 'inactive',
 };
 

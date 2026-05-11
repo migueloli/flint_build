@@ -10,6 +10,8 @@ pub struct FlintConfig {
 pub struct PluginConfig {
     pub class_annotations: Vec<String>,
     pub field_annotations: Vec<String>,
+    pub enum_annotations: Vec<String>,
+    pub variant_annotations: Vec<String>,
     pub template_path: String,
 }
 

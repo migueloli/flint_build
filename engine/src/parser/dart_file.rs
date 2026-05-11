@@ -1,12 +1,14 @@
 use crate::config::PluginConfig;
-use crate::parser::dart_types::{DartClass, DartField, DartType, TypeKind};
+use crate::parser::dart_types::{
+    DartClass, DartEnum, DartEnumValue, DartField, DartType, ParsedFile, TypeKind,
+};
 use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use tree_sitter::{Node, Parser, Query, QueryCursor, StreamingIterator};
 
-pub fn parse_file(path: &Path, plugin: &PluginConfig) -> Result<Vec<DartClass>> {
+pub fn parse_file(path: &Path, plugin: &PluginConfig) -> Result<ParsedFile> {
     log::debug!("Tree-Sitter: Parsing file {:?}", path);
     let content = fs::read_to_string(path)?;
 
@@ -20,15 +22,25 @@ pub fn parse_file(path: &Path, plugin: &PluginConfig) -> Result<Vec<DartClass>> 
         .context("Could not parse file")?;
 
     let mut classes = Vec::new();
+    let mut enums = Vec::new();
 
     let query_str = r#"
         (class_declaration
           (annotation
             (_) @annotation_name
-          )
+            (annotation_arguments)? @annotation_args
+          )?
           (_) @class_name
           (class_body) @class_body
         )
+        (enum_declaration
+          (annotation
+            (_) @enum_annotation_name
+            (annotation_arguments)? @enum_annotation_args
+          )?
+          (_) @enum_name
+          (enum_body) @enum_body
+        ) @enum_decl
     "#;
 
     let query = Query::new(&tree_sitter_dart::LANGUAGE.into(), query_str)
@@ -41,22 +53,41 @@ pub fn parse_file(path: &Path, plugin: &PluginConfig) -> Result<Vec<DartClass>> 
         let mut class_name = String::new();
         let mut has_matching_annotation = false;
         let mut class_body_node = None;
+        let mut metadata = HashMap::new();
+
+        let mut enum_name = String::new();
+        let mut enum_body_node = None;
+        let mut is_enum = false;
 
         for capture in m.captures {
             let node = capture.node;
             let capture_name = query.capture_names()[capture.index as usize];
             let text = &content[node.start_byte()..node.end_byte()];
-            let full_annotation = format!("@{}", text); // Make sure it has the @ symbol
+            let full_annotation = format!("@{}", text);
             if capture_name == "annotation_name"
                 && plugin.class_annotations.contains(&full_annotation)
             {
                 has_matching_annotation = true;
+            }
+            if capture_name == "annotation_args" {
+                extract_annotation_metadata(&node, &content, &mut metadata);
             }
             if capture_name == "class_name" {
                 class_name = text.to_string();
             }
             if capture_name == "class_body" {
                 class_body_node = Some(node);
+            }
+            if capture_name == "enum_annotation_name"
+                && plugin.enum_annotations.contains(&full_annotation)
+            {
+                is_enum = true;
+            }
+            if capture_name == "enum_name" {
+                enum_name = text.to_string();
+            }
+            if capture_name == "enum_body" {
+                enum_body_node = Some(node);
             }
         }
         if has_matching_annotation {
@@ -67,11 +98,54 @@ pub fn parse_file(path: &Path, plugin: &PluginConfig) -> Result<Vec<DartClass>> 
             classes.push(DartClass {
                 name: class_name,
                 fields,
+                metadata,
             });
+        }
+        log::debug!("Found enum: {}", enum_name);
+        if is_enum {
+            if let Some(body) = enum_body_node {
+                let dart_enum = extract_enum_values(enum_name, body, &content, plugin);
+                enums.push(dart_enum);
+            }
         }
     }
 
-    Ok(classes)
+    if classes.is_empty() {
+        log::debug!("No classes with matching annotations found in {:?}", path);
+    } else {
+        log::debug!("Found {} classes in {:?}", classes.len(), path);
+    }
+
+    Ok(ParsedFile { classes, enums })
+}
+
+fn extract_annotation_metadata(
+    arg_node: &Node,
+    content: &str,
+    metadata: &mut HashMap<String, String>,
+) {
+    let mut param_cursor = arg_node.walk();
+    for param in arg_node.children(&mut param_cursor) {
+        if param.kind() == "argument" {
+            let mut inner_cursor = param.walk();
+            for inner_param in param.children(&mut inner_cursor) {
+                if inner_param.kind() == "named_argument" {
+                    let key = inner_param
+                        .child(0)
+                        .map(|n| n.utf8_text(content.as_bytes()).unwrap_or(""))
+                        .unwrap_or("");
+                    let clean_key = key.trim_end_matches(':');
+
+                    let val = inner_param
+                        .child(1)
+                        .map(|n| n.utf8_text(content.as_bytes()).unwrap_or(""))
+                        .unwrap_or("");
+
+                    metadata.insert(clean_key.to_string(), val.to_string());
+                }
+            }
+        }
+    }
 }
 
 fn extract_fields_from_tree(body: Node, content: &str, plugin: &PluginConfig) -> Vec<DartField> {
@@ -99,7 +173,7 @@ fn extract_fields_from_tree(body: Node, content: &str, plugin: &PluginConfig) ->
 
 fn parse_field(field: Node<'_>, content: &str, plugin: &PluginConfig) -> Option<DartField> {
     let check_metadata = |node: Node<'_>| -> HashMap<String, String> {
-        let mut metadata = std::collections::HashMap::new();
+        let mut metadata = HashMap::new();
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             if child.kind() == "annotation" {
@@ -113,37 +187,13 @@ fn parse_field(field: Node<'_>, content: &str, plugin: &PluginConfig) -> Option<
                     let mut args_cursor = child.walk();
                     for arg_node in child.children(&mut args_cursor) {
                         if arg_node.kind() == "annotation_arguments" {
-                            let mut param_cursor = arg_node.walk();
-                            for param in arg_node.children(&mut param_cursor) {
-                                if param.kind() == "argument" {
-                                    let mut inner_cursor = param.walk();
-                                    for inner_param in param.children(&mut inner_cursor) {
-                                        if inner_param.kind() == "named_argument" {
-                                            let key = inner_param
-                                                .child(0)
-                                                .map(|n| {
-                                                    n.utf8_text(content.as_bytes()).unwrap_or("")
-                                                })
-                                                .unwrap_or("");
-                                            let clean_key = key.trim_end_matches(':');
-
-                                            let val = inner_param
-                                                .child(1)
-                                                .map(|n| {
-                                                    n.utf8_text(content.as_bytes()).unwrap_or("")
-                                                })
-                                                .unwrap_or("");
-
-                                            metadata.insert(clean_key.to_string(), val.to_string());
-                                        }
-                                    }
-                                }
-                            }
+                            extract_annotation_metadata(&arg_node, content, &mut metadata);
                         }
                     }
                 }
             }
         }
+
         metadata
     };
 
@@ -183,6 +233,8 @@ fn parse_field(field: Node<'_>, content: &str, plugin: &PluginConfig) -> Option<
             _ => {}
         }
     }
+
+    log::trace!("Resolved type for field {}: {}", name_str, type_parts);
 
     if !name_str.is_empty() {
         return Some(DartField {
@@ -260,4 +312,79 @@ fn parse_dart_type(type_str: &str, is_nullable: bool) -> DartType {
             is_nullable,
         },
     }
+}
+
+fn extract_enum_values(name: String, body: Node, content: &str, plugin: &PluginConfig) -> DartEnum {
+    let mut values = Vec::new();
+    let mut cursor = body.walk();
+
+    for child in body.children(&mut cursor) {
+        if child.kind() == "enum_constant" {
+            let mut variant_name = String::new();
+            let mut custom_value = None;
+
+            let mut inner_cursor = child.walk();
+            for inner in child.children(&mut inner_cursor) {
+                if inner.kind() == "identifier" {
+                    variant_name = inner
+                        .utf8_text(content.as_bytes())
+                        .unwrap_or("")
+                        .to_string();
+                }
+
+                if inner.kind() == "annotation" {
+                    if let Some(val) = process_json_value_node(inner, content, plugin) {
+                        custom_value = Some(val);
+                    }
+                } else if inner.kind() == "metadata" {
+                    let mut meta_cursor = inner.walk();
+                    for meta_child in inner.children(&mut meta_cursor) {
+                        if meta_child.kind() == "annotation" {
+                            if let Some(val) = process_json_value_node(meta_child, content, plugin)
+                            {
+                                custom_value = Some(val);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if !variant_name.is_empty() {
+                values.push(DartEnumValue {
+                    name: variant_name,
+                    value: custom_value,
+                });
+            }
+        }
+    }
+    DartEnum { name, values }
+}
+
+fn process_json_value_node(node: Node, content: &str, plugin: &PluginConfig) -> Option<String> {
+    let mut cursor = node.walk();
+    let mut name = String::new();
+    let mut args = String::new();
+    for child in node.children(&mut cursor) {
+        match child.kind() {
+            "identifier" | "type_identifier" => {
+                name = child
+                    .utf8_text(content.as_bytes())
+                    .unwrap_or("")
+                    .to_string();
+            }
+            "arguments" | "annotation_arguments" => {
+                args = child
+                    .utf8_text(content.as_bytes())
+                    .unwrap_or("")
+                    .to_string();
+            }
+            _ => {}
+        }
+    }
+    let full_annotation = format!("@{}", name);
+    if plugin.variant_annotations.contains(&full_annotation) {
+        let val = args.trim_matches(|c| c == '(' || c == ')' || c == '"' || c == '\'' || c == ' ');
+        return Some(val.to_string());
+    }
+    None
 }

@@ -1,0 +1,48 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: unnecessary_cast
+
+part of '{{ filename }}';
+
+// **************************************************************************
+// JsonSerializableGenerator (Powered by Flint)
+// **************************************************************************
+{% for class in classes -%}
+{%- if class.metadata | get(key="createFactory", default="true") != "false" %}
+{{ class.name }} _${{ class.name }}FromJson(Map<String, dynamic> json) => {{ class.name }}(
+{%- for field in class.fields %}
+{%- if field.metadata | get(key="ignore", default="false") != "true" and field.metadata | get(key="includeFromJson", default="true") != "false" %}
+{%- if field.metadata.fromJson is defined %}
+  {{ field.name }}: {{ field.metadata.fromJson }}(json['{{ field.metadata | get(key="name", default=field.name) }}']),
+{%- elif field.metadata.defaultValue is defined %}
+  {{ field.name }}: json['{{ field.metadata | get(key="name", default=field.name) }}'] == null ? {{ field.metadata.defaultValue }} : {{ field.from_json_expr }},
+{%- else %}
+  {{ field.name }}: {{ field.from_json_expr }},
+{%- endif %}
+{%- endif %}
+{%- endfor %}
+);
+{%- endif %}
+{% if class.metadata | get(key="createToJson", default="true") != "false" %}
+Map<String, dynamic> _${{ class.name }}ToJson({{ class.name }} instance) => <String, dynamic>{
+{%- for field in class.fields %}
+{%- if field.metadata | get(key="ignore", default="false") != "true" and field.metadata | get(key="includeToJson", default="true") != "false" %}
+{%- if field.metadata.toJson is defined %}
+  '{{ field.metadata | get(key="name", default=field.name) }}': {{ field.metadata.toJson }}(instance.{{ field.name }}),
+{%- else %}
+  '{{ field.metadata | get(key="name", default=field.name) }}': {{ field.to_json_expr }},
+{%- endif %}
+{%- endif %}
+{%- endfor %}
+};
+{%- endif %}
+{%- if not loop.last %}
+{% endif %}
+{%- endfor %}
+
+{% for enum in enums -%}
+const _${{ enum.name }}EnumMap = {
+{%- for val in enum.values %}
+  {{ enum.name }}.{{ val.name }}: '{{ val.value | default(value=val.name) }}',
+{%- endfor %}
+};
+{% endfor %}

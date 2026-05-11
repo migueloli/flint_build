@@ -34,6 +34,7 @@ class UserModel {
   final List<String>? optionalTags;
   @JsonKey(name: "optionalMetadata")
   final Metadata? optionalSubModel;
+  final Status status;
 
   UserModel({
     required this.id,
@@ -51,9 +52,18 @@ class UserModel {
     this.optionalStats,
     this.optionalTags,
     this.optionalSubModel,
+    required this.status,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) =>
       _$UserModelFromJson(json);
   Map<String, dynamic> toJson() => _$UserModelToJson(this);
+}
+
+@JsonEnum()
+enum Status {
+  @JsonValue("active")
+  active,
+  @JsonValue("inactive")
+  inactive,
 }

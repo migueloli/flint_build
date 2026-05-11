@@ -1,1 +1,1 @@
-pub mod json_serializable;
+pub mod flint_json;

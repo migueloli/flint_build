@@ -1,10 +1,12 @@
 use std::{fs, time::Instant};
 
+use anyhow::Context;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use colored::Colorize;
 use flint_build::config::FlintConfig;
 use rayon::prelude::*;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use flint_build::config;
 use flint_build::discovery;
@@ -74,7 +76,8 @@ fn run_build(delete_conflicting_outputs: bool) -> Result<()> {
         pubspec.name.cyan().bold()
     );
 
-    let config = FlintConfig::load_from_file("flint.yaml").unwrap();
+    let config = FlintConfig::load_from_file("flint.yaml").context("No 'flint.yaml' found in the current directory. Please create one to configure your plugins.")?;
+    let total_generated = AtomicUsize::new(0);
 
     if let Some(plugins) = config.plugins {
         for (plugin_name, plugin_config) in plugins {
@@ -100,12 +103,13 @@ fn run_build(delete_conflicting_outputs: bool) -> Result<()> {
                     }
                 }
 
-                let classes = parser::parse_file(path, &plugin_config)?;
-                if !classes.is_empty() {
+                let parsed_file = parser::parse_file(path, &plugin_config)?;
+                if !parsed_file.classes.is_empty() {
+                    total_generated.fetch_add(1, Ordering::SeqCst);
                     let filename = path.file_name().unwrap().to_str().unwrap();
-                    let generated = generators::json_serializable::emitter::generate_full_file(
+                    let generated = generators::flint_json::emitter::generate_full_file(
                         filename,
-                        classes,
+                        parsed_file,
                         &plugin_config.template_path,
                     );
                     fs::write(&output_path, generated)?;
@@ -123,6 +127,17 @@ fn run_build(delete_conflicting_outputs: bool) -> Result<()> {
             }
         }
     }
+
+    if total_generated.load(Ordering::SeqCst) == 0 {
+        println!("{} No annotations found. Nothing to build.", "ℹ️".yellow());
+    } else {
+        println!(
+            "{} Built {}",
+            "✅".green(),
+            total_generated.load(Ordering::SeqCst)
+        );
+    }
+
     Ok(())
 }
 

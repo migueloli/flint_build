@@ -1,5 +1,5 @@
 ---
-source: tests/json_serializable_test.rs
+source: tests/flint_json_test.rs
 expression: generated
 ---
 // GENERATED CODE - DO NOT MODIFY BY HAND
@@ -37,6 +37,7 @@ UserModel _$UserModelFromJson(Map<String, dynamic> json) => UserModel(
   optionalStats: json['optionalStats'] == null ? null : (json['optionalStats'] as Map<String, dynamic>).map((k, v) => MapEntry(k as String, (v as num).toInt())),
   optionalTags: json['optionalTags'] == null ? null : (json['optionalTags'] as List<dynamic>).map((e) => e as String).toList(),
   optionalSubModel: json['optionalMetadata'] == null ? null : Metadata.fromJson(json['optionalMetadata'] as Map<String, dynamic>),
+  status: _$MyEnumEnumMap.entries.firstWhere((e) => e.value == json['status']).key,
 );
 
 Map<String, dynamic> _$UserModelToJson(UserModel instance) => <String, dynamic>{
@@ -47,12 +48,20 @@ Map<String, dynamic> _$UserModelToJson(UserModel instance) => <String, dynamic>{
   'createdAt': instance.createdAt.toIso8601String(),
   'tags': instance.tags.map((elem) => elem).toList(),
   'stats': instance.stats.map((key, value) => MapEntry(key, value)),
-  'metadata': instance.subModel.toJson(),
+  'metadata': instance.subModel,
   'optionalTitle': instance.optionalTitle,
   'mutableDescription': instance.mutableDescription,
   'mutableCount': instance.mutableCount,
   'optionalInt': instance.optionalInt,
   'optionalStats': instance.optionalStats?.map((key, value) => MapEntry(key, value)),
   'optionalTags': instance.optionalTags?.map((elem) => elem).toList(),
-  'optionalMetadata': instance.optionalSubModel?.toJson(),
+  'optionalMetadata': instance.optionalSubModel,
+  'status': _$MyEnumEnumMap[instance.status],
+};
+
+const _$MyEnumEnumMap = {
+  MyEnum.pending: 'pending',
+  MyEnum.completed: 'completed',
+  MyEnum.cancelled: 'cancelled',
+  MyEnum.test: 'in_test',
 };

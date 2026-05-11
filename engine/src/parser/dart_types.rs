@@ -1,6 +1,12 @@
 use serde::Serialize;
 use std::{collections::HashMap, fmt::Display};
 
+#[derive(Debug, Serialize)]
+pub struct ParsedFile {
+    pub classes: Vec<DartClass>,
+    pub enums: Vec<DartEnum>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum TypeKind {
     String,
@@ -34,6 +40,19 @@ pub struct DartField {
 pub struct DartClass {
     pub name: String,
     pub fields: Vec<DartField>,
+    pub metadata: HashMap<String, String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DartEnumValue {
+    pub name: String,
+    pub value: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DartEnum {
+    pub name: String,
+    pub values: Vec<DartEnumValue>,
 }
 
 impl Display for DartType {

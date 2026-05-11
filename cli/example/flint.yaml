@@ -1,7 +1,11 @@
 plugins:
-  json_serializable:
+  flint_json:
     class_annotations:
       - "@JsonSerializable"
     field_annotations:
       - "@JsonKey"
-    template_path: "templates/json_serializable.tera"
+    enum_annotations:
+      - "@JsonEnum"
+    variant_annotations:
+      - "@JsonValue"
+    template_path: "templates/flint_json.tera"
