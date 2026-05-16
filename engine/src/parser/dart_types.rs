@@ -34,6 +34,7 @@ pub struct DartField {
     pub from_json_expr: Option<String>,
     pub to_json_expr: Option<String>,
     pub metadata: HashMap<String, String>,
+    pub converter: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -41,6 +42,7 @@ pub struct DartClass {
     pub name: String,
     pub fields: Vec<DartField>,
     pub metadata: HashMap<String, String>,
+    pub type_parameters: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]

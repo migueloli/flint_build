@@ -11,17 +11,23 @@ part of 'user_model.dart';
 // JsonSerializableGenerator (Powered by Flint)
 // **************************************************************************
 
-Metadata _$MetadataFromJson(Map<String, dynamic> json) => Metadata(
+Metadata _$MetadataFromJson(
+  Map<String, dynamic> json,
+) => Metadata(
   info: json['info'] as String,
   count: (json['count'] as num).toInt(),
 );
 
-Map<String, dynamic> _$MetadataToJson(Metadata instance) => <String, dynamic>{
+Map<String, dynamic> _$MetadataToJson(
+  Metadata instance,
+) => <String, dynamic>{
   'info': instance.info,
   'count': instance.count,
 };
 
-UserModel _$UserModelFromJson(Map<String, dynamic> json) => UserModel(
+UserModel _$UserModelFromJson(
+  Map<String, dynamic> json,
+) => UserModel(
   id: (json['id'] as num).toInt(),
   name: json['name'] as String,
   score: (json['score'] as num).toDouble(),
@@ -40,7 +46,9 @@ UserModel _$UserModelFromJson(Map<String, dynamic> json) => UserModel(
   status: _$MyEnumEnumMap.entries.firstWhere((e) => e.value == json['status']).key,
 );
 
-Map<String, dynamic> _$UserModelToJson(UserModel instance) => <String, dynamic>{
+Map<String, dynamic> _$UserModelToJson(
+  UserModel instance,
+) => <String, dynamic>{
   'id': instance.id,
   'name': instance.name,
   'score': instance.score,

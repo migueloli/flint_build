@@ -7,8 +7,19 @@ part of '{{ filename }}';
 // JsonSerializableGenerator (Powered by Flint)
 // **************************************************************************
 {% for class in classes -%}
+{%- if class.type_parameters | length > 0 %}
+  {%- set joined_types = class.type_parameters | join(sep=", ") %}
+  {%- set type_args = "<" ~ joined_types ~ ">" %}
+{%- else %}
+  {%- set type_args = "" %}
+{%- endif %}
 {%- if class.metadata | get(key="createFactory", default="true") != "false" %}
-{{ class.name }} _${{ class.name }}FromJson(Map<String, dynamic> json) => {{ class.name }}(
+{{ class.name }}{{ type_args }} _${{ class.name }}FromJson{{ type_args }}(
+  Map<String, dynamic> json,
+{%- for t in class.type_parameters %}
+  {{ t }} Function(Object? json) fromJson{{ t }},
+{%- endfor %}
+) => {{ class.name }}(
 {%- for field in class.fields %}
 {%- if field.metadata | get(key="ignore", default="false") != "true" and field.metadata | get(key="includeFromJson", default="true") != "false" %}
 {%- if field.metadata.fromJson is defined %}
@@ -23,7 +34,13 @@ part of '{{ filename }}';
 );
 {%- endif %}
 {% if class.metadata | get(key="createToJson", default="true") != "false" %}
-Map<String, dynamic> _${{ class.name }}ToJson({{ class.name }} instance) => <String, dynamic>{
+Map<String, dynamic> _${{ class.name }}ToJson{{ type_args }}(
+  {{ class.name }}{{ type_args }} instance,
+{%- for t in class.type_parameters %}
+  Object? Function({{ t }} value) toJson{{ t }},
+{%- endfor %}
+) => <String, dynamic>{
+
 {%- for field in class.fields %}
 {%- if field.metadata | get(key="ignore", default="false") != "true" and field.metadata | get(key="includeToJson", default="true") != "false" %}
 {%- if field.metadata.toJson is defined %}

@@ -13,6 +13,7 @@ pub struct PluginConfig {
     pub enum_annotations: Vec<String>,
     pub variant_annotations: Vec<String>,
     pub template_path: String,
+    pub converters: Option<Vec<String>>,
 }
 
 impl FlintConfig {

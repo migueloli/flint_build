@@ -21,6 +21,30 @@ pub fn parse_file(path: &Path, plugin: &PluginConfig) -> Result<ParsedFile> {
         .parse(&content, None)
         .context("Could not parse file")?;
 
+    if tree.root_node().has_error() {
+        if let Some(error_node) = find_error_node(tree.root_node()) {
+            let start = error_node.start_position();
+
+            // Extract the exact line of code where the error happened
+            let lines: Vec<&str> = content.lines().collect();
+            let error_line = lines.get(start.row).unwrap_or(&"");
+
+            // Create a pointer string (like "      ^")
+            let pointer = " ".repeat(start.column) + "^";
+
+            let msg = format!(
+                "Syntax Error in {:?} at line {}, column {}\n\n{}\n{}\n",
+                path,
+                start.row + 1,
+                start.column + 1,
+                error_line,
+                pointer
+            );
+
+            return Err(anyhow::anyhow!(msg));
+        }
+    }
+
     let mut classes = Vec::new();
     let mut enums = Vec::new();
 
@@ -31,6 +55,7 @@ pub fn parse_file(path: &Path, plugin: &PluginConfig) -> Result<ParsedFile> {
             (annotation_arguments)? @annotation_args
           )?
           (_) @class_name
+          (type_parameters)? @type_params
           (class_body) @class_body
         )
         (enum_declaration
@@ -54,6 +79,7 @@ pub fn parse_file(path: &Path, plugin: &PluginConfig) -> Result<ParsedFile> {
         let mut has_matching_annotation = false;
         let mut class_body_node = None;
         let mut metadata = HashMap::new();
+        let mut type_parameters = Vec::new();
 
         let mut enum_name = String::new();
         let mut enum_body_node = None;
@@ -78,6 +104,22 @@ pub fn parse_file(path: &Path, plugin: &PluginConfig) -> Result<ParsedFile> {
             if capture_name == "class_body" {
                 class_body_node = Some(node);
             }
+            if capture_name == "type_params" {
+                let mut tp_cursor = node.walk();
+                for child in node.children(&mut tp_cursor) {
+                    if child.kind() == "type_parameter" {
+                        let mut inner_cursor = child.walk();
+                        for inner in child.children(&mut inner_cursor) {
+                            if inner.kind() == "type_identifier" {
+                                if let Ok(tp_name) = inner.utf8_text(content.as_bytes()) {
+                                    type_parameters.push(tp_name.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             if capture_name == "enum_annotation_name"
                 && plugin.enum_annotations.contains(&full_annotation)
             {
@@ -99,6 +141,7 @@ pub fn parse_file(path: &Path, plugin: &PluginConfig) -> Result<ParsedFile> {
                 name: class_name,
                 fields,
                 metadata,
+                type_parameters,
             });
         }
         log::debug!("Found enum: {}", enum_name);
@@ -172,8 +215,9 @@ fn extract_fields_from_tree(body: Node, content: &str, plugin: &PluginConfig) ->
 }
 
 fn parse_field(field: Node<'_>, content: &str, plugin: &PluginConfig) -> Option<DartField> {
-    let check_metadata = |node: Node<'_>| -> HashMap<String, String> {
+    let check_metadata = |node: Node<'_>| -> (HashMap<String, String>, Option<String>) {
         let mut metadata = HashMap::new();
+        let mut converter = None;
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             if child.kind() == "annotation" {
@@ -190,20 +234,26 @@ fn parse_field(field: Node<'_>, content: &str, plugin: &PluginConfig) -> Option<
                             extract_annotation_metadata(&arg_node, content, &mut metadata);
                         }
                     }
+                } else if let Some(converters) = &plugin.converters {
+                    if converters.contains(&full_annotation) {
+                        converter = Some(annotation_text.to_string());
+                    }
                 }
             }
         }
 
-        metadata
+        (metadata, converter)
     };
 
     // First check the field node itself
-    let mut metadata = check_metadata(field);
+    let (mut metadata, mut converter) = check_metadata(field);
 
     // If not found, check the parent node (usually `class_member`)
-    if metadata.is_empty() {
+    if metadata.is_empty() && converter.is_none() {
         if let Some(parent) = field.parent() {
-            metadata = check_metadata(parent);
+            let (m, c) = check_metadata(parent);
+            metadata = m;
+            converter = c;
         }
     }
 
@@ -244,6 +294,7 @@ fn parse_field(field: Node<'_>, content: &str, plugin: &PluginConfig) -> Option<
             from_json_expr: None,
             to_json_expr: None,
             metadata: metadata,
+            converter: converter,
         });
     }
 
@@ -385,6 +436,22 @@ fn process_json_value_node(node: Node, content: &str, plugin: &PluginConfig) -> 
     if plugin.variant_annotations.contains(&full_annotation) {
         let val = args.trim_matches(|c| c == '(' || c == ')' || c == '"' || c == '\'' || c == ' ');
         return Some(val.to_string());
+    }
+    None
+}
+
+fn find_error_node<'a>(node: Node<'a>) -> Option<Node<'a>> {
+    // If this specific node is an error or is missing expected syntax, we found it!
+    if node.is_error() || node.is_missing() {
+        return Some(node);
+    }
+
+    // Otherwise, recursively check all children
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if let Some(err) = find_error_node(child) {
+            return Some(err);
+        }
     }
     None
 }

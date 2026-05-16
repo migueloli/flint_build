@@ -8,4 +8,6 @@ plugins:
       - "@JsonEnum"
     variant_annotations:
       - "@JsonValue"
+    converters:
+      - "@MyConverter"
     template_path: "src/templates/flint_json.tera"
