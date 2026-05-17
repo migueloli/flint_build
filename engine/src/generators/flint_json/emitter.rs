@@ -1,3 +1,4 @@
+use crate::generators::Generator;
 use crate::{
     config::PluginConfig,
     parser::dart_types::{DartField, DartType, ParsedFile, TypeKind},
@@ -8,11 +9,34 @@ use heck::{
 };
 use tera::{Context, Tera};
 
+pub struct FlintJsonGenerator;
+
+impl Generator for FlintJsonGenerator {
+    fn generate(&self, filename: &str, parsed_file: ParsedFile, plugin: &PluginConfig) -> String {
+        generate_full_file(filename, parsed_file, plugin)
+    }
+}
+
 pub fn generate_full_file(
     filename: &str,
     mut parsed_file: ParsedFile,
     plugin: &PluginConfig,
 ) -> String {
+    parsed_file.classes.retain(|class| {
+        class
+            .metadata
+            .keys()
+            .any(|k| plugin.class_annotations.contains(&format!("@{}", k)))
+    });
+
+    parsed_file.enums.retain(|e| {
+        e.annotations.iter().any(|a| {
+            plugin
+                .enum_annotations
+                .contains(&format!("@{}", a.trim_start_matches('@')))
+        })
+    });
+
     let enum_names: Vec<String> = parsed_file.enums.iter().map(|e| e.name.clone()).collect();
 
     for class in &mut parsed_file.classes {
@@ -25,6 +49,16 @@ pub fn generate_full_file(
         let explicit_to_json =
             class.metadata.get("explicitToJson").map(|v| v.as_str()) == Some("true");
         for field in &mut class.fields {
+            if let Some(converters) = &plugin.converters {
+                for key in field.metadata.keys() {
+                    let full_annotation = format!("@{}", key);
+                    if converters.contains(&full_annotation) {
+                        field.converter = Some(key.clone());
+                        break;
+                    }
+                }
+            }
+
             let key = extract_field_name(field, plugin);
             let from_access = format!("json['{}']", key);
             let to_access = format!("instance.{}", field.name);

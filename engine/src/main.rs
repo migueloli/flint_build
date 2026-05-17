@@ -83,6 +83,14 @@ fn run_build(delete_conflicting_outputs: bool) -> Result<()> {
         for (plugin_name, plugin_config) in plugins {
             println!("🚀 Running Plugin: {}", plugin_name);
 
+            let generator: Box<dyn generators::Generator> = match plugin_name.as_str() {
+                "flint_json" => Box::new(generators::flint_json::emitter::FlintJsonGenerator),
+                _ => {
+                    println!("  {} Unknown plugin: {}", "⚠️".yellow(), plugin_name);
+                    continue;
+                }
+            };
+
             let files = discovery::find_dart_files("lib");
             log::debug!("Discovery found {} potential Dart files", files.len());
             println!("{} Found {} .dart files", "🔍".blue(), files.len());
@@ -103,15 +111,12 @@ fn run_build(delete_conflicting_outputs: bool) -> Result<()> {
                     }
                 }
 
-                let parsed_file = parser::parse_file(path, &plugin_config)?;
+                let parsed_file = parser::parse_file(path)?;
                 if !parsed_file.classes.is_empty() {
                     total_generated.fetch_add(1, Ordering::SeqCst);
                     let filename = path.file_name().unwrap().to_str().unwrap();
-                    let generated = generators::flint_json::emitter::generate_full_file(
-                        filename,
-                        parsed_file,
-                        &plugin_config,
-                    );
+                    let generated = generator.generate(filename, parsed_file, &plugin_config);
+
                     fs::write(&output_path, generated)?;
                     println!(
                         "  {} Generated: {}",

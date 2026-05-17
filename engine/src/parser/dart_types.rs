@@ -54,6 +54,7 @@ pub struct DartEnumValue {
 #[derive(Debug, Serialize)]
 pub struct DartEnum {
     pub name: String,
+    pub annotations: Vec<String>,
     pub values: Vec<DartEnumValue>,
 }
 
