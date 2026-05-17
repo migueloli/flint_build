@@ -371,6 +371,7 @@ dependencies = [
  "clap",
  "colored",
  "env_logger",
+ "heck",
  "insta",
  "log",
  "notify",

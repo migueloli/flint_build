@@ -44,6 +44,7 @@ UserModel _$UserModelFromJson(
   optionalTags: json['optionalTags'] == null ? null : (json['optionalTags'] as List<dynamic>).map((e) => e as String).toList(),
   optionalSubModel: json['optionalMetadata'] == null ? null : Metadata.fromJson(json['optionalMetadata'] as Map<String, dynamic>),
   status: _$MyEnumEnumMap.entries.firstWhere((e) => e.value == json['status']).key,
+  secretData: json['secretData'] as String?,
 );
 
 Map<String, dynamic> _$UserModelToJson(
@@ -65,6 +66,8 @@ Map<String, dynamic> _$UserModelToJson(
   'optionalTags': instance.optionalTags?.map((elem) => elem).toList(),
   'optionalMetadata': instance.optionalSubModel,
   'status': _$MyEnumEnumMap[instance.status],
+  if (instance.secretData != null)
+    'secretData': instance.secretData,
 };
 
 const _$MyEnumEnumMap = {

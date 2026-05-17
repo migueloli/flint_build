@@ -12,8 +12,9 @@ pub struct PluginConfig {
     pub field_annotations: Vec<String>,
     pub enum_annotations: Vec<String>,
     pub variant_annotations: Vec<String>,
-    pub template_path: String,
+    pub template_path: Option<String>,
     pub converters: Option<Vec<String>>,
+    pub field_rename: Option<String>,
 }
 
 impl FlintConfig {

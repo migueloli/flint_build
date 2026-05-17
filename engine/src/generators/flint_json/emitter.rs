@@ -1,10 +1,17 @@
-use crate::parser::dart_types::{DartType, ParsedFile, TypeKind};
+use crate::{
+    config::PluginConfig,
+    parser::dart_types::{DartField, DartType, ParsedFile, TypeKind},
+};
+use heck::{
+    ToKebabCase, ToLowerCamelCase, ToPascalCase, ToShoutyKebabCase, ToShoutySnakeCase, ToSnakeCase,
+    ToUpperCamelCase,
+};
 use tera::{Context, Tera};
 
 pub fn generate_full_file(
     filename: &str,
     mut parsed_file: ParsedFile,
-    template_path: &str,
+    plugin: &PluginConfig,
 ) -> String {
     let enum_names: Vec<String> = parsed_file.enums.iter().map(|e| e.name.clone()).collect();
 
@@ -18,11 +25,7 @@ pub fn generate_full_file(
         let explicit_to_json =
             class.metadata.get("explicitToJson").map(|v| v.as_str()) == Some("true");
         for field in &mut class.fields {
-            if let Some(raw_key) = field.metadata.get("name") {
-                let key = raw_key.trim_matches(|c| c == '"' || c == '\'').to_string();
-                field.metadata.insert("name".to_string(), key);
-            }
-            let key = field.metadata.get("name").unwrap_or(&field.name);
+            let key = extract_field_name(field, plugin);
             let from_access = format!("json['{}']", key);
             let to_access = format!("instance.{}", field.name);
             if let Some(converter) = &field.converter {
@@ -47,8 +50,15 @@ pub fn generate_full_file(
         }
     }
     let mut tera = Tera::default();
-    tera.add_template_file(template_path, Some("flint_json"))
-        .expect("Failed to load template");
+
+    if let Some(path) = &plugin.template_path {
+        tera.add_template_file(path, Some("flint_json"))
+            .expect("Failed to load custom template");
+    } else {
+        let internal_template = include_str!("../../templates/flint_json.tera");
+        tera.add_raw_template("flint_json", internal_template)
+            .expect("Failed to load internal template");
+    }
 
     let mut context = Context::new();
     context.insert("classes", &parsed_file.classes);
@@ -164,4 +174,31 @@ fn generate_to_json_expression(
         }
         _ => access.to_string(),
     }
+}
+
+fn extract_field_name(field: &mut DartField, plugin: &PluginConfig) -> String {
+    let key = if let Some(raw_key) = field.metadata.get("name") {
+        let clean_key = raw_key.trim_matches(|c| c == '"' || c == '\'').to_string();
+        field.metadata.insert("name".to_string(), clean_key.clone());
+        clean_key
+    } else if let Some(strategy) = &plugin.field_rename {
+        let renamed = match strategy.as_str() {
+            "snake" | "snake_case" => field.name.to_snake_case(),
+            "screaming_snake" | "screaming_snake_case" => field.name.to_shouty_snake_case(),
+            "kebab" | "kebab_case" => field.name.to_kebab_case(),
+            "screaming_kebab" | "screaming_kebab_case" => field.name.to_shouty_kebab_case(),
+            "pascal" | "pascal_case" => field.name.to_pascal_case(),
+            "camel" | "camel_case" => field.name.to_upper_camel_case(),
+            "lower_camel" | "lower_camel_case" => field.name.to_lower_camel_case(),
+            _ => field.name.clone(),
+        };
+        field.metadata.insert("name".to_string(), renamed.clone());
+        renamed
+    } else {
+        field
+            .metadata
+            .insert("name".to_string(), field.name.clone());
+        field.name.clone()
+    };
+    key
 }

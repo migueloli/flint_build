@@ -11,11 +11,8 @@ fn test_user_model() {
     let plugin = config.plugins.unwrap().get("flint_json").unwrap().clone();
 
     let classes = parser::parse_file(input_path, &plugin).unwrap();
-    let generated = generators::flint_json::emitter::generate_full_file(
-        "user_model.dart",
-        classes,
-        &plugin.template_path,
-    );
+    let generated =
+        generators::flint_json::emitter::generate_full_file("user_model.dart", classes, &plugin);
 
     insta::assert_snapshot!(generated);
 }
@@ -28,11 +25,8 @@ fn test_generic_model() {
     let plugin = config.plugins.unwrap().get("flint_json").unwrap().clone();
 
     let classes = parser::parse_file(input_path, &plugin).unwrap();
-    let generated = generators::flint_json::emitter::generate_full_file(
-        "generic_model.dart",
-        classes,
-        &plugin.template_path,
-    );
+    let generated =
+        generators::flint_json::emitter::generate_full_file("generic_model.dart", classes, &plugin);
 
     insta::assert_snapshot!(generated);
 }

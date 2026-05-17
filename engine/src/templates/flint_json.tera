@@ -43,10 +43,17 @@ Map<String, dynamic> _${{ class.name }}ToJson{{ type_args }}(
 
 {%- for field in class.fields %}
 {%- if field.metadata | get(key="ignore", default="false") != "true" and field.metadata | get(key="includeToJson", default="true") != "false" %}
-{%- if field.metadata.toJson is defined %}
-  '{{ field.metadata | get(key="name", default=field.name) }}': {{ field.metadata.toJson }}(instance.{{ field.name }}),
+{%- set include_if_null = field.metadata | get(key="includeIfNull", default="true") %}
+{%- if include_if_null == "false" %}
+  if (instance.{{ field.name }} != null)
+  {%- set indent = "    " %}
 {%- else %}
-  '{{ field.metadata | get(key="name", default=field.name) }}': {{ field.to_json_expr }},
+  {%- set indent = "  " %}
+{%- endif %}
+{%- if field.metadata.toJson is defined %}
+{{ indent }}'{{ field.metadata | get(key="name", default=field.name) }}': {{ field.metadata.toJson }}(instance.{{ field.name }}),
+{%- else %}
+{{ indent }}'{{ field.metadata | get(key="name", default=field.name) }}': {{ field.to_json_expr }},
 {%- endif %}
 {%- endif %}
 {%- endfor %}

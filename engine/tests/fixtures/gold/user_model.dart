@@ -34,6 +34,8 @@ class UserModel {
   @JsonKey(name: "optionalMetadata")
   final Metadata? optionalSubModel;
   final MyEnum status;
+  @JsonKey(includeIfNull: false)
+  final String? secretData;
 
   UserModel({
     required this.id,
@@ -52,6 +54,7 @@ class UserModel {
     this.optionalTags,
     this.optionalSubModel,
     required this.status,
+    this.secretData,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) => _$UserModel(json);

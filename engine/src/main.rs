@@ -110,7 +110,7 @@ fn run_build(delete_conflicting_outputs: bool) -> Result<()> {
                     let generated = generators::flint_json::emitter::generate_full_file(
                         filename,
                         parsed_file,
-                        &plugin_config.template_path,
+                        &plugin_config,
                     );
                     fs::write(&output_path, generated)?;
                     println!(

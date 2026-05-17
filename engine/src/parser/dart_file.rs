@@ -24,14 +24,9 @@ pub fn parse_file(path: &Path, plugin: &PluginConfig) -> Result<ParsedFile> {
     if tree.root_node().has_error() {
         if let Some(error_node) = find_error_node(tree.root_node()) {
             let start = error_node.start_position();
-
-            // Extract the exact line of code where the error happened
             let lines: Vec<&str> = content.lines().collect();
             let error_line = lines.get(start.row).unwrap_or(&"");
-
-            // Create a pointer string (like "      ^")
             let pointer = " ".repeat(start.column) + "^";
-
             let msg = format!(
                 "Syntax Error in {:?} at line {}, column {}\n\n{}\n{}\n",
                 path,
@@ -45,118 +40,19 @@ pub fn parse_file(path: &Path, plugin: &PluginConfig) -> Result<ParsedFile> {
         }
     }
 
-    let mut classes = Vec::new();
-    let mut enums = Vec::new();
-
-    let query_str = r#"
-        (class_declaration
-          (annotation
-            (_) @annotation_name
-            (annotation_arguments)? @annotation_args
-          )?
-          (_) @class_name
-          (type_parameters)? @type_params
-          (class_body) @class_body
-        )
-        (enum_declaration
-          (annotation
-            (_) @enum_annotation_name
-            (annotation_arguments)? @enum_annotation_args
-          )?
-          (_) @enum_name
-          (enum_body) @enum_body
-        ) @enum_decl
-    "#;
-
-    let query = Query::new(&tree_sitter_dart::LANGUAGE.into(), query_str)
-        .context("Failed to create query")?;
-
-    let mut cursor = QueryCursor::new();
-    let mut matches = cursor.matches(&query, tree.root_node(), content.as_bytes());
-
-    while let Some(m) = matches.next() {
-        let mut class_name = String::new();
-        let mut has_matching_annotation = false;
-        let mut class_body_node = None;
-        let mut metadata = HashMap::new();
-        let mut type_parameters = Vec::new();
-
-        let mut enum_name = String::new();
-        let mut enum_body_node = None;
-        let mut is_enum = false;
-
-        for capture in m.captures {
-            let node = capture.node;
-            let capture_name = query.capture_names()[capture.index as usize];
-            let text = &content[node.start_byte()..node.end_byte()];
-            let full_annotation = format!("@{}", text);
-            if capture_name == "annotation_name"
-                && plugin.class_annotations.contains(&full_annotation)
-            {
-                has_matching_annotation = true;
-            }
-            if capture_name == "annotation_args" {
-                extract_annotation_metadata(&node, &content, &mut metadata);
-            }
-            if capture_name == "class_name" {
-                class_name = text.to_string();
-            }
-            if capture_name == "class_body" {
-                class_body_node = Some(node);
-            }
-            if capture_name == "type_params" {
-                let mut tp_cursor = node.walk();
-                for child in node.children(&mut tp_cursor) {
-                    if child.kind() == "type_parameter" {
-                        let mut inner_cursor = child.walk();
-                        for inner in child.children(&mut inner_cursor) {
-                            if inner.kind() == "type_identifier" {
-                                if let Ok(tp_name) = inner.utf8_text(content.as_bytes()) {
-                                    type_parameters.push(tp_name.to_string());
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            if capture_name == "enum_annotation_name"
-                && plugin.enum_annotations.contains(&full_annotation)
-            {
-                is_enum = true;
-            }
-            if capture_name == "enum_name" {
-                enum_name = text.to_string();
-            }
-            if capture_name == "enum_body" {
-                enum_body_node = Some(node);
-            }
-        }
-        if has_matching_annotation {
-            let mut fields = Vec::new();
-            if let Some(body) = class_body_node {
-                fields = extract_fields_from_tree(body, &content, plugin);
-            }
-            classes.push(DartClass {
-                name: class_name,
-                fields,
-                metadata,
-                type_parameters,
-            });
-        }
-        log::debug!("Found enum: {}", enum_name);
-        if is_enum {
-            if let Some(body) = enum_body_node {
-                let dart_enum = extract_enum_values(enum_name, body, &content, plugin);
-                enums.push(dart_enum);
-            }
-        }
-    }
+    let classes = extract_classes(tree.root_node(), &content, plugin)?;
+    let enums = extract_enums(tree.root_node(), &content, plugin)?;
 
     if classes.is_empty() {
         log::debug!("No classes with matching annotations found in {:?}", path);
     } else {
         log::debug!("Found {} classes in {:?}", classes.len(), path);
+    }
+
+    if enums.is_empty() {
+        log::debug!("No enums with matching annotations found in {:?}", path);
+    } else {
+        log::debug!("Found {} enums in {:?}", enums.len(), path);
     }
 
     Ok(ParsedFile { classes, enums })
@@ -454,4 +350,135 @@ fn find_error_node<'a>(node: Node<'a>) -> Option<Node<'a>> {
         }
     }
     None
+}
+
+fn extract_classes(root: Node, content: &str, plugin: &PluginConfig) -> Result<Vec<DartClass>> {
+    let query_str = r#"
+        (class_declaration
+          (annotation
+            (_) @annotation_name
+            (annotation_arguments)? @annotation_args
+          )?
+          (_) @class_name
+          (type_parameters)? @type_params
+          (class_body) @class_body
+        )
+    "#;
+
+    let query = Query::new(&tree_sitter_dart::LANGUAGE.into(), query_str)?;
+    let mut cursor = QueryCursor::new();
+    let mut matches = cursor.matches(&query, root, content.as_bytes());
+
+    let mut classes = Vec::new();
+
+    while let Some(m) = matches.next() {
+        let mut class_name = String::new();
+        let mut has_matching_annotation = false;
+        let mut class_body_node = None;
+        let mut metadata = HashMap::new();
+        let mut type_parameters = Vec::new();
+
+        for capture in m.captures {
+            let node = capture.node;
+            let capture_name = query.capture_names()[capture.index as usize];
+            let text = &content[node.start_byte()..node.end_byte()];
+
+            match capture_name {
+                "annotation_name" => {
+                    let full_annotation = format!("@{}", text);
+                    if plugin.class_annotations.contains(&full_annotation) {
+                        has_matching_annotation = true;
+                    }
+                }
+                "annotation_args" => extract_annotation_metadata(&node, content, &mut metadata),
+                "class_name" => class_name = text.to_string(),
+                "type_params" => type_parameters = extract_type_parameters(node, content),
+                "class_body" => class_body_node = Some(node),
+                _ => {}
+            }
+        }
+
+        if has_matching_annotation {
+            let fields = class_body_node
+                .map(|body| extract_fields_from_tree(body, content, plugin))
+                .unwrap_or_default();
+
+            classes.push(DartClass {
+                name: class_name,
+                fields,
+                metadata,
+                type_parameters,
+            });
+        }
+    }
+    Ok(classes)
+}
+
+fn extract_type_parameters(node: Node, content: &str) -> Vec<String> {
+    let mut type_parameters = Vec::new();
+    let mut tp_cursor = node.walk();
+
+    for child in node.children(&mut tp_cursor) {
+        if child.kind() == "type_parameter" {
+            let mut inner_cursor = child.walk();
+            for inner in child.children(&mut inner_cursor) {
+                if inner.kind() == "type_identifier" {
+                    if let Ok(tp_name) = inner.utf8_text(content.as_bytes()) {
+                        type_parameters.push(tp_name.to_string());
+                    }
+                }
+            }
+        }
+    }
+    type_parameters
+}
+
+fn extract_enums(root: Node, content: &str, plugin: &PluginConfig) -> Result<Vec<DartEnum>> {
+    let query_str = r#"
+        (enum_declaration
+          (annotation
+            (_) @enum_annotation_name
+            (annotation_arguments)? @enum_annotation_args
+          )?
+          (_) @enum_name
+          (enum_body) @enum_body
+        )
+    "#;
+
+    let query = Query::new(&tree_sitter_dart::LANGUAGE.into(), query_str)?;
+    let mut cursor = QueryCursor::new();
+    let mut matches = cursor.matches(&query, root, content.as_bytes());
+
+    let mut enums = Vec::new();
+
+    while let Some(m) = matches.next() {
+        let mut enum_name = String::new();
+        let mut enum_body_node = None;
+        let mut is_enum = false;
+
+        for capture in m.captures {
+            let node = capture.node;
+            let capture_name = query.capture_names()[capture.index as usize];
+            let text = &content[node.start_byte()..node.end_byte()];
+
+            match capture_name {
+                "enum_annotation_name" => {
+                    let full_annotation = format!("@{}", text);
+                    if plugin.enum_annotations.contains(&full_annotation) {
+                        is_enum = true;
+                    }
+                }
+                "enum_name" => enum_name = text.to_string(),
+                "enum_body" => enum_body_node = Some(node),
+                _ => {}
+            }
+        }
+
+        if is_enum {
+            if let Some(body) = enum_body_node {
+                enums.push(extract_enum_values(enum_name, body, content, plugin));
+            }
+        }
+    }
+    Ok(enums)
 }
