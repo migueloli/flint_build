@@ -236,7 +236,7 @@ fn extract_field_name(field: &mut DartField, plugin: &PluginConfig) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::dart_types::DartType;
+    use crate::parser::dart_types::{DartClass, DartType, ParsedFile};
 
     #[test]
     fn test_extract_field_name_casing() {
@@ -287,10 +287,131 @@ mod tests {
         assert_eq!(extract_field_name(&mut field, &config), "MyCamelCaseField");
 
         field = make_field("myCamelCaseField");
+        config.field_rename = Some("pascal_case".to_string());
+        assert_eq!(extract_field_name(&mut field, &config), "MyCamelCaseField");
+
+        field = make_field("myCamelCaseField");
+        config.field_rename = Some("camel".to_string());
+        assert_eq!(extract_field_name(&mut field, &config), "MyCamelCaseField");
+
+        field = make_field("myCamelCaseField");
+        config.field_rename = Some("camel_case".to_string());
+        assert_eq!(extract_field_name(&mut field, &config), "MyCamelCaseField");
+
+        field = make_field("myCamelCaseField");
+        config.field_rename = Some("screaming_kebab".to_string());
+        assert_eq!(extract_field_name(&mut field, &config), "MY-CAMEL-CASE-FIELD");
+
+        field = make_field("myCamelCaseField");
+        config.field_rename = Some("screaming_kebab_case".to_string());
+        assert_eq!(extract_field_name(&mut field, &config), "MY-CAMEL-CASE-FIELD");
+
+        field = make_field("myCamelCaseField");
+        config.field_rename = Some("lower_camel".to_string());
+        assert_eq!(extract_field_name(&mut field, &config), "myCamelCaseField");
+
+        field = make_field("myCamelCaseField");
+        config.field_rename = Some("lower_camel_case".to_string());
+        assert_eq!(extract_field_name(&mut field, &config), "myCamelCaseField");
+
+        field = make_field("myCamelCaseField");
         field
             .metadata
             .insert("name".to_string(), "\"explicitName\"".to_string());
         config.field_rename = Some("snake".to_string());
         assert_eq!(extract_field_name(&mut field, &config), "explicitName");
+    }
+
+    #[test]
+    fn test_custom_converters() {
+        let field = DartField {
+            name: "createdAt".to_string(),
+            dart_type: DartType {
+                kind: TypeKind::Custom("DateTime".to_string()),
+                is_nullable: false,
+            },
+            is_final: true,
+            from_json_expr: None,
+            to_json_expr: None,
+            metadata: {
+                let mut m = std::collections::HashMap::new();
+                m.insert("MyDateTimeConverter".to_string(), "".to_string());
+                m
+            },
+            converter: None,
+        };
+
+        let class = DartClass {
+            name: "User".to_string(),
+            fields: vec![field],
+            metadata: {
+                let mut m = std::collections::HashMap::new();
+                m.insert("JsonSerializable".to_string(), "".to_string());
+                m
+            },
+            type_parameters: vec![],
+        };
+
+        let parsed_file = ParsedFile {
+            classes: vec![class],
+            enums: vec![],
+        };
+
+        let output = generate_full_file("user.dart", parsed_file, &PluginConfig {
+            class_annotations: vec!["@JsonSerializable".to_string()],
+            enum_annotations: vec![],
+            field_annotations: vec![],
+            variant_annotations: vec![],
+            field_rename: None,
+            converters: Some(vec!["@MyDateTimeConverter".to_string()]),
+            template_path: None,
+        });
+
+        assert!(output.contains("const MyDateTimeConverter().fromJson"));
+    }
+
+    #[test]
+    fn test_explicit_to_json() {
+        let field = DartField {
+            name: "address".to_string(),
+            dart_type: DartType {
+                kind: TypeKind::Custom("Address".to_string()),
+                is_nullable: true,
+            },
+            is_final: true,
+            from_json_expr: None,
+            to_json_expr: None,
+            metadata: std::collections::HashMap::new(),
+            converter: None,
+        };
+
+        let class = DartClass {
+            name: "User".to_string(),
+            fields: vec![field],
+            metadata: {
+                let mut m = std::collections::HashMap::new();
+                m.insert("JsonSerializable".to_string(), "".to_string());
+                m.insert("explicitToJson".to_string(), "true".to_string());
+                m
+            },
+            type_parameters: vec![],
+        };
+
+        let parsed_file = ParsedFile {
+            classes: vec![class],
+            enums: vec![],
+        };
+
+        let output = generate_full_file("user.dart", parsed_file, &PluginConfig {
+            class_annotations: vec!["@JsonSerializable".to_string()],
+            enum_annotations: vec![],
+            field_annotations: vec![],
+            variant_annotations: vec![],
+            field_rename: None,
+            converters: None,
+            template_path: None,
+        });
+
+        assert!(output.contains("address?.toJson()"));
     }
 }
