@@ -36,3 +36,47 @@ pub fn find_generated_files(root: &str) -> Vec<PathBuf> {
         .map(|e| e.into_path())
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn test_find_dart_and_generated_files() {
+        // Create a unique temporary directory for the test
+        let temp_dir = std::env::temp_dir().join("flint_discovery_test");
+        fs::create_dir_all(&temp_dir).unwrap();
+
+        // Create mock files
+        fs::write(temp_dir.join("main.dart"), "").unwrap();
+        fs::write(temp_dir.join("user.model.dart"), "").unwrap();
+        fs::write(temp_dir.join("user.model.g.dart"), "").unwrap();
+        fs::write(temp_dir.join("README.md"), "").unwrap();
+
+        let temp_dir_str = temp_dir.to_str().unwrap();
+
+        // 1. Test finding only source Dart files (non-generated)
+        let dart_files = find_dart_files(temp_dir_str);
+        assert_eq!(dart_files.len(), 2);
+
+        let filenames: Vec<String> = dart_files
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+        assert!(filenames.contains(&"main.dart".to_string()));
+        assert!(filenames.contains(&"user.model.dart".to_string()));
+        assert!(!filenames.contains(&"user.model.g.dart".to_string()));
+
+        // 2. Test finding only generated Dart files
+        let generated_files = find_generated_files(temp_dir_str);
+        assert_eq!(generated_files.len(), 1);
+        assert_eq!(
+            generated_files[0].file_name().unwrap().to_string_lossy(),
+            "user.model.g.dart"
+        );
+
+        // Clean up temporary files
+        fs::remove_dir_all(temp_dir).unwrap();
+    }
+}
