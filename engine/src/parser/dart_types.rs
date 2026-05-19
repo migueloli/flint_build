@@ -78,3 +78,71 @@ impl Display for DartType {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_dart_type_display() {
+        let t_str = DartType {
+            kind: TypeKind::String,
+            is_nullable: false,
+        };
+        assert_eq!(t_str.to_string(), "String");
+
+        let t_int = DartType {
+            kind: TypeKind::Int,
+            is_nullable: true,
+        };
+        assert_eq!(t_int.to_string(), "int?");
+
+        let t_double = DartType {
+            kind: TypeKind::Double,
+            is_nullable: false,
+        };
+        assert_eq!(t_double.to_string(), "double");
+
+        let t_bool = DartType {
+            kind: TypeKind::Bool,
+            is_nullable: false,
+        };
+        assert_eq!(t_bool.to_string(), "bool");
+
+        let t_dt = DartType {
+            kind: TypeKind::DateTime,
+            is_nullable: false,
+        };
+        assert_eq!(t_dt.to_string(), "DateTime");
+
+        let t_list = DartType {
+            kind: TypeKind::List(Box::new(DartType {
+                kind: TypeKind::String,
+                is_nullable: true,
+            })),
+            is_nullable: false,
+        };
+        assert_eq!(t_list.to_string(), "List<String?>");
+
+        let t_map = DartType {
+            kind: TypeKind::Map(
+                Box::new(DartType {
+                    kind: TypeKind::String,
+                    is_nullable: false,
+                }),
+                Box::new(DartType {
+                    kind: TypeKind::Int,
+                    is_nullable: true,
+                }),
+            ),
+            is_nullable: true,
+        };
+        assert_eq!(t_map.to_string(), "Map<String, int?>?");
+
+        let t_custom = DartType {
+            kind: TypeKind::Custom("MyClass".to_string()),
+            is_nullable: false,
+        };
+        assert_eq!(t_custom.to_string(), "MyClass");
+    }
+}

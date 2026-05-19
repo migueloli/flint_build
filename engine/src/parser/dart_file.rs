@@ -494,6 +494,7 @@ mod tests {
                 final T data;
                 @MyConverter()
                 final DateTime date;
+                final Map<String, int>? dataMap;
             }
         "#;
         let tree = parse_snippet(code);
@@ -503,7 +504,7 @@ mod tests {
         let class = &classes[0];
         assert_eq!(class.name, "ApiResponse");
         assert_eq!(class.type_parameters, vec!["T", "U"]);
-        assert_eq!(class.fields.len(), 2);
+        assert_eq!(class.fields.len(), 3);
 
         assert_eq!(class.fields[0].name, "data");
         assert_eq!(
@@ -514,6 +515,15 @@ mod tests {
         assert_eq!(class.fields[1].name, "date");
         assert_eq!(class.fields[1].dart_type.kind, TypeKind::DateTime);
         assert!(class.fields[1].metadata.contains_key("MyConverter"));
+
+        assert_eq!(class.fields[2].name, "dataMap");
+        if let TypeKind::Map(key, val) = &class.fields[2].dart_type.kind {
+            assert_eq!(key.kind, TypeKind::String);
+            assert_eq!(val.kind, TypeKind::Int);
+        } else {
+            panic!("Expected Map type");
+        }
+        assert!(class.fields[2].dart_type.is_nullable);
     }
 
     #[test]
@@ -544,5 +554,17 @@ mod tests {
 
         assert_eq!(status.values[2].name, "suspended");
         assert_eq!(status.values[2].value, None);
+    }
+
+    #[test]
+    fn test_parse_file_syntax_error() {
+        let temp_dir = std::env::temp_dir();
+        let path = temp_dir.join("invalid.dart");
+        std::fs::write(&path, "class ApiResponse { final invalid }").unwrap();
+
+        let res = parse_file(&path);
+        let _ = std::fs::remove_file(&path);
+
+        assert!(res.is_err());
     }
 }

@@ -43,7 +43,24 @@ mod tests {
         let mut registry = PluginRegistry::new();
         registry.register("mock", Box::new(MockGenerator));
 
-        assert!(registry.get("mock").is_some());
+        let gen_opt = registry.get("mock");
+        assert!(gen_opt.is_some());
         assert!(registry.get("unknown").is_none());
+
+        let generator = gen_opt.unwrap();
+        let dummy_plugin = PluginConfig {
+            class_annotations: vec![],
+            enum_annotations: vec![],
+            field_annotations: vec![],
+            variant_annotations: vec![],
+            field_rename: None,
+            converters: None,
+            template_path: None,
+        };
+        let dummy_file = ParsedFile {
+            classes: vec![],
+            enums: vec![],
+        };
+        assert_eq!(generator.generate("test.dart", dummy_file, &dummy_plugin), "MockOutput");
     }
 }
