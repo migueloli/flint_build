@@ -1,0 +1,14 @@
+# IDE / Editor Private Settings
+.vscode/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Dart / Flutter build files
+.dart_tool/
+pubspec.lock
+.fvm/
+
+# Rust build target (fallback)
+/engine/target/
