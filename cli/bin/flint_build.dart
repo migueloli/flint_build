@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'dart:isolate';
+
 import 'package:path/path.dart' as p;
 
-// ANSI Terminal Colors for Premium UI
 const String ansiGreen = '\x1B[32m';
 const String ansiRed = '\x1B[31m';
 const String ansiYellow = '\x1B[33m';
@@ -15,7 +15,7 @@ void main(List<String> args) async {
       await Isolate.resolvePackageUri(Uri.parse('package:flint_build/'));
   if (packageUri == null) {
     print(
-        '${ansiRed}❌ Could not resolve package:flint_build. Make sure it is in your pubspec dependencies.${ansiReset}');
+        '$ansiRed❌ Could not resolve package:flint_build. Make sure it is in your pubspec dependencies.$ansiReset');
     exit(1);
   }
 
@@ -28,19 +28,16 @@ void main(List<String> args) async {
 
   File binary = File(releaseBinaryPath);
 
-  // 1. Try finding release binary
   if (!binary.existsSync()) {
-    // 2. Try finding debug binary
     final debugBinary = File(debugBinaryPath);
     if (debugBinary.existsSync()) {
       print(
-          '${ansiYellow}⚠️ Release engine not found. Running dev debug engine instead...${ansiReset}');
+          '$ansiYellow⚠️ Release engine not found. Running dev debug engine instead...$ansiReset');
       binary = debugBinary;
     } else {
-      // 3. Neither exists. Check if we have cargo to build it automatically!
       print(
-          '${ansiCyan}⚡ Native Flint engine not found at: ${binary.path}${ansiReset}');
-      print('${ansiBold}📦 Attempting to build Flint from source...${ansiReset}');
+          '$ansiCyan⚡ Native Flint engine not found at: ${binary.path}$ansiReset');
+      print('$ansiBold📦 Attempting to build Flint from source...$ansiReset');
 
       try {
         final cargoCheck = await Process.run('cargo', ['--version']);
@@ -49,7 +46,7 @@ void main(List<String> args) async {
         }
 
         print(
-            '${ansiYellow}🔧 Running "cargo build --release" inside $engineRoot...${ansiReset}');
+            '$ansiYellow🔧 Running "cargo build --release" inside $engineRoot...$ansiReset');
 
         final buildProcess = await Process.start(
           'cargo',
@@ -61,29 +58,28 @@ void main(List<String> args) async {
         final buildExitCode = await buildProcess.exitCode;
         if (buildExitCode != 0) {
           print(
-              '${ansiRed}❌ Automatic compilation failed with exit code $buildExitCode.${ansiReset}');
+              '$ansiRed❌ Automatic compilation failed with exit code $buildExitCode.$ansiReset');
           exit(1);
         }
 
         binary = File(releaseBinaryPath);
         if (!binary.existsSync()) {
           print(
-              '${ansiRed}❌ Compilation succeeded but binary was not found at expected location: ${binary.path}${ansiReset}');
+              '$ansiRed❌ Compilation succeeded but binary was not found at expected location: ${binary.path}$ansiReset');
           exit(1);
         }
 
         print(
-            '${ansiGreen}🎉 Successfully compiled and initialized Flint Build Engine!${ansiReset}\n');
+            '$ansiGreen🎉 Successfully compiled and initialized Flint Build Engine!$ansiReset\n');
       } catch (e) {
-        print('\n${ansiRed}❌ Cargo is not available on your system.${ansiReset}');
+        print('\n$ansiRed❌ Cargo is not available on your system.$ansiReset');
         print(
-            '${ansiBold}💡 Please install Rust (https://rustup.rs) or place a pre-compiled native binary inside "engine/target/release/flint_build".${ansiReset}');
+            '$ansiBold💡 Please install Rust (https://rustup.rs) or place a pre-compiled native binary inside "engine/target/release/flint_build".$ansiReset');
         exit(1);
       }
     }
   }
 
-  // 4. Start the native engine forwarding standard input/output
   final process = await Process.start(
     binary.path,
     args,

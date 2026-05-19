@@ -15,14 +15,14 @@ ApiResponse<T> _$ApiResponseFromJson<T>(
   Map<String, dynamic> json,
   T Function(Object? json) fromJsonT,
 ) => ApiResponse(
-  data: fromJsonT(json['data'] as Object?),
-  date: const MyConverter().fromJson(json['date']),
-);
+      data: fromJsonT(json['data'] as Object?),
+      date: const MyConverter().fromJson(json['date']),
+    );
 
 Map<String, dynamic> _$ApiResponseToJson<T>(
   ApiResponse<T> instance,
   Object? Function(T value) toJsonT,
 ) => <String, dynamic>{
-  'data': toJsonT(instance.data),
-  'date': const MyConverter().toJson(instance.date),
-};
+      'data': toJsonT(instance.data),
+      'date': const MyConverter().toJson(instance.date),
+    };
