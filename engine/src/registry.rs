@@ -19,3 +19,33 @@ impl PluginRegistry {
         self.generators.get(name).map(|b| b.as_ref())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::PluginConfig;
+    use crate::parser::dart_types::ParsedFile;
+
+    struct MockGenerator;
+    impl Generator for MockGenerator {
+        fn generate(
+            &self,
+            _filename: &str,
+            _parsed_file: ParsedFile,
+            _plugin: &PluginConfig,
+        ) -> String {
+            "MockOutput".to_string()
+        }
+    }
+
+    #[test]
+    fn test_registry_register_and_get() {
+        let mut registry = PluginRegistry::new();
+        registry.register("mock", Box::new(MockGenerator));
+
+        // Verify we can retrieve it
+        assert!(registry.get("mock").is_some());
+        // Verify an unknown plugin returns None
+        assert!(registry.get("unknown").is_none());
+    }
+}

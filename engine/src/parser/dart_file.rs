@@ -21,20 +21,21 @@ pub fn parse_file(path: &Path) -> Result<ParsedFile> {
         .context("Could not parse file")?;
 
     if tree.root_node().has_error()
-        && let Some(error_node) = find_error_node(tree.root_node()) {
-            let start = error_node.start_position();
-            let lines: Vec<&str> = content.lines().collect();
-            let error_line = lines.get(start.row).unwrap_or(&"");
-            let pointer = " ".repeat(start.column) + "^";
-            return Err(crate::error::FlintError::Syntax {
-                file: path.display().to_string(),
-                line: start.row + 1,
-                column: start.column + 1,
-                source_line: error_line.to_string(),
-                pointer,
-            }
-            .into());
+        && let Some(error_node) = find_error_node(tree.root_node())
+    {
+        let start = error_node.start_position();
+        let lines: Vec<&str> = content.lines().collect();
+        let error_line = lines.get(start.row).unwrap_or(&"");
+        let pointer = " ".repeat(start.column) + "^";
+        return Err(crate::error::FlintError::Syntax {
+            file: path.display().to_string(),
+            line: start.row + 1,
+            column: start.column + 1,
+            source_line: error_line.to_string(),
+            pointer,
         }
+        .into());
+    }
 
     let classes = extract_classes(tree.root_node(), &content)?;
     let enums = extract_enums(tree.root_node(), &content)?;
@@ -92,14 +93,16 @@ fn extract_fields_from_tree(body: Node, content: &str) -> Vec<DartField> {
             let mut inner_cursor = child.walk();
             for inner in child.children(&mut inner_cursor) {
                 if inner.kind() == "declaration"
-                    && let Some(field) = parse_field(inner, content) {
-                        fields.push(field);
-                    }
+                    && let Some(field) = parse_field(inner, content)
+                {
+                    fields.push(field);
+                }
             }
         } else if (child.kind() == "field_declaration" || child.kind() == "declaration")
-            && let Some(field) = parse_field(child, content) {
-                fields.push(field);
-            }
+            && let Some(field) = parse_field(child, content)
+        {
+            fields.push(field);
+        }
     }
     fields
 }
@@ -134,9 +137,10 @@ fn parse_field(field: Node<'_>, content: &str) -> Option<DartField> {
 
     // If not found, check the parent node (usually `class_member`)
     if metadata.is_empty()
-        && let Some(parent) = field.parent() {
-            metadata = check_metadata(parent);
-        }
+        && let Some(parent) = field.parent()
+    {
+        metadata = check_metadata(parent);
+    }
 
     let mut type_parts = String::new();
     let mut name_str = String::new();
@@ -155,10 +159,10 @@ fn parse_field(field: Node<'_>, content: &str) -> Option<DartField> {
             "?" => is_nullable = true,
             "initialized_identifier_list" => {
                 if let Some(init_id) = decl_child.child(0)
-                    && let Some(name_node) = init_id.child(0) {
-                        name_str =
-                            content[name_node.start_byte()..name_node.end_byte()].to_string();
-                    }
+                    && let Some(name_node) = init_id.child(0)
+                {
+                    name_str = content[name_node.start_byte()..name_node.end_byte()].to_string();
+                }
             }
             _ => {}
         }
@@ -271,9 +275,10 @@ fn extract_enum_values(name: String, body: Node, content: &str) -> DartEnum {
                     let mut meta_cursor = inner.walk();
                     for meta_child in inner.children(&mut meta_cursor) {
                         if meta_child.kind() == "annotation"
-                            && let Some(val) = process_json_value_node(meta_child, content) {
-                                custom_value = Some(val);
-                            }
+                            && let Some(val) = process_json_value_node(meta_child, content)
+                        {
+                            custom_value = Some(val);
+                        }
                     }
                 }
             }
@@ -341,16 +346,26 @@ fn extract_classes(root: Node, content: &str) -> Result<Vec<DartClass>> {
           (_) @class_name
           (type_parameters)? @type_params
           (class_body) @class_body
-        )
+        ) @class_decl
     "#;
 
     let query = Query::new(&tree_sitter_dart::LANGUAGE.into(), query_str)?;
     let mut cursor = QueryCursor::new();
     let mut matches = cursor.matches(&query, root, content.as_bytes());
-
     let mut classes = Vec::new();
-
+    let mut processed_nodes = std::collections::HashSet::new();
     while let Some(m) = matches.next() {
+        let class_decl_node = m
+            .captures
+            .iter()
+            .find(|c| query.capture_names()[c.index as usize] == "class_decl")
+            .map(|c| c.node);
+        if let Some(node) = class_decl_node {
+            if !processed_nodes.insert(node.id()) {
+                continue;
+            }
+        }
+
         let mut class_name = String::new();
         let mut class_body_node = None;
         let mut metadata = HashMap::new();
@@ -397,9 +412,10 @@ fn extract_type_parameters(node: Node, content: &str) -> Vec<String> {
             let mut inner_cursor = child.walk();
             for inner in child.children(&mut inner_cursor) {
                 if inner.kind() == "type_identifier"
-                    && let Ok(tp_name) = inner.utf8_text(content.as_bytes()) {
-                        type_parameters.push(tp_name.to_string());
-                    }
+                    && let Ok(tp_name) = inner.utf8_text(content.as_bytes())
+                {
+                    type_parameters.push(tp_name.to_string());
+                }
             }
         }
     }
@@ -449,4 +465,53 @@ fn extract_enums(root: Node, content: &str) -> Result<Vec<DartEnum>> {
         }
     }
     Ok(enums)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parser::dart_types::TypeKind;
+    use tree_sitter::Parser;
+
+    // A helper to quickly parse a string into a Tree
+    fn parse_snippet(code: &str) -> tree_sitter::Tree {
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_dart::LANGUAGE.into())
+            .unwrap();
+        parser.parse(code, None).unwrap()
+    }
+
+    #[test]
+    fn test_extract_classes() {
+        let code = r#"
+            @JsonSerializable()
+            class ApiResponse<T, U> {
+                final T data;
+                @MyConverter()
+                final DateTime date;
+            }
+        "#;
+        let tree = parse_snippet(code);
+        let classes = extract_classes(tree.root_node(), code).unwrap();
+
+        // Verify the Class
+        assert_eq!(classes.len(), 1);
+        let class = &classes[0];
+        assert_eq!(class.name, "ApiResponse");
+        assert_eq!(class.type_parameters, vec!["T", "U"]);
+        assert_eq!(class.fields.len(), 2);
+
+        // Verify Field 1
+        assert_eq!(class.fields[0].name, "data");
+        assert_eq!(
+            class.fields[0].dart_type.kind,
+            TypeKind::Custom("T".to_string())
+        );
+
+        // Verify Field 2
+        assert_eq!(class.fields[1].name, "date");
+        assert_eq!(class.fields[1].dart_type.kind, TypeKind::DateTime);
+        assert!(class.fields[1].metadata.contains_key("MyConverter"));
+    }
 }

@@ -26,17 +26,3 @@ Map<String, dynamic> _$ApiResponseToJson<T>(
   'data': toJsonT(instance.data),
   'date': const MyConverter().toJson(instance.date),
 };
-
-<T> _$<T>FromJson(
-  Map<String, dynamic> json,
-) => <T>(
-  data: T.fromJson(json['data'] as Map<String, dynamic>),
-  date: const MyConverter().fromJson(json['date']),
-);
-
-Map<String, dynamic> _$<T>ToJson(
-  <T> instance,
-) => <String, dynamic>{
-  'data': instance.data,
-  'date': const MyConverter().toJson(instance.date),
-};
