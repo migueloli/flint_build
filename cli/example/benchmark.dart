@@ -41,7 +41,11 @@ void main() async {
 
   // 6. Diff
   print('🔍 Running Diff (build_runner vs flint_build)...');
-  final diffResult = await Process.run('diff', ['-u', 'user_model.build_runner.dart', 'user_model.flint.dart']);
+  final diffResult = await Process.run('diff', [
+    '-u',
+    'benchmark_outputs/user_model.build_runner.dart',
+    'benchmark_outputs/user_model.flint.dart'
+  ]);
   if (diffResult.exitCode == 0) {
     print('✅ Outputs are perfectly identical!');
   } else {
@@ -73,7 +77,11 @@ Future<Duration> measureCommand(String executable, List<String> args) async {
 Future<void> saveOutput(String targetName) async {
   final source = File('lib/user_model.g.dart');
   if (source.existsSync()) {
-    source.copySync(targetName);
+    final dir = Directory('benchmark_outputs');
+    if (!dir.existsSync()) {
+      dir.createSync();
+    }
+    source.copySync('benchmark_outputs/$targetName');
   } else {
     print('⚠️ Expected generated file lib/user_model.g.dart not found!');
   }

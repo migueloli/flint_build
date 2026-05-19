@@ -2,23 +2,23 @@
 📦 Getting dependencies...
 
 ⏳ Running build_runner (Cold Start)...
-✅ build_runner finished in 704ms
+✅ build_runner finished in 753ms
 
 ⏳ Running flint_build (Cold Start)...
-✅ flint_build finished in 339ms
+✅ flint_build finished in 309ms
 
 =======================================
 🏆 RESULTS:
 =======================================
-build_runner: 704ms
-flint_build:  339ms
-🚀 Flint is 2.1x faster!
+build_runner: 753ms
+flint_build:  309ms
+🚀 Flint is 2.4x faster!
 =======================================
 
 🔍 Running Diff (build_runner vs flint_build)...
 ⚠️ Outputs have differences (this is expected due to boilerplate):
---- user_model.build_runner.dart	2026-05-19 21:33:17
-+++ user_model.flint.dart	2026-05-19 21:33:18
+--- benchmark_outputs/user_model.build_runner.dart	2026-05-19 21:35:51
++++ benchmark_outputs/user_model.flint.dart	2026-05-19 21:35:52
 @@ -1,67 +1,70 @@
  // GENERATED CODE - DO NOT MODIFY BY HAND
 +// ignore_for_file: unnecessary_cast
