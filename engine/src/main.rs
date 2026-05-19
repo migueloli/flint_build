@@ -1,17 +1,11 @@
-use std::{fs, time::Instant};
+use std::time::Instant;
 
-use anyhow::Context;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use colored::Colorize;
-use flint_build::config::FlintConfig;
-use rayon::prelude::*;
-use std::sync::atomic::{AtomicUsize, Ordering};
-
-use flint_build::config;
-use flint_build::discovery;
-use flint_build::generators;
-use flint_build::parser;
+use flint_build::builder::{run_build, run_clean};
+use flint_build::generators::flint_json::emitter::FlintJsonGenerator;
+use flint_build::registry::PluginRegistry;
 use flint_build::watcher;
 
 #[derive(Parser)]
@@ -46,13 +40,16 @@ fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
+    let mut registry = PluginRegistry::new();
+    registry.register("flint_json", Box::new(FlintJsonGenerator));
+
     match &cli.command {
         Commands::Build {
             delete_conflicting_outputs,
-        } => run_build(*delete_conflicting_outputs)?,
+        } => run_build(*delete_conflicting_outputs, &registry)?,
         Commands::Watch {
             delete_conflicting_outputs,
-        } => watcher::watch("lib", || run_build(*delete_conflicting_outputs))?,
+        } => watcher::watch("lib", || run_build(*delete_conflicting_outputs, &registry))?,
         Commands::Clean => run_clean()?,
     }
 
@@ -64,102 +61,4 @@ fn main() -> Result<()> {
         duration
     );
     Ok(())
-}
-
-fn run_build(delete_conflicting_outputs: bool) -> Result<()> {
-    let pubspec = config::Pubspec::load()?;
-    log::info!("Initializing build for package: {}", pubspec.name);
-    println!(
-        "{} {} {}",
-        "🚀".bold(),
-        "Building project:".green().bold(),
-        pubspec.name.cyan().bold()
-    );
-
-    let config = FlintConfig::load_from_file("flint.yaml").context("No 'flint.yaml' found in the current directory. Please create one to configure your plugins.")?;
-    let total_generated = AtomicUsize::new(0);
-
-    if let Some(plugins) = config.plugins {
-        for (plugin_name, plugin_config) in plugins {
-            println!("🚀 Running Plugin: {}", plugin_name);
-
-            let generator: Box<dyn generators::Generator> = match plugin_name.as_str() {
-                "flint_json" => Box::new(generators::flint_json::emitter::FlintJsonGenerator),
-                _ => {
-                    println!("  {} Unknown plugin: {}", "⚠️".yellow(), plugin_name);
-                    continue;
-                }
-            };
-
-            let files = discovery::find_dart_files("lib");
-            log::debug!("Discovery found {} potential Dart files", files.len());
-            println!("{} Found {} .dart files", "🔍".blue(), files.len());
-
-            let result = files.par_iter().try_for_each(|path| -> Result<()> {
-                let output_path = path.with_extension("g.dart");
-                if output_path.exists() && !delete_conflicting_outputs {
-                    let input_meta = fs::metadata(path)?;
-                    let output_meta = fs::metadata(&output_path)?;
-
-                    if input_meta.modified()? <= output_meta.modified()? {
-                        println!(
-                            "  {} Skipping {}",
-                            "⚠️".yellow(),
-                            path.display().to_string().dimmed()
-                        );
-                        return Ok(());
-                    }
-                }
-
-                let parsed_file = parser::parse_file(path)?;
-                if !parsed_file.classes.is_empty() {
-                    total_generated.fetch_add(1, Ordering::SeqCst);
-                    let filename = path.file_name().unwrap().to_str().unwrap();
-                    let generated = generator.generate(filename, parsed_file, &plugin_config);
-
-                    fs::write(&output_path, generated)?;
-                    println!(
-                        "  {} Generated: {}",
-                        "✅".green(),
-                        output_path.display().to_string().bold()
-                    );
-                }
-                Ok(())
-            });
-
-            if result.is_err() {
-                return Err(result.err().unwrap());
-            }
-        }
-    }
-
-    if total_generated.load(Ordering::SeqCst) == 0 {
-        println!("{} No annotations found. Nothing to build.", "ℹ️".yellow());
-    } else {
-        println!(
-            "{} Built {}",
-            "✅".green(),
-            total_generated.load(Ordering::SeqCst)
-        );
-    }
-
-    Ok(())
-}
-
-fn run_clean() -> Result<()> {
-    println!(
-        "{} {}",
-        "🧹".magenta(),
-        "Cleaning generated files...".bold()
-    );
-    let files = discovery::find_generated_files("lib");
-    files.par_iter().try_for_each(|path| -> Result<()> {
-        fs::remove_file(path)?;
-        println!(
-            "  {} Deleted: {}",
-            "🗑️".red().dimmed(),
-            path.display().to_string().dimmed()
-        );
-        Ok(())
-    })
 }

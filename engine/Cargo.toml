@@ -19,9 +19,10 @@ tree-sitter = "0.26"
 tree-sitter-dart = "0.1"
 log = "0.4"
 env_logger = "0.11"
-tera = "1.20.1"
-serde_json = "1.0.149"
-heck = "0.5.0"
+tera = "1.20"
+serde_json = "1.0"
+heck = "0.5"
+thiserror = "2.0"
 
 [dev-dependencies]
 insta = "1.47"

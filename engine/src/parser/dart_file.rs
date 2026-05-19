@@ -26,16 +26,14 @@ pub fn parse_file(path: &Path) -> Result<ParsedFile> {
             let lines: Vec<&str> = content.lines().collect();
             let error_line = lines.get(start.row).unwrap_or(&"");
             let pointer = " ".repeat(start.column) + "^";
-            let msg = format!(
-                "Syntax Error in {:?} at line {}, column {}\n\n{}\n{}\n",
-                path,
-                start.row + 1,
-                start.column + 1,
-                error_line,
-                pointer
-            );
-
-            return Err(anyhow::anyhow!(msg));
+            return Err(crate::error::FlintError::Syntax {
+                file: path.display().to_string(),
+                line: start.row + 1,
+                column: start.column + 1,
+                source_line: error_line.to_string(),
+                pointer,
+            }
+            .into());
         }
     }
 

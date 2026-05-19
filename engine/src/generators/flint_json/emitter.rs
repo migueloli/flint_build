@@ -1,4 +1,4 @@
-use crate::generators::Generator;
+use crate::generators::{Generator, TemplateEngine};
 use crate::{
     config::PluginConfig,
     parser::dart_types::{DartField, DartType, ParsedFile, TypeKind},
@@ -7,7 +7,7 @@ use heck::{
     ToKebabCase, ToLowerCamelCase, ToPascalCase, ToShoutyKebabCase, ToShoutySnakeCase, ToSnakeCase,
     ToUpperCamelCase,
 };
-use tera::{Context, Tera};
+use tera::Context;
 
 pub struct FlintJsonGenerator;
 
@@ -83,24 +83,21 @@ pub fn generate_full_file(
             }
         }
     }
-    let mut tera = Tera::default();
 
-    if let Some(path) = &plugin.template_path {
-        tera.add_template_file(path, Some("flint_json"))
-            .expect("Failed to load custom template");
-    } else {
-        let internal_template = include_str!("../../templates/flint_json.tera");
-        tera.add_raw_template("flint_json", internal_template)
-            .expect("Failed to load internal template");
-    }
+    let mut engine = TemplateEngine::new();
+    let internal_template = include_str!("../../templates/flint_json.tera");
+    engine.load_template(
+        "flint_json",
+        internal_template,
+        plugin.template_path.as_ref(),
+    );
 
     let mut context = Context::new();
     context.insert("classes", &parsed_file.classes);
     context.insert("enums", &parsed_file.enums);
     context.insert("filename", filename);
 
-    let rendered = tera.render("flint_json", &context).unwrap();
-    rendered
+    engine.render("flint_json", &context)
 }
 
 fn generate_from_json_expression(
