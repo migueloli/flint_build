@@ -43,9 +43,7 @@ mod tests {
         let mut registry = PluginRegistry::new();
         registry.register("mock", Box::new(MockGenerator));
 
-        // Verify we can retrieve it
         assert!(registry.get("mock").is_some());
-        // Verify an unknown plugin returns None
         assert!(registry.get("unknown").is_none());
     }
 }

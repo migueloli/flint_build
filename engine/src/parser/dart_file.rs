@@ -132,10 +132,7 @@ fn parse_field(field: Node<'_>, content: &str) -> Option<DartField> {
         metadata
     };
 
-    // First check the field node itself
     let mut metadata = check_metadata(field);
-
-    // If not found, check the parent node (usually `class_member`)
     if metadata.is_empty()
         && let Some(parent) = field.parent()
     {
@@ -321,12 +318,9 @@ fn process_json_value_node(node: Node, content: &str) -> Option<String> {
 }
 
 fn find_error_node<'a>(node: Node<'a>) -> Option<Node<'a>> {
-    // If this specific node is an error or is missing expected syntax, we found it!
     if node.is_error() || node.is_missing() {
         return Some(node);
     }
-
-    // Otherwise, recursively check all children
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         if let Some(err) = find_error_node(child) {
@@ -431,7 +425,7 @@ fn extract_enums(root: Node, content: &str) -> Result<Vec<DartEnum>> {
           )?
           (_) @enum_name
           (enum_body) @enum_body
-        )
+        ) @enum_decl
     "#;
 
     let query = Query::new(&tree_sitter_dart::LANGUAGE.into(), query_str)?;
@@ -439,8 +433,19 @@ fn extract_enums(root: Node, content: &str) -> Result<Vec<DartEnum>> {
     let mut matches = cursor.matches(&query, root, content.as_bytes());
 
     let mut enums = Vec::new();
+    let mut processed_nodes = std::collections::HashSet::new();
 
     while let Some(m) = matches.next() {
+        let enum_decl_node = m.captures.iter()
+            .find(|c| query.capture_names()[c.index as usize] == "enum_decl")
+            .map(|c| c.node);
+
+        if let Some(node) = enum_decl_node {
+            if !processed_nodes.insert(node.id()) {
+                continue; // Skip duplicate matches
+            }
+        }
+
         let mut enum_name = String::new();
         let mut enum_body_node = None;
         let mut annotations = Vec::new();
@@ -473,7 +478,6 @@ mod tests {
     use crate::parser::dart_types::TypeKind;
     use tree_sitter::Parser;
 
-    // A helper to quickly parse a string into a Tree
     fn parse_snippet(code: &str) -> tree_sitter::Tree {
         let mut parser = Parser::new();
         parser
@@ -495,23 +499,50 @@ mod tests {
         let tree = parse_snippet(code);
         let classes = extract_classes(tree.root_node(), code).unwrap();
 
-        // Verify the Class
         assert_eq!(classes.len(), 1);
         let class = &classes[0];
         assert_eq!(class.name, "ApiResponse");
         assert_eq!(class.type_parameters, vec!["T", "U"]);
         assert_eq!(class.fields.len(), 2);
 
-        // Verify Field 1
         assert_eq!(class.fields[0].name, "data");
         assert_eq!(
             class.fields[0].dart_type.kind,
             TypeKind::Custom("T".to_string())
         );
 
-        // Verify Field 2
         assert_eq!(class.fields[1].name, "date");
         assert_eq!(class.fields[1].dart_type.kind, TypeKind::DateTime);
         assert!(class.fields[1].metadata.contains_key("MyConverter"));
+    }
+
+    #[test]
+    fn test_extract_enums() {
+        let code = r#"
+            @JsonEnum()
+            enum UserStatus {
+                pending,
+                @JsonValue("active_status")
+                active,
+                suspended,
+            }
+        "#;
+        let tree = parse_snippet(code);
+        let enums = extract_enums(tree.root_node(), code).unwrap();
+
+        assert_eq!(enums.len(), 1);
+        let status = &enums[0];
+        assert_eq!(status.name, "UserStatus");
+        assert_eq!(status.annotations, vec!["JsonEnum".to_string()]);
+        assert_eq!(status.values.len(), 3);
+
+        assert_eq!(status.values[0].name, "pending");
+        assert_eq!(status.values[0].value, None);
+
+        assert_eq!(status.values[1].name, "active");
+        assert_eq!(status.values[1].value, Some("active_status".to_string()));
+
+        assert_eq!(status.values[2].name, "suspended");
+        assert_eq!(status.values[2].value, None);
     }
 }

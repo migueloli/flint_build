@@ -6,7 +6,6 @@ use std::collections::HashMap;
 
 #[test]
 fn test_generic_generator_execution() {
-    // 1. Create a mock ParsedFile with one class that has an @MockAnnotation
     let mut metadata = HashMap::new();
     metadata.insert("MockAnnotation".to_string(), "".to_string());
 
@@ -22,7 +21,6 @@ fn test_generic_generator_execution() {
         enums: vec![],
     };
 
-    // 2. Create a temporary .tera file to simulate a user's custom template
     let temp_dir = std::env::temp_dir();
     let template_path = temp_dir.join("mock_template.tera");
     std::fs::write(&template_path, "Hello {{ classes[0].name }}!").unwrap();
@@ -30,19 +28,16 @@ fn test_generic_generator_execution() {
     let config = PluginConfig {
         class_annotations: vec!["@MockAnnotation".to_string()],
         enum_annotations: vec![],
-        field_annotations: vec![],   // Add this!
-        variant_annotations: vec![], // Add this!
+        field_annotations: vec![],
+        variant_annotations: vec![],
         field_rename: None,
         converters: None,
         template_path: Some(template_path.to_str().unwrap().to_string()),
     };
 
-    // 3. Execute the generator!
     let generator = GenericTeraGenerator {
         plugin_name: "mock_plugin".to_string(),
     };
     let output = generator.generate("mock.dart", parsed_file, &config);
-
-    // 4. Verify the output matched our mock template
     assert_eq!(output, "Hello MockUser!");
 }

@@ -59,7 +59,6 @@ mod tests {
     #[test]
     fn test_template_engine_raw() {
         let mut engine = TemplateEngine::new();
-        // Load a raw string template
         engine.load_template("test_tpl", "Hello {{ name }}", None);
 
         let mut context = tera::Context::new();
