@@ -208,7 +208,8 @@ fn generate_to_json_expression(
 }
 
 fn extract_field_name(field: &mut DartField, plugin: &PluginConfig) -> String {
-    let key = if let Some(raw_key) = field.metadata.get("name") {
+    
+    if let Some(raw_key) = field.metadata.get("name") {
         let clean_key = raw_key.trim_matches(|c| c == '"' || c == '\'').to_string();
         field.metadata.insert("name".to_string(), clean_key.clone());
         clean_key
@@ -230,6 +231,5 @@ fn extract_field_name(field: &mut DartField, plugin: &PluginConfig) -> String {
             .metadata
             .insert("name".to_string(), field.name.clone());
         field.name.clone()
-    };
-    key
+    }
 }

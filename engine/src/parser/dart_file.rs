@@ -20,8 +20,8 @@ pub fn parse_file(path: &Path) -> Result<ParsedFile> {
         .parse(&content, None)
         .context("Could not parse file")?;
 
-    if tree.root_node().has_error() {
-        if let Some(error_node) = find_error_node(tree.root_node()) {
+    if tree.root_node().has_error()
+        && let Some(error_node) = find_error_node(tree.root_node()) {
             let start = error_node.start_position();
             let lines: Vec<&str> = content.lines().collect();
             let error_line = lines.get(start.row).unwrap_or(&"");
@@ -35,7 +35,6 @@ pub fn parse_file(path: &Path) -> Result<ParsedFile> {
             }
             .into());
         }
-    }
 
     let classes = extract_classes(tree.root_node(), &content)?;
     let enums = extract_enums(tree.root_node(), &content)?;
@@ -92,17 +91,15 @@ fn extract_fields_from_tree(body: Node, content: &str) -> Vec<DartField> {
         if child.kind() == "class_member" {
             let mut inner_cursor = child.walk();
             for inner in child.children(&mut inner_cursor) {
-                if inner.kind() == "declaration" {
-                    if let Some(field) = parse_field(inner, content) {
+                if inner.kind() == "declaration"
+                    && let Some(field) = parse_field(inner, content) {
                         fields.push(field);
                     }
-                }
             }
-        } else if child.kind() == "field_declaration" || child.kind() == "declaration" {
-            if let Some(field) = parse_field(child, content) {
+        } else if (child.kind() == "field_declaration" || child.kind() == "declaration")
+            && let Some(field) = parse_field(child, content) {
                 fields.push(field);
             }
-        }
     }
     fields
 }
@@ -136,11 +133,10 @@ fn parse_field(field: Node<'_>, content: &str) -> Option<DartField> {
     let mut metadata = check_metadata(field);
 
     // If not found, check the parent node (usually `class_member`)
-    if metadata.is_empty() {
-        if let Some(parent) = field.parent() {
+    if metadata.is_empty()
+        && let Some(parent) = field.parent() {
             metadata = check_metadata(parent);
         }
-    }
 
     let mut type_parts = String::new();
     let mut name_str = String::new();
@@ -158,12 +154,11 @@ fn parse_field(field: Node<'_>, content: &str) -> Option<DartField> {
             }
             "?" => is_nullable = true,
             "initialized_identifier_list" => {
-                if let Some(init_id) = decl_child.child(0) {
-                    if let Some(name_node) = init_id.child(0) {
+                if let Some(init_id) = decl_child.child(0)
+                    && let Some(name_node) = init_id.child(0) {
                         name_str =
                             content[name_node.start_byte()..name_node.end_byte()].to_string();
                     }
-                }
             }
             _ => {}
         }
@@ -275,11 +270,10 @@ fn extract_enum_values(name: String, body: Node, content: &str) -> DartEnum {
                 } else if inner.kind() == "metadata" {
                     let mut meta_cursor = inner.walk();
                     for meta_child in inner.children(&mut meta_cursor) {
-                        if meta_child.kind() == "annotation" {
-                            if let Some(val) = process_json_value_node(meta_child, content) {
+                        if meta_child.kind() == "annotation"
+                            && let Some(val) = process_json_value_node(meta_child, content) {
                                 custom_value = Some(val);
                             }
-                        }
                     }
                 }
             }
@@ -402,11 +396,10 @@ fn extract_type_parameters(node: Node, content: &str) -> Vec<String> {
         if child.kind() == "type_parameter" {
             let mut inner_cursor = child.walk();
             for inner in child.children(&mut inner_cursor) {
-                if inner.kind() == "type_identifier" {
-                    if let Ok(tp_name) = inner.utf8_text(content.as_bytes()) {
+                if inner.kind() == "type_identifier"
+                    && let Ok(tp_name) = inner.utf8_text(content.as_bytes()) {
                         type_parameters.push(tp_name.to_string());
                     }
-                }
             }
         }
     }

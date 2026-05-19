@@ -13,6 +13,12 @@ pub struct TemplateEngine {
     tera: Tera,
 }
 
+impl Default for TemplateEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TemplateEngine {
     pub fn new() -> Self {
         Self {
