@@ -56,11 +56,15 @@ mod tests {
             field_rename: None,
             converters: None,
             template_path: None,
+            ..Default::default()
         };
         let dummy_file = ParsedFile {
             classes: vec![],
             enums: vec![],
         };
-        assert_eq!(generator.generate("test.dart", dummy_file, &dummy_plugin), "MockOutput");
+        assert_eq!(
+            generator.generate("test.dart", dummy_file, &dummy_plugin),
+            "MockOutput"
+        );
     }
 }

@@ -1,11 +1,7 @@
 use crate::generators::{Generator, TemplateEngine};
 use crate::{
     config::PluginConfig,
-    parser::dart_types::{DartField, DartType, ParsedFile, TypeKind},
-};
-use heck::{
-    ToKebabCase, ToLowerCamelCase, ToPascalCase, ToShoutyKebabCase, ToShoutySnakeCase, ToSnakeCase,
-    ToUpperCamelCase,
+    parser::dart_types::{DartClass, DartField, DartType, ParsedFile, TypeKind},
 };
 use tera::Context;
 
@@ -46,6 +42,7 @@ pub fn generate_full_file(
             class.fields.len()
         );
 
+        apply_plugin_defaults(class, plugin);
         let explicit_to_json =
             class.metadata.get("explicitToJson").map(|v| v.as_str()) == Some("true");
         for field in &mut class.fields {
@@ -98,6 +95,35 @@ pub fn generate_full_file(
     context.insert("filename", filename);
 
     engine.render("flint_json", &context)
+}
+
+/// Fills options the class's annotations leave out with the plugin-wide defaults from `flint.yaml` or
+/// `build.yaml`, so the template only has to read metadata. Class- and plugin-level `includeIfNull`
+/// only reaches nullable fields, as in json_serializable.
+fn apply_plugin_defaults(class: &mut DartClass, plugin: &PluginConfig) {
+    let defaults = [
+        ("explicitToJson", plugin.explicit_to_json),
+        ("createFactory", plugin.create_factory),
+        ("createToJson", plugin.create_to_json),
+        ("includeIfNull", plugin.include_if_null),
+    ];
+    for (key, value) in defaults {
+        if let Some(value) = value {
+            class
+                .metadata
+                .entry(key.to_string())
+                .or_insert_with(|| value.to_string());
+        }
+    }
+
+    if let Some(include_if_null) = class.metadata.get("includeIfNull") {
+        for field in class.fields.iter_mut().filter(|f| f.dart_type.is_nullable) {
+            field
+                .metadata
+                .entry("includeIfNull".to_string())
+                .or_insert_with(|| include_if_null.clone());
+        }
+    }
 }
 
 fn generate_from_json_expression(
@@ -212,17 +238,8 @@ fn extract_field_name(field: &mut DartField, plugin: &PluginConfig) -> String {
         let clean_key = raw_key.trim_matches(|c| c == '"' || c == '\'').to_string();
         field.metadata.insert("name".to_string(), clean_key.clone());
         clean_key
-    } else if let Some(strategy) = &plugin.field_rename {
-        let renamed = match strategy.as_str() {
-            "snake" | "snake_case" => field.name.to_snake_case(),
-            "screaming_snake" | "screaming_snake_case" => field.name.to_shouty_snake_case(),
-            "kebab" | "kebab_case" => field.name.to_kebab_case(),
-            "screaming_kebab" | "screaming_kebab_case" => field.name.to_shouty_kebab_case(),
-            "pascal" | "pascal_case" => field.name.to_pascal_case(),
-            "camel" | "camel_case" => field.name.to_upper_camel_case(),
-            "lower_camel" | "lower_camel_case" => field.name.to_lower_camel_case(),
-            _ => field.name.clone(),
-        };
+    } else if let Some(strategy) = plugin.field_rename {
+        let renamed = strategy.apply(&field.name);
         field.metadata.insert("name".to_string(), renamed.clone());
         renamed
     } else {
@@ -259,9 +276,10 @@ mod tests {
             enum_annotations: vec![],
             field_annotations: vec![],
             variant_annotations: vec![],
-            field_rename: Some("snake_case".to_string()),
+            field_rename: Some("snake_case".parse().unwrap()),
             converters: None,
             template_path: None,
+            ..Default::default()
         };
         assert_eq!(
             extract_field_name(&mut field, &config),
@@ -269,56 +287,62 @@ mod tests {
         );
 
         field = make_field("myCamelCaseField");
-        config.field_rename = Some("screaming_snake".to_string());
+        config.field_rename = Some("screaming_snake".parse().unwrap());
         assert_eq!(
             extract_field_name(&mut field, &config),
             "MY_CAMEL_CASE_FIELD"
         );
 
         field = make_field("myCamelCaseField");
-        config.field_rename = Some("kebab".to_string());
+        config.field_rename = Some("kebab".parse().unwrap());
         assert_eq!(
             extract_field_name(&mut field, &config),
             "my-camel-case-field"
         );
 
         field = make_field("myCamelCaseField");
-        config.field_rename = Some("pascal".to_string());
+        config.field_rename = Some("pascal".parse().unwrap());
         assert_eq!(extract_field_name(&mut field, &config), "MyCamelCaseField");
 
         field = make_field("myCamelCaseField");
-        config.field_rename = Some("pascal_case".to_string());
+        config.field_rename = Some("pascal_case".parse().unwrap());
         assert_eq!(extract_field_name(&mut field, &config), "MyCamelCaseField");
 
-        field = make_field("myCamelCaseField");
-        config.field_rename = Some("camel".to_string());
-        assert_eq!(extract_field_name(&mut field, &config), "MyCamelCaseField");
+        field = make_field("my_camel_case_field");
+        config.field_rename = Some("camel".parse().unwrap());
+        assert_eq!(extract_field_name(&mut field, &config), "myCamelCaseField");
 
-        field = make_field("myCamelCaseField");
-        config.field_rename = Some("camel_case".to_string());
-        assert_eq!(extract_field_name(&mut field, &config), "MyCamelCaseField");
-
-        field = make_field("myCamelCaseField");
-        config.field_rename = Some("screaming_kebab".to_string());
-        assert_eq!(extract_field_name(&mut field, &config), "MY-CAMEL-CASE-FIELD");
-
-        field = make_field("myCamelCaseField");
-        config.field_rename = Some("screaming_kebab_case".to_string());
-        assert_eq!(extract_field_name(&mut field, &config), "MY-CAMEL-CASE-FIELD");
-
-        field = make_field("myCamelCaseField");
-        config.field_rename = Some("lower_camel".to_string());
+        field = make_field("my_camel_case_field");
+        config.field_rename = Some("camel_case".parse().unwrap());
         assert_eq!(extract_field_name(&mut field, &config), "myCamelCaseField");
 
         field = make_field("myCamelCaseField");
-        config.field_rename = Some("lower_camel_case".to_string());
+        config.field_rename = Some("screaming_kebab".parse().unwrap());
+        assert_eq!(
+            extract_field_name(&mut field, &config),
+            "MY-CAMEL-CASE-FIELD"
+        );
+
+        field = make_field("myCamelCaseField");
+        config.field_rename = Some("screaming_kebab_case".parse().unwrap());
+        assert_eq!(
+            extract_field_name(&mut field, &config),
+            "MY-CAMEL-CASE-FIELD"
+        );
+
+        field = make_field("myCamelCaseField");
+        config.field_rename = Some("lower_camel".parse().unwrap());
+        assert_eq!(extract_field_name(&mut field, &config), "myCamelCaseField");
+
+        field = make_field("myCamelCaseField");
+        config.field_rename = Some("lower_camel_case".parse().unwrap());
         assert_eq!(extract_field_name(&mut field, &config), "myCamelCaseField");
 
         field = make_field("myCamelCaseField");
         field
             .metadata
             .insert("name".to_string(), "\"explicitName\"".to_string());
-        config.field_rename = Some("snake".to_string());
+        config.field_rename = Some("snake".parse().unwrap());
         assert_eq!(extract_field_name(&mut field, &config), "explicitName");
     }
 
@@ -357,15 +381,20 @@ mod tests {
             enums: vec![],
         };
 
-        let output = generate_full_file("user.dart", parsed_file, &PluginConfig {
-            class_annotations: vec!["@JsonSerializable".to_string()],
-            enum_annotations: vec![],
-            field_annotations: vec![],
-            variant_annotations: vec![],
-            field_rename: None,
-            converters: Some(vec!["@MyDateTimeConverter".to_string()]),
-            template_path: None,
-        });
+        let output = generate_full_file(
+            "user.dart",
+            parsed_file,
+            &PluginConfig {
+                class_annotations: vec!["@JsonSerializable".to_string()],
+                enum_annotations: vec![],
+                field_annotations: vec![],
+                variant_annotations: vec![],
+                field_rename: None,
+                converters: Some(vec!["@MyDateTimeConverter".to_string()]),
+                template_path: None,
+                ..Default::default()
+            },
+        );
 
         assert!(output.contains("const MyDateTimeConverter().fromJson"));
     }
@@ -402,16 +431,104 @@ mod tests {
             enums: vec![],
         };
 
-        let output = generate_full_file("user.dart", parsed_file, &PluginConfig {
-            class_annotations: vec!["@JsonSerializable".to_string()],
-            enum_annotations: vec![],
-            field_annotations: vec![],
-            variant_annotations: vec![],
-            field_rename: None,
-            converters: None,
-            template_path: None,
-        });
+        let output = generate_full_file(
+            "user.dart",
+            parsed_file,
+            &PluginConfig {
+                class_annotations: vec!["@JsonSerializable".to_string()],
+                enum_annotations: vec![],
+                field_annotations: vec![],
+                variant_annotations: vec![],
+                field_rename: None,
+                converters: None,
+                template_path: None,
+                ..Default::default()
+            },
+        );
 
         assert!(output.contains("address?.toJson()"));
+    }
+
+    fn field(name: &str, kind: TypeKind, is_nullable: bool) -> DartField {
+        DartField {
+            name: name.to_string(),
+            dart_type: DartType { kind, is_nullable },
+            is_final: true,
+            from_json_expr: None,
+            to_json_expr: None,
+            metadata: std::collections::HashMap::new(),
+            converter: None,
+        }
+    }
+
+    fn user_file(class_metadata: &[(&str, &str)], fields: Vec<DartField>) -> ParsedFile {
+        let mut metadata =
+            std::collections::HashMap::from([("JsonSerializable".to_string(), String::new())]);
+        for (key, value) in class_metadata {
+            metadata.insert(key.to_string(), value.to_string());
+        }
+        ParsedFile {
+            classes: vec![DartClass {
+                name: "User".to_string(),
+                fields,
+                metadata,
+                type_parameters: vec![],
+            }],
+            enums: vec![],
+        }
+    }
+
+    #[test]
+    fn test_plugin_defaults_apply_unless_annotation_overrides() {
+        let plugin = PluginConfig {
+            class_annotations: vec!["@JsonSerializable".to_string()],
+            explicit_to_json: Some(true),
+            create_factory: Some(false),
+            ..Default::default()
+        };
+        let address = || field("address", TypeKind::Custom("Address".to_string()), false);
+
+        let output = generate_full_file("user.dart", user_file(&[], vec![address()]), &plugin);
+        assert!(output.contains("'address': instance.address.toJson(),"));
+        assert!(!output.contains("_$UserFromJson"));
+
+        let overridden = user_file(
+            &[("explicitToJson", "false"), ("createFactory", "true")],
+            vec![address()],
+        );
+        let output = generate_full_file("user.dart", overridden, &plugin);
+        assert!(output.contains("'address': instance.address,"));
+        assert!(output.contains("_$UserFromJson"));
+    }
+
+    #[test]
+    fn test_include_if_null_default_only_applies_to_nullable_fields() {
+        let fields = || {
+            vec![
+                field("id", TypeKind::Int, false),
+                field("nickname", TypeKind::String, true),
+            ]
+        };
+        let base = PluginConfig {
+            class_annotations: vec!["@JsonSerializable".to_string()],
+            ..Default::default()
+        };
+
+        let from_plugin = PluginConfig {
+            include_if_null: Some(false),
+            ..base.clone()
+        };
+        let from_class = user_file(&[("includeIfNull", "false")], fields());
+
+        for output in [
+            generate_full_file("user.dart", user_file(&[], fields()), &from_plugin),
+            generate_full_file("user.dart", from_class, &base),
+        ] {
+            assert!(output.contains("if (instance.nickname != null)"));
+            assert!(!output.contains("if (instance.id != null)"));
+        }
+
+        let output = generate_full_file("user.dart", user_file(&[], fields()), &base);
+        assert!(!output.contains("!= null)"));
     }
 }

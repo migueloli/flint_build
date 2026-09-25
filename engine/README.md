@@ -1,117 +1,103 @@
-# Flint Build Engine 🦀
+# Flint engine (Rust)
 
-The high-performance, concurrent core compiler powering **Flint**, written entirely in Rust. It utilizes **Tree-sitter** for lightning-fast, high-fidelity Dart AST extraction and **Tera** (a modern Jinja2/Liquid-compatible template engine) for zero-Rust custom generator extension.
+The Rust crate `flint_build`. It provides the binary that the [Dart CLI](../cli/README.md) runs, and a
+library you can embed. It parses Dart source with **tree-sitter** (syntax only), runs generators in parallel
+with **rayon**, and renders output with **Tera** templates.
 
----
+For the design as a whole (current vs target), see [docs/SDD.md](../docs/SDD.md).
 
-## 🏗️ Architectural Core
-
-The engine is modularized into five high-performance components:
+## Pipeline
 
 ```text
-               ┌────────────────────────┐
-               │    Flint Build CLI     │
-               └───────────┬────────────┘
-                           │ Invokes native binary
-                           ▼
-               ┌────────────────────────┐
-               │    discovery/  (lib)   │ (Finds .dart files concurrently)
-               └───────────┬────────────┘
-                           │
-                           ▼
-               ┌────────────────────────┐
-               │     parser/    (AST)   │ (Concurrently parses files using Tree-sitter)
-               └───────────┬────────────┘
-                           │ Returns ParsedFile AST
-                           ▼
-               ┌────────────────────────┐
-               │   generators/ (Tera)   │ (Renders templates or invokes native emitter)
-               └────────────────────────┘
+main.rs (clap: build | watch | clean)
+   │
+   ▼
+builder::run_build ──► config      pubspec.yaml, flint.yaml (plugins), build.yaml (json_serializable options)
+   │
+   ├─► discovery    walk lib/, *.dart sources vs *.g.dart outputs
+   ├─► parser       tree-sitter → ParsedFile { classes, enums }        (per file, in parallel)
+   ├─► registry     plugin name → Generator  (flint_json built in, else GenericTeraGenerator)
+   └─► generators   ParsedFile + PluginConfig → String → <file>.g.dart
+
+watcher::watch      notify + 500 ms debounce on lib/ → run_build
 ```
 
-- **[`discovery/`](src/discovery)**: Concurrently walks target directories using parallel file filters, discovering modified `.dart` source files and matching existing generated structures.
-- **[`parser/`](src/parser)**: Harnesses tree-sitter AST queries to build strongly typed syntax tree mappings of Dart classes, enums, annotations, and generic type parameters with complete thread safety.
-- **[`generators/`](src/generators)**: Houses the high-fidelity native `flint_json` emitter and the generic template loading wrapper utilizing Tera templates.
-- **[`config/`](src/config)**: Safely handles pubspec and flint configuration deserialization with automatic defaulting strategies for zero-boilerplate configurations.
-- **[`registry/`](src/registry)**: Manages plugin registrations and coordinates generation boundaries.
+| Module | Purpose |
+| ------ | ------- |
+| [`config/`](src/config) | `Pubspec`, `FlintConfig`/`PluginConfig` with `flint_json` defaults, `build_yaml` reader, and `resolve` (flint.yaml > build.yaml > defaults) |
+| [`discovery/`](src/discovery) | `find_dart_files` / `find_generated_files` using `walkdir` |
+| [`parser/`](src/parser) | tree-sitter queries → `DartClass`, `DartField`, `DartType`, `DartEnum`. Syntax errors with a caret |
+| [`generators/`](src/generators) | `Generator` trait, `TemplateEngine` (Tera), `flint_json` emitter, `generic` template generator |
+| [`templates/`](src/templates) | Built-in `flint_json.tera`, embedded in the binary with `include_str!` |
+| [`registry.rs`](src/registry.rs) | `PluginRegistry`: name → `Box<dyn Generator>` |
+| [`builder.rs`](src/builder.rs) | `run_build` / `run_clean` orchestration and mtime-based skip |
+| [`watcher/`](src/watcher) | Watch mode |
+| [`error.rs`](src/error.rs) | `FlintError` (`thiserror`) |
 
----
+## Build
 
-## 🛠️ Rust Crate Integration
+Requires Rust **1.88+** (edition 2024 with let-chains).
 
-Although primarily invoked via the CLI wrapper, the engine can be used directly as a Rust library for custom compilation tools:
+```bash
+cargo build --release     # target/release/flint_build, the binary the CLI looks for
+RUST_LOG=debug ./target/release/flint_build build    # run inside a Dart package root
+```
 
-### Add dependency
+## Use as a library
 
-Add the engine to your custom Rust project:
+The API isn't stable yet (0.x). It will change as the [roadmap](../docs/ROADMAP.md) lands.
 
 ```toml
 [dependencies]
-flint_build = { path = "../path/to/engine" }
+flint_build = { path = "../flint_build/engine" }
+anyhow = "1"
 ```
 
-### Direct Crate Usage Example
-
 ```rust
-use flint_build::parser;
-use flint_build::generators::flint_json::emitter::FlintJsonGenerator;
+use std::path::Path;
+
+use flint_build::config::FlintConfig;
 use flint_build::generators::Generator;
-use flint_build::config::PluginConfig;
+use flint_build::generators::flint_json::emitter::FlintJsonGenerator;
+use flint_build::parser;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 1. Parse Dart source code to highly detailed AST structure
-    let parsed_file = parser::parse_file("lib/user_model.dart")?;
+fn main() -> anyhow::Result<()> {
+    // flint.yaml with just `plugins: { flint_json: }` gets json_serializable's annotation names as defaults.
+    let config = FlintConfig::from_str("plugins:\n  flint_json:\n")?;
+    let plugin = &config.plugins.as_ref().unwrap()["flint_json"];
 
-    // 2. Load standard configuration
-    let config = PluginConfig {
-        class_annotations: vec!["@JsonSerializable".to_string()],
-        field_annotations: vec!["@JsonKey".to_string()],
-        enum_annotations: vec!["@JsonEnum".to_string()],
-        variant_annotations: vec!["@JsonValue".to_string()],
-        template_path: None,
-        converters: None,
-        field_rename: Some("snake_case".to_string()),
-    };
+    let parsed = parser::parse_file(Path::new("lib/user_model.dart"))?;
+    let code = FlintJsonGenerator.generate("user_model.dart", parsed, plugin);
 
-    // 3. Concurrently generate Dart outputs using the emitter
-    let generator = FlintJsonGenerator;
-    let generated_code = generator.generate("user_model.dart", parsed_file, &config);
-
-    println!("{}", generated_code);
+    println!("{code}");
     Ok(())
 }
 ```
 
----
-
-## 🧪 Testing & Diagnostics
-
-The engine maintaining a strict testing standard with comprehensive unit, integration, and snapshot tests.
-
-### Run Unit and Integration Tests
+## Test
 
 ```bash
-cargo test
+cargo test                          # unit + integration + snapshot tests
+cargo insta review                  # review snapshot changes (cargo install cargo-insta)
+cargo clippy --all-targets -- -D warnings
+cargo fmt --check
 ```
 
-### Snapshot Verification
+- Unit tests live next to the code in `#[cfg(test)]` modules.
+- `tests/flint_json_test.rs` renders `tests/fixtures/gold/*.dart` and compares against
+  `tests/snapshots/*.snap`. It reads `engine/flint.yaml` as its config.
+- `tests/generic_generator_test.rs` covers the custom template path.
 
-The generator uses `insta` to test syntax rendering correctness. If you make template modifications, accept new valid outputs using:
+When you change the emitter or a template, add a fixture that exercises the change and read the snapshot diff
+before accepting it. Snapshots prove the output is stable, not that it compiles. Dart-side checks are planned
+(REVIEW H7).
+
+Coverage, if you have [`cargo-llvm-cov`](https://github.com/taiki-e/cargo-llvm-cov) installed:
 
 ```bash
-cargo insta accept
+cargo llvm-cov --html    # report in target/llvm-cov/html/index.html
 ```
 
-### Analyze Code Coverage
+## License
 
-To run a coverage analysis and generate visual HTML charts locally:
-
-```bash
-cargo llvm-cov --html && open target/llvm-cov/html/index.html
-```
-
----
-
-## ⚖️ License
-
-Flint Build Engine is released under the [MIT License](../LICENSE).
+[MIT](../LICENSE)
