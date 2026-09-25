@@ -1,13 +1,14 @@
-use crate::config::{self, FlintConfig};
+use crate::config;
 use crate::discovery;
 use crate::generators::Generator;
 use crate::generators::generic::GenericTeraGenerator;
 use crate::parser;
 use crate::registry::PluginRegistry;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use colored::Colorize;
 use rayon::prelude::*;
 use std::fs;
+use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub fn run_build(delete_conflicting_outputs: bool, registry: &PluginRegistry) -> Result<()> {
@@ -20,7 +21,14 @@ pub fn run_build(delete_conflicting_outputs: bool, registry: &PluginRegistry) ->
         pubspec.name.cyan().bold()
     );
 
-    let config = FlintConfig::load_from_file("flint.yaml").context("No 'flint.yaml' found in the current directory. Please create one to configure your plugins.")?;
+    let project = config::load_project_config(Path::new("."), &pubspec)?;
+    for note in &project.notes {
+        println!("{} {}", "ℹ️".cyan(), note);
+    }
+    for warning in &project.warnings {
+        println!("{} {}", "⚠️".yellow(), warning.yellow());
+    }
+    let config = project.flint;
     let total_generated = AtomicUsize::new(0);
 
     if let Some(plugins) = config.plugins {

@@ -31,8 +31,13 @@ the launcher uses it and prints a warning.
 
 ## Configure
 
-Create `flint.yaml` next to `pubspec.yaml`. The smallest config enables the built-in JSON generator with
-json_serializable's annotation names:
+**Already using json_serializable?** You don't need any new config. With no `flint.yaml`, Flint enables its
+JSON generator when `pubspec.yaml` depends on `json_serializable`, and reads your `build.yaml` options
+(`field_rename`, `explicit_to_json`, `include_if_null`, …). See
+[Using an existing `build.yaml`](../docs/configuration.md#using-an-existing-buildyaml).
+
+Otherwise, create `flint.yaml` next to `pubspec.yaml`. The smallest config enables the built-in JSON
+generator with json_serializable's annotation names:
 
 ```yaml
 plugins:
@@ -45,8 +50,11 @@ With options:
 plugins:
   flint_json:
     field_rename: snake_case             # snake | kebab | pascal | screaming_snake | …
+    explicit_to_json: true               # package-wide default, like build.yaml's option
     converters: ["@EpochDateTimeConverter"]
 ```
+
+Settings in `flint.yaml` take priority over `build.yaml`, and annotation arguments take priority over both.
 
 Your models look the same as with json_serializable:
 
@@ -117,4 +125,4 @@ The template receives `filename`, `classes` and `enums`. See the
 
 ## License
 
-MIT
+[MIT](../LICENSE)

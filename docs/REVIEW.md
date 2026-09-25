@@ -76,9 +76,9 @@ Severity:
 
 | ID | Severity | Finding |
 | -- | -------- | ------- |
-| H1 | High | There's **no `LICENSE` file**, although the READMEs and `Cargo.toml` declare MIT and link to it. |
+| H1 | High | There's **no `LICENSE` file**, although the READMEs and `Cargo.toml` declare MIT and link to it. *(MIT `LICENSE` added with a placeholder copyright holder, to be filled in.)* |
 | H2 | Medium | There's no CI: nothing runs tests, clippy, rustfmt, `dart analyze`, or the snapshot check on push. |
-| H3 | Low | `cargo fmt --check` fails (8 hunks), and `cargo clippy` reports 4 warnings: two `should_implement_trait` for `from_str` and two `collapsible_if`. |
+| H3 | Low | `cargo fmt --check` fails (8 hunks), and `cargo clippy` reports 4 warnings: two `should_implement_trait` for `from_str` and two `collapsible_if`. *(fmt fixed; clippy warnings remain.)* |
 | H4 | Low | The docs were inaccurate. The root README had a duplicated, broken “Elite Test Coverage” section, a hard-coded coverage badge that couldn't be checked, and a Rust prerequisite of 1.75+ (the crate needs ≥ 1.88 for edition 2024 let-chains). The engine README's library example didn't compile. *(Fixed in this change.)* |
 | H5 | Low | `engine/flint.yaml` is a test fixture sitting at the crate root. It points `template_path` at `src/templates/flint_json.tera`, so the snapshot tests load the template from disk instead of the `include_str!` copy that users get. |
 | H6 | Low | Tests use fixed temp paths (`flint_discovery_test`, `invalid.dart`, `mock_template.tera`), so they can collide when run in parallel or by two users. `tempfile` fixes this. |

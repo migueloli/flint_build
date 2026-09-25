@@ -43,7 +43,8 @@ startup and whole-program analysis that make `build_runner` slow.
 ```text
 Dart/Flutter project
  ├── pubspec.yaml         ← package name (read)
- ├── flint.yaml           ← plugin configuration (read)
+ ├── flint.yaml           ← plugin configuration (read, optional for json_serializable projects)
+ ├── build.yaml           ← json_serializable options (read, optional; spec 0002)
  └── lib/**.dart          ← annotated sources (read)
         └── *.g.dart      ← generated parts (written/deleted by Flint)
 
@@ -103,7 +104,7 @@ flowchart LR
 | `cli/bin/flint_build.dart` | Finds `engine/target/{release,debug}/flint_build`; runs `cargo build --release` if it's missing; runs the engine with the same arguments. | Only works inside this monorepo (D1). |
 | `main.rs` | clap CLI: `build`, `watch`, `clean`. Registers built-in generators. | |
 | `builder.rs` | For each plugin: discover → parse (in parallel) → generate → write `<name>.g.dart`. mtime-based skip. | Owns most of R2, R4, R11. |
-| `config/` | `Pubspec` (only `name`). `FlintConfig` / `PluginConfig` with a hand-written `Deserialize` that turns missing lists into empty ones, plus `flint_json` defaults. | |
+| `config/` | `Pubspec` (`name`, dependency lookup). `FlintConfig` / `PluginConfig` with a hand-written `Deserialize` that turns missing lists into empty ones, plus `flint_json` defaults. `build_yaml` reads json_serializable options. `resolve` merges `flint.yaml` > `build.yaml` > defaults and reports notes and warnings. | Pure `resolve` function; only `load_project_config` touches the disk. |
 | `discovery/` | `walkdir` over `lib/`; splits sources and `*.g.dart` outputs by file name. | Suffix-only ownership (R1). |
 | `parser/` | tree-sitter queries → `ParsedFile { classes, enums }`. Reports syntax errors with a caret. | Keeps every class, not only annotated ones (A3). One annotation per class (R3). |
 | `registry.rs` | `HashMap<String, Box<dyn Generator>>`. | |
@@ -188,7 +189,16 @@ source's mtime ≤ the output's → parse → if it has *any* class or enum, gen
 
 ## 8. Configuration
 
-See [configuration.md](configuration.md) for the user reference. Design rules:
+See [configuration.md](configuration.md) for the user reference.
+
+**Current:** configuration comes from up to three files ([spec 0002](specs/0002-read-build-yaml.md)).
+`flint.yaml` defines the plugins. Without it, `flint_json` is enabled implicitly when `build.yaml` configures
+the json_serializable builder, or when `pubspec.yaml` depends on json_serializable. `build.yaml`'s
+json_serializable options fill in `flint_json` settings that `flint.yaml` leaves unset. The emitter then
+fills class metadata that the annotations leave unset, so the annotation always wins. Unsupported
+`build.yaml` options produce warnings rather than being silently ignored.
+
+Design rules:
 
 - **Unknown keys are errors** (`#[serde(deny_unknown_fields)]`, Target), so typos don't silently do nothing.
 - **Plugin order is the order in the file** (Target: `IndexMap`), because output assembly depends on it.
@@ -271,11 +281,12 @@ Rule: every bug fix in the emitter comes with a fixture that failed before the f
 | DD3 | Tera templates for generators | No Rust needed to extend; Jinja-like syntax is familiar | We need logic Tera can't express; then consider WASM plugins |
 | DD4 | Native emitter logic + template for `flint_json` | Type-directed expressions are much easier in Rust | — |
 | DD5 | One shared `.g.dart` per source (Target) | Matches how json_serializable users already write `part` directives | A plugin needs its own file (then use `output_extension`) |
+| DD6 | Read json_serializable's `build.yaml` options instead of requiring a `flint.yaml` | Migrating then needs no new file and keeps the JSON wire format identical | Flint's options diverge from json_serializable's |
 
 ## 16. Open questions
 
-1. Should Flint read `build.yaml` `json_serializable` options (e.g. `field_rename`, `explicit_to_json`) so
-   migrating needs no `flint.yaml` at all?
+1. ~~Should Flint read `build.yaml` `json_serializable` options so migrating needs no `flint.yaml`?~~
+   **Resolved: yes.** See [spec 0002](specs/0002-read-build-yaml.md) and DD6.
 2. Should `field_rename: camel` mean **PascalCase** (current behaviour) or be removed? json_serializable has no
    `camel` option, and today's mapping surprises people.
 3. Should the parsed model be exposed as JSON (`flint_build dump-ir`) so people can write generators in any

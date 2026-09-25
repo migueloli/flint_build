@@ -13,7 +13,7 @@ Dart CLI finds the engine binary and runs it.
 engine/   Rust crate "flint_build" (lib + bin). All the logic lives here.
   src/main.rs            clap commands: build | watch | clean
   src/builder.rs         orchestration: discover → parse → generate → write
-  src/config/            pubspec.yaml + flint.yaml loading
+  src/config/            pubspec.yaml + flint.yaml + build.yaml loading; resolve() merges them
   src/discovery/         walk lib/, split sources vs *.g.dart
   src/parser/            tree-sitter → ParsedFile (dart_file.rs, dart_types.rs)
   src/generators/        Generator trait, flint_json native emitter, generic Tera generator

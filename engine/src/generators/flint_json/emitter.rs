@@ -1,7 +1,7 @@
 use crate::generators::{Generator, TemplateEngine};
 use crate::{
     config::PluginConfig,
-    parser::dart_types::{DartField, DartType, ParsedFile, TypeKind},
+    parser::dart_types::{DartClass, DartField, DartType, ParsedFile, TypeKind},
 };
 use heck::{
     ToKebabCase, ToLowerCamelCase, ToPascalCase, ToShoutyKebabCase, ToShoutySnakeCase, ToSnakeCase,
@@ -46,6 +46,7 @@ pub fn generate_full_file(
             class.fields.len()
         );
 
+        apply_plugin_defaults(class, plugin);
         let explicit_to_json =
             class.metadata.get("explicitToJson").map(|v| v.as_str()) == Some("true");
         for field in &mut class.fields {
@@ -98,6 +99,35 @@ pub fn generate_full_file(
     context.insert("filename", filename);
 
     engine.render("flint_json", &context)
+}
+
+/// Fills options the class's annotations leave out with the plugin-wide defaults from `flint.yaml` or
+/// `build.yaml`, so the template only has to read metadata. Class- and plugin-level `includeIfNull`
+/// only reaches nullable fields, as in json_serializable.
+fn apply_plugin_defaults(class: &mut DartClass, plugin: &PluginConfig) {
+    let defaults = [
+        ("explicitToJson", plugin.explicit_to_json),
+        ("createFactory", plugin.create_factory),
+        ("createToJson", plugin.create_to_json),
+        ("includeIfNull", plugin.include_if_null),
+    ];
+    for (key, value) in defaults {
+        if let Some(value) = value {
+            class
+                .metadata
+                .entry(key.to_string())
+                .or_insert_with(|| value.to_string());
+        }
+    }
+
+    if let Some(include_if_null) = class.metadata.get("includeIfNull") {
+        for field in class.fields.iter_mut().filter(|f| f.dart_type.is_nullable) {
+            field
+                .metadata
+                .entry("includeIfNull".to_string())
+                .or_insert_with(|| include_if_null.clone());
+        }
+    }
 }
 
 fn generate_from_json_expression(
@@ -262,6 +292,7 @@ mod tests {
             field_rename: Some("snake_case".to_string()),
             converters: None,
             template_path: None,
+            ..Default::default()
         };
         assert_eq!(
             extract_field_name(&mut field, &config),
@@ -374,6 +405,7 @@ mod tests {
                 field_rename: None,
                 converters: Some(vec!["@MyDateTimeConverter".to_string()]),
                 template_path: None,
+                ..Default::default()
             },
         );
 
@@ -423,9 +455,93 @@ mod tests {
                 field_rename: None,
                 converters: None,
                 template_path: None,
+                ..Default::default()
             },
         );
 
         assert!(output.contains("address?.toJson()"));
+    }
+
+    fn field(name: &str, kind: TypeKind, is_nullable: bool) -> DartField {
+        DartField {
+            name: name.to_string(),
+            dart_type: DartType { kind, is_nullable },
+            is_final: true,
+            from_json_expr: None,
+            to_json_expr: None,
+            metadata: std::collections::HashMap::new(),
+            converter: None,
+        }
+    }
+
+    fn user_file(class_metadata: &[(&str, &str)], fields: Vec<DartField>) -> ParsedFile {
+        let mut metadata =
+            std::collections::HashMap::from([("JsonSerializable".to_string(), String::new())]);
+        for (key, value) in class_metadata {
+            metadata.insert(key.to_string(), value.to_string());
+        }
+        ParsedFile {
+            classes: vec![DartClass {
+                name: "User".to_string(),
+                fields,
+                metadata,
+                type_parameters: vec![],
+            }],
+            enums: vec![],
+        }
+    }
+
+    #[test]
+    fn test_plugin_defaults_apply_unless_annotation_overrides() {
+        let plugin = PluginConfig {
+            class_annotations: vec!["@JsonSerializable".to_string()],
+            explicit_to_json: Some(true),
+            create_factory: Some(false),
+            ..Default::default()
+        };
+        let address = || field("address", TypeKind::Custom("Address".to_string()), false);
+
+        let output = generate_full_file("user.dart", user_file(&[], vec![address()]), &plugin);
+        assert!(output.contains("'address': instance.address.toJson(),"));
+        assert!(!output.contains("_$UserFromJson"));
+
+        let overridden = user_file(
+            &[("explicitToJson", "false"), ("createFactory", "true")],
+            vec![address()],
+        );
+        let output = generate_full_file("user.dart", overridden, &plugin);
+        assert!(output.contains("'address': instance.address,"));
+        assert!(output.contains("_$UserFromJson"));
+    }
+
+    #[test]
+    fn test_include_if_null_default_only_applies_to_nullable_fields() {
+        let fields = || {
+            vec![
+                field("id", TypeKind::Int, false),
+                field("nickname", TypeKind::String, true),
+            ]
+        };
+        let base = PluginConfig {
+            class_annotations: vec!["@JsonSerializable".to_string()],
+            ..Default::default()
+        };
+
+        let from_plugin = PluginConfig {
+            include_if_null: Some(false),
+            ..base.clone()
+        };
+        let from_class = user_file(&[("includeIfNull", "false")], fields());
+
+        for output in [
+            generate_full_file("user.dart", user_file(&[], fields()), &from_plugin),
+            generate_full_file("user.dart", from_class, &base),
+        ] {
+            assert!(output.contains("if (instance.nickname != null)"));
+            assert!(!output.contains("if (instance.id != null)"));
+        }
+
+        let output = generate_full_file("user.dart", user_file(&[], fields()), &base);
+        assert!(!output.contains("!= null)"));
     }
 }

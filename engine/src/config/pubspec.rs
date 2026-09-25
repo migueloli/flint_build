@@ -1,13 +1,25 @@
 use anyhow::{Context, Result};
 use serde::Deserialize;
+use serde_yaml::Value;
+use std::collections::HashMap;
 use std::fs;
 
 #[derive(Debug, Deserialize)]
 pub struct Pubspec {
     pub name: String,
+    dependencies: Option<HashMap<String, Value>>,
+    dev_dependencies: Option<HashMap<String, Value>>,
 }
 
 impl Pubspec {
+    /// Whether `package` is listed in `dependencies` or `dev_dependencies`.
+    pub fn depends_on(&self, package: &str) -> bool {
+        [&self.dependencies, &self.dev_dependencies]
+            .into_iter()
+            .flatten()
+            .any(|deps| deps.contains_key(package))
+    }
+
     pub fn from_str(content: &str) -> Result<Self> {
         serde_yaml::from_str(content).context("Failed to parse pubspec.yaml format")
     }
@@ -32,6 +44,27 @@ mod tests {
         "#;
         let pubspec = Pubspec::from_str(yaml).unwrap();
         assert_eq!(pubspec.name, "flint_example");
+        assert!(!pubspec.depends_on("json_serializable"));
+    }
+
+    #[test]
+    fn test_depends_on() {
+        let yaml = r#"
+            name: app
+            dependencies:
+              json_annotation: ^4.9.0
+            dev_dependencies:
+              json_serializable:
+                path: ../json_serializable
+        "#;
+        let pubspec = Pubspec::from_str(yaml).unwrap();
+        assert!(pubspec.depends_on("json_annotation"));
+        assert!(pubspec.depends_on("json_serializable"));
+        assert!(!pubspec.depends_on("build_runner"));
+
+        let empty_sections =
+            Pubspec::from_str("name: app\ndependencies:\ndev_dependencies:\n").unwrap();
+        assert!(!empty_sections.depends_on("json_serializable"));
     }
 
     #[test]

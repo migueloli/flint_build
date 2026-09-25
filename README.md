@@ -49,8 +49,8 @@ fvm dart run flint_build build     # generate lib/**.g.dart
 fvm dart run flint_build watch     # rebuild on change
 ```
 
-In your own project, add Flint as a path dev-dependency and create a `flint.yaml`. See the
-[CLI README](cli/README.md). Flint isn't on pub.dev yet, because the CLI can only find the engine inside
+In your own project, add Flint as a path dev-dependency. If you already use json_serializable, that's all:
+Flint reads your existing `build.yaml` options and needs no `flint.yaml`. See the [CLI README](cli/README.md). Flint isn't on pub.dev yet, because the CLI can only find the engine inside
 this repository (see the [roadmap](docs/ROADMAP.md#phase-4-installable-by-anyone)).
 
 ## What it supports
@@ -109,4 +109,4 @@ Changes to generated output, `flint.yaml`, CLI flags or the template context sta
 
 ## License
 
-MIT, as declared in `engine/Cargo.toml`. A `LICENSE` file still needs to be added (roadmap Phase 0).
+[MIT](LICENSE). The copyright line in `LICENSE` is still a placeholder.

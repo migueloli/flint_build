@@ -12,8 +12,9 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
 
 | | Item | Refs |
 | --- | ---- | ---- |
-| ⬜ | Add a `LICENSE` file (MIT, matching `Cargo.toml`) | H1 |
-| ⬜ | Make `cargo fmt --check` and `cargo clippy -- -D warnings` pass. Rename `from_str` to a `FromStr` impl or `parse` | H3 |
+| 🟨 | Add a `LICENSE` file (MIT, matching `Cargo.toml`). Added with placeholders: fill in `[YEAR]` and `[COPYRIGHT HOLDER]` | H1 |
+| ✅ | `cargo fmt --check` passes | H3 |
+| ⬜ | `cargo clippy -- -D warnings` passes. Rename `from_str` to a `FromStr` impl or `parse`; collapse the two `if`s in the parser | H3 |
 | ⬜ | Add `rust-version = "1.88"` to `engine/Cargo.toml` | H4 |
 | ⬜ | CI workflow: `cargo fmt --check`, `clippy`, `cargo test`, `cargo insta test --check`, `dart analyze cli` | H2 |
 | ⬜ | Move `engine/flint.yaml` to `engine/tests/fixtures/`. Snapshot tests should use the built-in template | H5 |
@@ -50,6 +51,8 @@ with json_serializable.
 | ⬜ | Escape JSON keys; drop identity conversions and `ignore_for_file: unnecessary_cast` | R15, A6 |
 | ⬜ | **Differential test suite** against json_serializable, and a **parity matrix** in `configuration.md` | H7 |
 | ⬜ | Rename `--delete-conflicting-outputs` to `--force` (keep the old name as a hidden alias) | R13 |
+| ✅ | Read json_serializable options from `build.yaml`; `flint.yaml` optional for json_serializable projects | [Spec 0002](specs/0002-read-build-yaml.md) |
+| ⬜ | `@JsonSerializable(fieldRename: …)` per class | — |
 
 ## Phase 3: Incremental and fast at scale
 
@@ -68,7 +71,7 @@ with json_serializable.
 | ⬜ | Release pipeline: prebuilt binaries per target, SHA-256 checksums, GitHub Releases | D1 · SDD §13 |
 | ⬜ | CLI: find the binary via override → cache → download → cargo (dev); version check | D1, D2, D4 |
 | ⬜ | `--root`, include/exclude globs, `test/` and `bin/` roots, pub workspaces / melos | A2 |
-| ⬜ | Publish `flint_build` to pub.dev and crates.io | D1 |
+| ⬜ | Publish `flint_build` to pub.dev and crates.io. pub.dev needs a `LICENSE` inside `cli/` too | D1 |
 
 ## Phase 5: Platform and ecosystem
 
@@ -77,7 +80,7 @@ with json_serializable.
 | ⬜ | Stable, versioned **template context** (`context_version`), plus Tera filters for casing and type helpers |
 | ⬜ | Per-plugin `output_extension` (e.g. `.flint.dart`) for generators that need their own file |
 | ⬜ | More built-in generators: `copyWith`, `==`/`hashCode`, `toString` (the most-used parts of freezed without unions) |
-| ⬜ | `flint_build migrate`: read `build.yaml` json_serializable options and write `flint.yaml` |
+| ⬜ | `flint_build migrate`: check a build_runner project and list what Flint can't generate yet (options are already read from `build.yaml`, spec 0002) |
 | ⬜ | `flint_build doctor`: check `part` directives, unresolved types, stale outputs, version mismatch |
 
 ---

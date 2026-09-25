@@ -32,3 +32,4 @@ Specs aren't edited after `Done`. A later change gets a new spec that supersedes
 | # | Title | Status | Resolves |
 | - | ----- | ------ | -------- |
 | [0001](0001-generated-output-ownership.md) | Generated output ownership | Draft | R1, R2, R4, R5 |
+| [0002](0002-read-build-yaml.md) | Read json_serializable options from `build.yaml` | Done | SDD open question 1 |

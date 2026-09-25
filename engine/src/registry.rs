@@ -56,6 +56,7 @@ mod tests {
             field_rename: None,
             converters: None,
             template_path: None,
+            ..Default::default()
         };
         let dummy_file = ParsedFile {
             classes: vec![],

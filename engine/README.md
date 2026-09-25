@@ -12,7 +12,7 @@ For the design as a whole (current vs target), see [docs/SDD.md](../docs/SDD.md)
 main.rs (clap: build | watch | clean)
    │
    ▼
-builder::run_build ──► config      pubspec.yaml (name), flint.yaml (plugins)
+builder::run_build ──► config      pubspec.yaml, flint.yaml (plugins), build.yaml (json_serializable options)
    │
    ├─► discovery    walk lib/, *.dart sources vs *.g.dart outputs
    ├─► parser       tree-sitter → ParsedFile { classes, enums }        (per file, in parallel)
@@ -24,7 +24,7 @@ watcher::watch      notify + 500 ms debounce on lib/ → run_build
 
 | Module | Purpose |
 | ------ | ------- |
-| [`config/`](src/config) | `Pubspec` (only `name`) and `FlintConfig`/`PluginConfig`, with `flint_json` defaults |
+| [`config/`](src/config) | `Pubspec`, `FlintConfig`/`PluginConfig` with `flint_json` defaults, `build_yaml` reader, and `resolve` (flint.yaml > build.yaml > defaults) |
 | [`discovery/`](src/discovery) | `find_dart_files` / `find_generated_files` using `walkdir` |
 | [`parser/`](src/parser) | tree-sitter queries → `DartClass`, `DartField`, `DartType`, `DartEnum`. Syntax errors with a caret |
 | [`generators/`](src/generators) | `Generator` trait, `TemplateEngine` (Tera), `flint_json` emitter, `generic` template generator |
@@ -100,4 +100,4 @@ cargo llvm-cov --html    # report in target/llvm-cov/html/index.html
 
 ## License
 
-MIT
+[MIT](../LICENSE)

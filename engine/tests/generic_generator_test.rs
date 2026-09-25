@@ -43,6 +43,7 @@ fn test_generic_generator_execution() {
         field_rename: None,
         converters: None,
         template_path: Some(template_path.to_str().unwrap().to_string()),
+        ..Default::default()
     };
 
     let generator = GenericTeraGenerator {
