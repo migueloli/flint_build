@@ -29,7 +29,11 @@ fn test_generic_generator_execution() {
 
     let temp_dir = std::env::temp_dir();
     let template_path = temp_dir.join("mock_template.tera");
-    std::fs::write(&template_path, "Hello {{ classes[0].name }} and {{ enums[0].name }}!").unwrap();
+    std::fs::write(
+        &template_path,
+        "Hello {{ classes[0].name }} and {{ enums[0].name }}!",
+    )
+    .unwrap();
 
     let config = PluginConfig {
         class_annotations: vec!["@MockAnnotation".to_string()],

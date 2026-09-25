@@ -436,7 +436,9 @@ fn extract_enums(root: Node, content: &str) -> Result<Vec<DartEnum>> {
     let mut processed_nodes = std::collections::HashSet::new();
 
     while let Some(m) = matches.next() {
-        let enum_decl_node = m.captures.iter()
+        let enum_decl_node = m
+            .captures
+            .iter()
             .find(|c| query.capture_names()[c.index as usize] == "enum_decl")
             .map(|c| c.node);
 

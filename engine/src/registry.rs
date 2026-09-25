@@ -61,6 +61,9 @@ mod tests {
             classes: vec![],
             enums: vec![],
         };
-        assert_eq!(generator.generate("test.dart", dummy_file, &dummy_plugin), "MockOutput");
+        assert_eq!(
+            generator.generate("test.dart", dummy_file, &dummy_plugin),
+            "MockOutput"
+        );
     }
 }

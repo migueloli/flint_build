@@ -111,7 +111,10 @@ mod tests {
 
         assert!(plugins.contains_key("flint_json"));
         let plugin = &plugins["flint_json"];
-        assert_eq!(plugin.class_annotations, vec!["@JsonSerializable".to_string()]);
+        assert_eq!(
+            plugin.class_annotations,
+            vec!["@JsonSerializable".to_string()]
+        );
         assert_eq!(plugin.field_annotations, vec!["@JsonKey".to_string()]);
         assert_eq!(plugin.enum_annotations, vec!["@JsonEnum".to_string()]);
         assert_eq!(plugin.variant_annotations, vec!["@JsonValue".to_string()]);

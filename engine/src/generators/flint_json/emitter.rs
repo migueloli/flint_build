@@ -300,11 +300,17 @@ mod tests {
 
         field = make_field("myCamelCaseField");
         config.field_rename = Some("screaming_kebab".to_string());
-        assert_eq!(extract_field_name(&mut field, &config), "MY-CAMEL-CASE-FIELD");
+        assert_eq!(
+            extract_field_name(&mut field, &config),
+            "MY-CAMEL-CASE-FIELD"
+        );
 
         field = make_field("myCamelCaseField");
         config.field_rename = Some("screaming_kebab_case".to_string());
-        assert_eq!(extract_field_name(&mut field, &config), "MY-CAMEL-CASE-FIELD");
+        assert_eq!(
+            extract_field_name(&mut field, &config),
+            "MY-CAMEL-CASE-FIELD"
+        );
 
         field = make_field("myCamelCaseField");
         config.field_rename = Some("lower_camel".to_string());
@@ -357,15 +363,19 @@ mod tests {
             enums: vec![],
         };
 
-        let output = generate_full_file("user.dart", parsed_file, &PluginConfig {
-            class_annotations: vec!["@JsonSerializable".to_string()],
-            enum_annotations: vec![],
-            field_annotations: vec![],
-            variant_annotations: vec![],
-            field_rename: None,
-            converters: Some(vec!["@MyDateTimeConverter".to_string()]),
-            template_path: None,
-        });
+        let output = generate_full_file(
+            "user.dart",
+            parsed_file,
+            &PluginConfig {
+                class_annotations: vec!["@JsonSerializable".to_string()],
+                enum_annotations: vec![],
+                field_annotations: vec![],
+                variant_annotations: vec![],
+                field_rename: None,
+                converters: Some(vec!["@MyDateTimeConverter".to_string()]),
+                template_path: None,
+            },
+        );
 
         assert!(output.contains("const MyDateTimeConverter().fromJson"));
     }
@@ -402,15 +412,19 @@ mod tests {
             enums: vec![],
         };
 
-        let output = generate_full_file("user.dart", parsed_file, &PluginConfig {
-            class_annotations: vec!["@JsonSerializable".to_string()],
-            enum_annotations: vec![],
-            field_annotations: vec![],
-            variant_annotations: vec![],
-            field_rename: None,
-            converters: None,
-            template_path: None,
-        });
+        let output = generate_full_file(
+            "user.dart",
+            parsed_file,
+            &PluginConfig {
+                class_annotations: vec!["@JsonSerializable".to_string()],
+                enum_annotations: vec![],
+                field_annotations: vec![],
+                variant_annotations: vec![],
+                field_rename: None,
+                converters: None,
+                template_path: None,
+            },
+        );
 
         assert!(output.contains("address?.toJson()"));
     }
