@@ -282,13 +282,14 @@ Rule: every bug fix in the emitter comes with a fixture that failed before the f
 | DD4 | Native emitter logic + template for `flint_json` | Type-directed expressions are much easier in Rust | — |
 | DD5 | One shared `.g.dart` per source (Target) | Matches how json_serializable users already write `part` directives | A plugin needs its own file (then use `output_extension`) |
 | DD6 | Read json_serializable's `build.yaml` options instead of requiring a `flint.yaml` | Migrating then needs no new file and keeps the JSON wire format identical | Flint's options diverge from json_serializable's |
+| DD7 | `field_rename` is parsed into a `FieldRename` enum at load time; `camel` = lowerCamelCase | A typo can't silently change the wire format; names match serde and common usage | — |
 
 ## 16. Open questions
 
 1. ~~Should Flint read `build.yaml` `json_serializable` options so migrating needs no `flint.yaml`?~~
    **Resolved: yes.** See [spec 0002](specs/0002-read-build-yaml.md) and DD6.
-2. Should `field_rename: camel` mean **PascalCase** (current behaviour) or be removed? json_serializable has no
-   `camel` option, and today's mapping surprises people.
+2. ~~Should `field_rename: camel` mean PascalCase or be removed?~~ **Resolved:** it means lowerCamelCase,
+   and unknown values are errors. See [spec 0003](specs/0003-field-rename-camel.md) and DD7.
 3. Should the parsed model be exposed as JSON (`flint_build dump-ir`) so people can write generators in any
    language?
 4. Is sharing one `.g.dart` (DD5) compatible with projects that run build_runner alongside Flint during a

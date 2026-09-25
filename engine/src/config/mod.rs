@@ -152,7 +152,7 @@ mod tests {
     fn test_build_yaml_alone_enables_and_configures_flint_json() {
         let config = resolve(None, Some(BUILD_YAML), &pubspec(false)).unwrap();
         let plugin = flint_json(&config);
-        assert_eq!(plugin.field_rename, Some("snake".to_string()));
+        assert_eq!(plugin.field_rename, Some(FieldRename::Snake));
         assert_eq!(plugin.explicit_to_json, Some(true));
         assert_eq!(config.notes.len(), 2);
         assert_eq!(config.warnings.len(), 1);
@@ -177,7 +177,7 @@ mod tests {
         let flint_yaml = "plugins:\n  flint_json:\n    field_rename: kebab\n";
         let config = resolve(Some(flint_yaml), Some(BUILD_YAML), &pubspec(true)).unwrap();
         let plugin = flint_json(&config);
-        assert_eq!(plugin.field_rename, Some("kebab".to_string()));
+        assert_eq!(plugin.field_rename, Some(FieldRename::Kebab));
         assert_eq!(plugin.explicit_to_json, Some(true));
         assert_eq!(
             config.notes,

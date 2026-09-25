@@ -1,6 +1,7 @@
 //! Reads json_serializable options from an existing build_runner `build.yaml`, so projects can migrate
 //! without writing a `flint.yaml` (spec 0002).
 
+use super::flint::FieldRename;
 use anyhow::{Result, bail};
 use serde::Deserialize;
 use serde_yaml::Value;
@@ -36,7 +37,7 @@ struct BuilderEntry {
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct JsonSerializableOptions {
     pub enabled: bool,
-    pub field_rename: Option<String>,
+    pub field_rename: Option<FieldRename>,
     pub explicit_to_json: Option<bool>,
     pub create_factory: Option<bool>,
     pub create_to_json: Option<bool>,
@@ -94,19 +95,18 @@ fn bool_option(name: &str, value: &Value) -> Result<bool> {
     }
 }
 
-/// Maps json_serializable's `FieldRename` names to Flint's `field_rename` values.
-fn field_rename(value: &Value) -> Result<String> {
-    let flint_name = match value.as_str() {
-        Some("none") => "none",
-        Some("kebab") => "kebab",
-        Some("snake") => "snake",
-        Some("pascal") => "pascal",
-        Some("screamingSnake") => "screaming_snake",
+/// Maps json_serializable's `FieldRename` names to Flint's.
+fn field_rename(value: &Value) -> Result<FieldRename> {
+    Ok(match value.as_str() {
+        Some("none") => FieldRename::None,
+        Some("kebab") => FieldRename::Kebab,
+        Some("snake") => FieldRename::Snake,
+        Some("pascal") => FieldRename::Pascal,
+        Some("screamingSnake") => FieldRename::ScreamingSnake,
         _ => bail!(
             "build.yaml: json_serializable option 'field_rename' must be one of none, kebab, snake, pascal, screamingSnake"
         ),
-    };
-    Ok(flint_name.to_string())
+    })
 }
 
 /// Every json_serializable option Flint does not implement defaults to `false` or `""`.
@@ -143,7 +143,7 @@ mod tests {
             options,
             JsonSerializableOptions {
                 enabled: true,
-                field_rename: Some("screaming_snake".to_string()),
+                field_rename: Some(FieldRename::ScreamingSnake),
                 explicit_to_json: Some(true),
                 create_factory: Some(false),
                 create_to_json: Some(true),

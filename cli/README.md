@@ -49,7 +49,7 @@ With options:
 ```yaml
 plugins:
   flint_json:
-    field_rename: snake_case             # snake | kebab | pascal | screaming_snake | …
+    field_rename: snake_case             # none | snake | kebab | pascal | camel | screaming_snake | …
     explicit_to_json: true               # package-wide default, like build.yaml's option
     converters: ["@EpochDateTimeConverter"]
 ```

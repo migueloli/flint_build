@@ -66,7 +66,7 @@ plugins:
 - **`template_path` on `flint_json`** replaces the built-in template entirely.
 - ⚠️ All plugins write to the same `<file>.g.dart`, so only one plugin can target a given file today
   ([R4](REVIEW.md)).
-- ⚠️ Unknown keys are ignored silently, so check your spelling.
+- ⚠️ Unknown keys are ignored silently, so check your spelling. (Unknown `field_rename` *values* are errors.)
 
 ### Precedence
 
@@ -79,17 +79,21 @@ For `flint_json`, each setting is taken from the first place that sets it:
 
 ### `field_rename`
 
-This applies to fields without an explicit `@JsonKey(name: …)`. An unknown value leaves names unchanged.
+This applies to fields without an explicit `@JsonKey(name: …)`. An unknown value is an error that lists the
+valid ones ([spec 0003](specs/0003-field-rename-camel.md)).
 
-| Value (`x` or `x_case`) | `myFieldName` becomes |
-| ----------------------- | --------------------- |
-| `snake` | `my_field_name` |
-| `screaming_snake` | `MY_FIELD_NAME` |
-| `kebab` | `my-field-name` |
-| `screaming_kebab` | `MY-FIELD-NAME` |
-| `pascal` | `MyFieldName` |
-| `camel` | `MyFieldName` ⚠️ (same as `pascal`; see [SDD open question 2](SDD.md#16-open-questions)) |
-| `lower_camel` | `myFieldName` |
+| Value (`x` or `x_case`) | `myFieldName` becomes | `user_id` becomes |
+| ----------------------- | --------------------- | ----------------- |
+| `none` | `myFieldName` | `user_id` |
+| `snake` | `my_field_name` | `user_id` |
+| `screaming_snake` | `MY_FIELD_NAME` | `USER_ID` |
+| `kebab` | `my-field-name` | `user-id` |
+| `screaming_kebab` | `MY-FIELD-NAME` | `USER-ID` |
+| `pascal` | `MyFieldName` | `UserId` |
+| `camel` (alias `lower_camel`) | `myFieldName` | `userId` |
+
+`camel` means lowerCamelCase, as in serde's `camelCase`. Since Dart fields are already lowerCamelCase, it only
+changes names that aren't.
 
 ## Using an existing `build.yaml`
 

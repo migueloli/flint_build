@@ -52,6 +52,7 @@ with json_serializable.
 | ⬜ | **Differential test suite** against json_serializable, and a **parity matrix** in `configuration.md` | H7 |
 | ⬜ | Rename `--delete-conflicting-outputs` to `--force` (keep the old name as a hidden alias) | R13 |
 | ✅ | Read json_serializable options from `build.yaml`; `flint.yaml` optional for json_serializable projects | [Spec 0002](specs/0002-read-build-yaml.md) |
+| ✅ | `field_rename: camel` means lowerCamelCase; unknown `field_rename` values are errors | [Spec 0003](specs/0003-field-rename-camel.md) |
 | ⬜ | `@JsonSerializable(fieldRename: …)` per class | — |
 
 ## Phase 3: Incremental and fast at scale

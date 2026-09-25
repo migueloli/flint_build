@@ -3,10 +3,6 @@ use crate::{
     config::PluginConfig,
     parser::dart_types::{DartClass, DartField, DartType, ParsedFile, TypeKind},
 };
-use heck::{
-    ToKebabCase, ToLowerCamelCase, ToPascalCase, ToShoutyKebabCase, ToShoutySnakeCase, ToSnakeCase,
-    ToUpperCamelCase,
-};
 use tera::Context;
 
 pub struct FlintJsonGenerator;
@@ -242,17 +238,8 @@ fn extract_field_name(field: &mut DartField, plugin: &PluginConfig) -> String {
         let clean_key = raw_key.trim_matches(|c| c == '"' || c == '\'').to_string();
         field.metadata.insert("name".to_string(), clean_key.clone());
         clean_key
-    } else if let Some(strategy) = &plugin.field_rename {
-        let renamed = match strategy.as_str() {
-            "snake" | "snake_case" => field.name.to_snake_case(),
-            "screaming_snake" | "screaming_snake_case" => field.name.to_shouty_snake_case(),
-            "kebab" | "kebab_case" => field.name.to_kebab_case(),
-            "screaming_kebab" | "screaming_kebab_case" => field.name.to_shouty_kebab_case(),
-            "pascal" | "pascal_case" => field.name.to_pascal_case(),
-            "camel" | "camel_case" => field.name.to_upper_camel_case(),
-            "lower_camel" | "lower_camel_case" => field.name.to_lower_camel_case(),
-            _ => field.name.clone(),
-        };
+    } else if let Some(strategy) = plugin.field_rename {
+        let renamed = strategy.apply(&field.name);
         field.metadata.insert("name".to_string(), renamed.clone());
         renamed
     } else {
@@ -289,7 +276,7 @@ mod tests {
             enum_annotations: vec![],
             field_annotations: vec![],
             variant_annotations: vec![],
-            field_rename: Some("snake_case".to_string()),
+            field_rename: Some("snake_case".parse().unwrap()),
             converters: None,
             template_path: None,
             ..Default::default()
@@ -300,62 +287,62 @@ mod tests {
         );
 
         field = make_field("myCamelCaseField");
-        config.field_rename = Some("screaming_snake".to_string());
+        config.field_rename = Some("screaming_snake".parse().unwrap());
         assert_eq!(
             extract_field_name(&mut field, &config),
             "MY_CAMEL_CASE_FIELD"
         );
 
         field = make_field("myCamelCaseField");
-        config.field_rename = Some("kebab".to_string());
+        config.field_rename = Some("kebab".parse().unwrap());
         assert_eq!(
             extract_field_name(&mut field, &config),
             "my-camel-case-field"
         );
 
         field = make_field("myCamelCaseField");
-        config.field_rename = Some("pascal".to_string());
+        config.field_rename = Some("pascal".parse().unwrap());
         assert_eq!(extract_field_name(&mut field, &config), "MyCamelCaseField");
 
         field = make_field("myCamelCaseField");
-        config.field_rename = Some("pascal_case".to_string());
+        config.field_rename = Some("pascal_case".parse().unwrap());
         assert_eq!(extract_field_name(&mut field, &config), "MyCamelCaseField");
 
-        field = make_field("myCamelCaseField");
-        config.field_rename = Some("camel".to_string());
-        assert_eq!(extract_field_name(&mut field, &config), "MyCamelCaseField");
+        field = make_field("my_camel_case_field");
+        config.field_rename = Some("camel".parse().unwrap());
+        assert_eq!(extract_field_name(&mut field, &config), "myCamelCaseField");
 
-        field = make_field("myCamelCaseField");
-        config.field_rename = Some("camel_case".to_string());
-        assert_eq!(extract_field_name(&mut field, &config), "MyCamelCaseField");
-
-        field = make_field("myCamelCaseField");
-        config.field_rename = Some("screaming_kebab".to_string());
-        assert_eq!(
-            extract_field_name(&mut field, &config),
-            "MY-CAMEL-CASE-FIELD"
-        );
-
-        field = make_field("myCamelCaseField");
-        config.field_rename = Some("screaming_kebab_case".to_string());
-        assert_eq!(
-            extract_field_name(&mut field, &config),
-            "MY-CAMEL-CASE-FIELD"
-        );
-
-        field = make_field("myCamelCaseField");
-        config.field_rename = Some("lower_camel".to_string());
+        field = make_field("my_camel_case_field");
+        config.field_rename = Some("camel_case".parse().unwrap());
         assert_eq!(extract_field_name(&mut field, &config), "myCamelCaseField");
 
         field = make_field("myCamelCaseField");
-        config.field_rename = Some("lower_camel_case".to_string());
+        config.field_rename = Some("screaming_kebab".parse().unwrap());
+        assert_eq!(
+            extract_field_name(&mut field, &config),
+            "MY-CAMEL-CASE-FIELD"
+        );
+
+        field = make_field("myCamelCaseField");
+        config.field_rename = Some("screaming_kebab_case".parse().unwrap());
+        assert_eq!(
+            extract_field_name(&mut field, &config),
+            "MY-CAMEL-CASE-FIELD"
+        );
+
+        field = make_field("myCamelCaseField");
+        config.field_rename = Some("lower_camel".parse().unwrap());
+        assert_eq!(extract_field_name(&mut field, &config), "myCamelCaseField");
+
+        field = make_field("myCamelCaseField");
+        config.field_rename = Some("lower_camel_case".parse().unwrap());
         assert_eq!(extract_field_name(&mut field, &config), "myCamelCaseField");
 
         field = make_field("myCamelCaseField");
         field
             .metadata
             .insert("name".to_string(), "\"explicitName\"".to_string());
-        config.field_rename = Some("snake".to_string());
+        config.field_rename = Some("snake".parse().unwrap());
         assert_eq!(extract_field_name(&mut field, &config), "explicitName");
     }
 
