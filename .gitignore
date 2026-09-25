@@ -9,6 +9,3 @@ Thumbs.db
 .dart_tool/
 pubspec.lock
 .fvm/
-
-# Rust build target (fallback)
-/engine/target/
