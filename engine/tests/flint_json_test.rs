@@ -39,3 +39,21 @@ fn test_generic_model() {
 
     insta::assert_snapshot!(generated);
 }
+
+#[test]
+fn test_core_types_model() {
+    let input_path = Path::new("tests/fixtures/gold/core_types_model.dart");
+
+    let config = FlintConfig::load_from_file("tests/fixtures/flint.yaml").unwrap();
+    let plugin = config.plugins.unwrap().get("flint_json").unwrap().clone();
+
+    let classes = parser::parse_file(input_path).unwrap();
+    let generator: Box<dyn generators::Generator> =
+        Box::new(generators::flint_json::emitter::FlintJsonGenerator);
+    let section = generator
+        .generate("core_types_model.dart", classes, &plugin)
+        .unwrap();
+    let generated = output::assemble("core_types_model.dart", &[("flint_json", section)]);
+
+    insta::assert_snapshot!(generated);
+}

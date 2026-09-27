@@ -55,8 +55,8 @@ this repository (see the [roadmap](docs/ROADMAP.md#phase-4-installable-by-anyone
 
 ## What it supports
 
-`@JsonSerializable` classes with `String`/`int`/`double`/`bool`/`DateTime`, `List`, `Map<String, V>`,
-nested models, generic classes, same-file `@JsonEnum` enums, custom converters, and the common `@JsonKey`
+`@JsonSerializable` classes with `String`/`int`/`double`/`bool`/`DateTime`, `num`/`dynamic`/`Object`,
+`Uri`/`BigInt`/`Duration`, `List`/`Set`/`Iterable`, `Map<String, V>`, nested models (also through import prefixes), generic classes, same-file `@JsonEnum` enums, custom converters, and the common `@JsonKey`
 options (`name`, `defaultValue`, `ignore`, `includeIfNull`, `fromJson`/`toJson`, …). You can also write your
 own generator as a [Tera](https://keats.github.io/tera/) template, with no Rust required.
 
@@ -67,7 +67,8 @@ The full support matrix and the `flint.yaml` reference are in [docs/configuratio
 These are the most important ones. All of them are tracked in [docs/REVIEW.md](docs/REVIEW.md) and scheduled
 in the [roadmap](docs/ROADMAP.md).
 
-- Enums declared in another file, and types like `num`, `Uri` or `Set`, generate code that doesn't compile (R7).
+- Enums declared in another file are treated as classes and generate code that doesn't compile (R7, in progress
+  in [spec 0005](docs/specs/0005-project-symbol-index.md)).
 - Constructors are assumed to take every field as a named parameter (R8).
 - Up-to-date checks use modification times, not content hashes, so unusual mtimes (some checkouts or
   caches) can leave stale output; `build --force` fixes it (R11).

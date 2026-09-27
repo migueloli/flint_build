@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flint_dart_golden/annotations_model.dart';
+import 'package:flint_dart_golden/core_types_model.dart';
 import 'package:flint_dart_golden/enum_values_model.dart';
 import 'package:flint_dart_golden/generic_model.dart';
 import 'package:flint_dart_golden/options_model.dart';
@@ -207,6 +208,57 @@ void main() {
       expect(invoice.total.cents, 1500);
       expect(invoice.pages, (1, 3));
       expect(wire(invoice), json);
+    });
+  });
+
+  group('dart:core types (spec 0005 step 3)', () {
+    final full = <String, dynamic>{
+      'count': 1.5,
+      'maybeCount': 2,
+      'anything': {'nested': true},
+      'object': 'text',
+      'maybeObject': 3,
+      'link': 'https://example.com/a?b=c',
+      'maybeLink': 'https://example.com',
+      'big': '123456789012345678901234567890',
+      'maybeBig': '-1',
+      'wait': 1500000,
+      'maybeWait': 1,
+      'ids': [3, 1, 2],
+      'maybeTags': ['a', 'b'],
+      'names': ['x', 'y'],
+      'maybeLinks': ['https://a.dev', 'https://b.dev'],
+      'extra': {'k': 1, 'l': 'two', 'm': null},
+      'timeouts': [1000, 2000],
+      'groups': {
+        'odd': [1, 3],
+        'even': [2],
+      },
+    };
+
+    test('decodes to the right Dart values', () {
+      final value = CoreTypes.fromJson(wire(full));
+      expect(value.count, 1.5);
+      expect(value.link, Uri.parse('https://example.com/a?b=c'));
+      expect(value.big, BigInt.parse('123456789012345678901234567890'));
+      expect(value.wait, const Duration(milliseconds: 1500));
+      expect(value.ids, {1, 2, 3});
+      expect(value.names.toList(), ['x', 'y']);
+      expect(value.timeouts, [const Duration(milliseconds: 1), const Duration(milliseconds: 2)]);
+      expect(value.groups['odd'], {1, 3});
+    });
+
+    test('round-trips to the same JSON', () {
+      expect(wire(CoreTypes.fromJson(wire(full))), full);
+    });
+
+    test('nullable variants accept null', () {
+      final nulls = {
+        ...full,
+        for (final key in ['maybeCount', 'anything', 'maybeObject', 'maybeLink', 'maybeBig', 'maybeWait', 'maybeTags', 'maybeLinks'])
+          key: null,
+      };
+      expect(wire(CoreTypes.fromJson(wire(nulls))), nulls);
     });
   });
 }

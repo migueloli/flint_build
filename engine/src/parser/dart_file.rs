@@ -424,6 +424,9 @@ fn parse_field(field: Node<'_>, content: &str) -> Option<DartField> {
     None
 }
 
+/// Builds a single-argument collection kind (`TypeKind::List`, `Set` or `Iterable`) from its element type.
+type CollectionKind = fn(Box<DartType>) -> TypeKind;
+
 /// Splits `K, V` at the first comma that isn't nested in `<>`, `()` or `{}`.
 fn split_type_arguments(arguments: &str) -> Option<(&str, &str)> {
     let mut depth = 0i32;
@@ -449,16 +452,26 @@ fn parse_dart_type(type_str: &str, is_nullable: bool) -> DartType {
         };
     }
 
-    if type_str.starts_with("List<") && type_str.ends_with('>') {
-        let inner_type = &type_str[5..type_str.len() - 1];
-        let is_inner_nullable = inner_type.ends_with('?');
-        return DartType {
-            kind: TypeKind::List(Box::new(parse_dart_type(
-                inner_type.trim().trim_end_matches('?'),
-                is_inner_nullable,
-            ))),
-            is_nullable,
-        };
+    // Single-argument collections: List<E>, Set<E>, Iterable<E>.
+    let collections: [(&str, CollectionKind); 3] = [
+        ("List<", TypeKind::List),
+        ("Set<", TypeKind::Set),
+        ("Iterable<", TypeKind::Iterable),
+    ];
+    for (prefix, collection) in collections {
+        if let Some(inner_type) = type_str
+            .strip_prefix(prefix)
+            .and_then(|rest| rest.strip_suffix('>'))
+        {
+            let inner_type = inner_type.trim();
+            return DartType {
+                kind: collection(Box::new(parse_dart_type(
+                    inner_type.trim_end_matches('?'),
+                    inner_type.ends_with('?'),
+                ))),
+                is_nullable,
+            };
+        }
     }
 
     if type_str.starts_with("Map<") && type_str.ends_with('>') {
@@ -510,6 +523,30 @@ fn parse_dart_type(type_str: &str, is_nullable: bool) -> DartType {
         },
         "DateTime" => DartType {
             kind: TypeKind::DateTime,
+            is_nullable,
+        },
+        "num" => DartType {
+            kind: TypeKind::Num,
+            is_nullable,
+        },
+        "dynamic" => DartType {
+            kind: TypeKind::Dynamic,
+            is_nullable,
+        },
+        "Object" => DartType {
+            kind: TypeKind::Object,
+            is_nullable,
+        },
+        "Uri" => DartType {
+            kind: TypeKind::Uri,
+            is_nullable,
+        },
+        "BigInt" => DartType {
+            kind: TypeKind::BigInt,
+            is_nullable,
+        },
+        "Duration" => DartType {
+            kind: TypeKind::Duration,
             is_nullable,
         },
         _ => DartType {
@@ -975,6 +1012,29 @@ mod tests {
             panic!("expected a List");
         };
         assert!(matches!(inner.kind, TypeKind::Unsupported(_)));
+    }
+
+    #[test]
+    fn test_core_types() {
+        let parse = |text: &str| parse_dart_type(text, false).to_string();
+        for text in [
+            "num",
+            "dynamic",
+            "Object",
+            "Uri",
+            "BigInt",
+            "Duration",
+            "Set<int?>",
+            "Iterable<Uri>",
+            "Map<String, Set<int>>",
+        ] {
+            assert_eq!(parse(text), text);
+        }
+        assert_eq!(parse_dart_type("num", false).kind, TypeKind::Num);
+        assert!(matches!(
+            parse_dart_type("Iterable<Set<Duration>>", false).kind,
+            TypeKind::Iterable(_)
+        ));
     }
 
     #[test]

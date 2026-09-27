@@ -176,7 +176,9 @@ fn prefer_single_quotes(literal: String) -> String {
 fn contains_unsupported(dart_type: &DartType) -> bool {
     match &dart_type.kind {
         TypeKind::Unsupported(_) => true,
-        TypeKind::List(inner) => contains_unsupported(inner),
+        TypeKind::List(inner) | TypeKind::Set(inner) | TypeKind::Iterable(inner) => {
+            contains_unsupported(inner)
+        }
         TypeKind::Map(key, value) => contains_unsupported(key) || contains_unsupported(value),
         _ => false,
     }
@@ -225,12 +227,29 @@ fn generate_from_json_expression(
         TypeKind::Int => format!("({} as num).toInt()", access),
         TypeKind::Double => format!("({} as num).toDouble()", access),
         TypeKind::DateTime => format!("DateTime.parse({} as String)", access),
-        TypeKind::List(inner) => {
+        TypeKind::Num => format!(
+            "{} as num{}",
+            access,
+            if dart_type.is_nullable { "?" } else { "" }
+        ),
+        // `dynamic` and `Object?` take the JSON value as it is.
+        TypeKind::Dynamic => access.to_string(),
+        TypeKind::Object if dart_type.is_nullable => access.to_string(),
+        TypeKind::Object => format!("{} as Object", access),
+        TypeKind::Uri => format!("Uri.parse({} as String)", access),
+        TypeKind::BigInt => format!("BigInt.parse({} as String)", access),
+        TypeKind::Duration => format!("Duration(microseconds: ({} as num).toInt())", access),
+        TypeKind::List(inner) | TypeKind::Set(inner) | TypeKind::Iterable(inner) => {
             let element = "e";
             let inner_expr = generate_from_json_expression(inner, element, enum_names, type_params);
+            let collect = match &dart_type.kind {
+                TypeKind::List(_) => ".toList()",
+                TypeKind::Set(_) => ".toSet()",
+                _ => "",
+            };
             format!(
-                "({} as List<dynamic>).map(({}) => {}).toList()",
-                access, element, inner_expr
+                "({} as List<dynamic>).map(({}) => {}){}",
+                access, element, inner_expr, collect
             )
         }
         TypeKind::Map(k, v) => {
@@ -266,7 +285,12 @@ fn generate_from_json_expression(
         }
     };
 
-    if dart_type.is_nullable && !matches!(dart_type.kind, TypeKind::String) {
+    // These casts already accept null (`as String?`, `as num?`) or take the value as it is.
+    let handles_null = matches!(
+        dart_type.kind,
+        TypeKind::String | TypeKind::Num | TypeKind::Dynamic | TypeKind::Object
+    );
+    if dart_type.is_nullable && !handles_null {
         format!("{} == null ? null : {}", access, expression)
     } else {
         expression
@@ -280,10 +304,21 @@ fn generate_to_json_expression(
     enum_names: &[String],
     type_params: &[String],
 ) -> String {
+    let op = if dart_type.is_nullable { "?." } else { "." };
     match &dart_type.kind {
-        TypeKind::DateTime => {
-            let op = if dart_type.is_nullable { "?." } else { "." };
-            format!("{}{}toIso8601String()", access, op)
+        TypeKind::DateTime => format!("{}{}toIso8601String()", access, op),
+        TypeKind::Uri | TypeKind::BigInt => format!("{}{}toString()", access, op),
+        TypeKind::Duration => format!("{}{}inMicroseconds", access, op),
+        // JSON has no sets or lazy iterables, so both are written as lists.
+        TypeKind::Set(inner) | TypeKind::Iterable(inner) => {
+            let inner_expr = generate_to_json_expression(
+                inner,
+                "elem",
+                explicit_to_json,
+                enum_names,
+                type_params,
+            );
+            format!("{}{}map((elem) => {}).toList()", access, op, inner_expr)
         }
         TypeKind::Custom(name) => {
             if enum_names.contains(&name.to_string()) {

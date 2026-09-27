@@ -1,0 +1,61 @@
+---
+source: tests/flint_json_test.rs
+assertion_line: 58
+expression: generated
+---
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// flint_build 0.1.0
+
+part of 'core_types_model.dart';
+
+// **************************************************************************
+// flint_json
+// **************************************************************************
+
+// ignore_for_file: unnecessary_cast
+
+CoreTypes _$CoreTypesFromJson(
+  Map<String, dynamic> json,
+) => CoreTypes(
+      count: json['count'] as num,
+      maybeCount: json['maybeCount'] as num?,
+      anything: json['anything'],
+      object: json['object'] as Object,
+      maybeObject: json['maybeObject'],
+      link: Uri.parse(json['link'] as String),
+      maybeLink: json['maybeLink'] == null ? null : Uri.parse(json['maybeLink'] as String),
+      big: BigInt.parse(json['big'] as String),
+      maybeBig: json['maybeBig'] == null ? null : BigInt.parse(json['maybeBig'] as String),
+      wait: Duration(microseconds: (json['wait'] as num).toInt()),
+      maybeWait: json['maybeWait'] == null ? null : Duration(microseconds: (json['maybeWait'] as num).toInt()),
+      ids: (json['ids'] as List<dynamic>).map((e) => (e as num).toInt()).toSet(),
+      maybeTags: json['maybeTags'] == null ? null : (json['maybeTags'] as List<dynamic>).map((e) => e as String).toSet(),
+      names: (json['names'] as List<dynamic>).map((e) => e as String),
+      maybeLinks: json['maybeLinks'] == null ? null : (json['maybeLinks'] as List<dynamic>).map((e) => Uri.parse(e as String)),
+      extra: (json['extra'] as Map<String, dynamic>).map((k, v) => MapEntry(k as String, v)),
+      timeouts: (json['timeouts'] as List<dynamic>).map((e) => Duration(microseconds: (e as num).toInt())).toList(),
+      groups: (json['groups'] as Map<String, dynamic>).map((k, v) => MapEntry(k as String, (v as List<dynamic>).map((e) => (e as num).toInt()).toSet())),
+    );
+
+Map<String, dynamic> _$CoreTypesToJson(
+  CoreTypes instance,
+) => <String, dynamic>{
+      'count': instance.count,
+      'maybeCount': instance.maybeCount,
+      'anything': instance.anything,
+      'object': instance.object,
+      'maybeObject': instance.maybeObject,
+      'link': instance.link.toString(),
+      'maybeLink': instance.maybeLink?.toString(),
+      'big': instance.big.toString(),
+      'maybeBig': instance.maybeBig?.toString(),
+      'wait': instance.wait.inMicroseconds,
+      'maybeWait': instance.maybeWait?.inMicroseconds,
+      'ids': instance.ids.map((elem) => elem).toList(),
+      'maybeTags': instance.maybeTags?.map((elem) => elem).toList(),
+      'names': instance.names.map((elem) => elem).toList(),
+      'maybeLinks': instance.maybeLinks?.map((elem) => elem.toString()).toList(),
+      'extra': instance.extra.map((key, value) => MapEntry(key, value)),
+      'timeouts': instance.timeouts.map((elem) => elem.inMicroseconds).toList(),
+      'groups': instance.groups.map((key, value) => MapEntry(key, value.map((elem) => elem).toList())),
+    };

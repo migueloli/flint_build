@@ -61,6 +61,15 @@ pub enum TypeKind {
     DateTime,
     List(Box<DartType>),
     Map(Box<DartType>, Box<DartType>),
+    // dart:core types json_serializable supports (spec 0005 step 3).
+    Num,
+    Dynamic,
+    Object,
+    Uri,
+    BigInt,
+    Duration,
+    Set(Box<DartType>),
+    Iterable(Box<DartType>),
     /// A named type Flint doesn't know, possibly prefixed (`Money`, `m.Money`).
     Custom(String),
     /// A type Flint can't serialize (records, function types) or a field with no declared type (empty).
@@ -134,6 +143,14 @@ impl Display for DartType {
             TypeKind::DateTime => write!(f, "DateTime"),
             TypeKind::List(inner) => write!(f, "List<{}>", inner),
             TypeKind::Map(key, value) => write!(f, "Map<{}, {}>", key, value),
+            TypeKind::Num => write!(f, "num"),
+            TypeKind::Dynamic => write!(f, "dynamic"),
+            TypeKind::Object => write!(f, "Object"),
+            TypeKind::Uri => write!(f, "Uri"),
+            TypeKind::BigInt => write!(f, "BigInt"),
+            TypeKind::Duration => write!(f, "Duration"),
+            TypeKind::Set(inner) => write!(f, "Set<{}>", inner),
+            TypeKind::Iterable(inner) => write!(f, "Iterable<{}>", inner),
             TypeKind::Custom(name) | TypeKind::Unsupported(name) => write!(f, "{}", name),
         }?;
 

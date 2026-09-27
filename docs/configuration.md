@@ -174,7 +174,10 @@ Rules for writing, keeping and deleting `.g.dart` files ([spec 0001](specs/0001-
 | Generic classes `Foo<T>` | ✅ | Always generates `fromJsonT` / `toJsonT` parameters, as with `genericArgumentFactories: true` |
 | `@JsonEnum` enums **in the same file** | ✅ | ⚠️ Enums from other files are treated as classes (R7) |
 | `@JsonValue('x')`, `@JsonValue(1)`, `@JsonValue(true)` | ✅ | The value keeps its type and is emitted as written (plain `"x"` becomes `'x'`). As map keys, enum values are converted to strings, since JSON keys always are |
-| `num`, `dynamic`, `Object`, `Uri`, `BigInt`, `Duration`, `Set` | ❌ | Generated as `Type.fromJson(...)`, which doesn't compile (R7, [spec 0005](specs/0005-project-symbol-index.md) step 3) |
+| `num`, `dynamic`, `Object` (and nullable) | ✅ | Taken as they are (`as num`, `as Object`, no cast for `dynamic`/`Object?`) |
+| `Uri`, `BigInt` | ✅ | Written as strings: `Uri.parse(...)` / `BigInt.parse(...)` and `toString()` |
+| `Duration` | ✅ | Written as microseconds: `Duration(microseconds: …)` and `inMicroseconds` |
+| `Set<E>`, `Iterable<E>` | ✅ | Read from and written as JSON lists (`toSet()`, `toList()`) |
 | Records, function types, fields without a declared type | ❌ | Reported as an error for that file (with the line), unless the field has `@JsonKey(fromJson:, toJson:)`, a converter, or is ignored |
 | Positional constructors, fields not set by the constructor | ❌ | Always generates named arguments for every field (R8) |
 | Classes and enums with several annotations (`@immutable @JsonSerializable()`) | ✅ | In any order |
@@ -268,7 +271,9 @@ These variables are available in every template, for both built-in and custom pl
 
 `dart_type.kind` is one of:
 
-- `"String"`, `"Int"`, `"Double"`, `"Bool"`, `"DateTime"`
+- `"String"`, `"Int"`, `"Double"`, `"Bool"`, `"DateTime"`, `"Num"`, `"Dynamic"`, `"Object"`, `"Uri"`,
+  `"BigInt"`, `"Duration"`
+- `{ "Set": <DartType> }`, `{ "Iterable": <DartType> }`
 - `{ "List": <DartType> }`
 - `{ "Map": [<DartType key>, <DartType value>] }`
 - `{ "Custom": "TypeName" }`, including a prefix if the source has one (`"m.Money"`)

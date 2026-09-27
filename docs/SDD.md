@@ -151,7 +151,8 @@ ParsedFile { classes: [DartClass], enums: [DartEnum], part_directives, part_of?,
 DartClass  { name, type_parameters: [String], metadata: {String: String}, fields: [DartField] }
 DartField  { name, line, dart_type: DartType, is_final, metadata: {String: String},
              converter?, from_json_expr?, to_json_expr? }   // last three are emitter scratch state
-DartType   { kind: String|Int|Double|Bool|DateTime|List(T)|Map(K,V)|Custom(name)|Unsupported(text), is_nullable }
+DartType   { kind: String|Int|Double|Bool|DateTime|Num|Dynamic|Object|Uri|BigInt|Duration
+                   |List(T)|Set(T)|Iterable(T)|Map(K,V)|Custom(name)|Unsupported(text), is_nullable }
            // Custom keeps any import prefix ("m.Money"); records and function types are Unsupported
 DartEnum   { name, annotations: [String], values: [{ name, value?, literal?, annotations: [{ name, value?, literal? }] }] }
            // value/literal are set per plugin from its variant_annotations (generators::select_variant_values);

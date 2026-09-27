@@ -193,8 +193,9 @@ Each step is mergeable on its own and keeps CI green.
    now covered: generic function types (`Function<T>`), classes with a `static fromJson` method, and
    mixin-application classes (`class M = Object with Mx;`). `Map<K, V>` type arguments are now split at the
    top-level comma, so `Map<Map<String, int>, int>` parses correctly (part of R14).
-3. `dart:core` table (`num`, `dynamic`, `Object`, `Uri`, `BigInt`, `Duration`, `Set`, `Iterable`). This needs
-   no index. Golden fixtures.
+3. ✅ `dart:core` table (`num`, `dynamic`, `Object`, `Uri`, `BigInt`, `Duration`, `Set`, `Iterable`). This needs
+   no index. Golden fixtures (`core_types_model.dart`: every type, nullable variants and nesting, round-tripped)
+   and a gold snapshot. `Map<String, dynamic>` fields now pass values through instead of `dynamic.fromJson`.
 4. `SymbolIndex`, resolution order, ambiguity errors, `Generator` trait change.
 5. Enum maps per using library; un-annotated and cross-file enums.
 6. Class checks (`fromJson`), `external_types`, unresolved-name rules, dependency-aware up-to-date check.

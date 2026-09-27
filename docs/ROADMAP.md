@@ -47,7 +47,7 @@ with json_serializable.
 | ⬜ | **Constructor-aware emission:** positional/named/`this.` params; skip static, late and initialised fields; private-field rules | R8 |
 | 🟨 | Scope metadata to configured `field_annotations` / `variant_annotations` (`variant_annotations` done with R3) | R9 |
 | ⬜ | Emit `$enumDecode` / `$enumDecodeNullable`; support `unknownEnumValue` | R10 |
-| ⬜ | More types: `num`, `dynamic`, `Object`, `Uri`, `BigInt`, `Duration`, `Set`, `Iterable`, non-String map keys, nested generics | R7, R14 |
+| 🟨 | More types: `num`, `dynamic`, `Object`, `Uri`, `BigInt`, `Duration`, `Set`, `Iterable` (done, spec 0005 step 3); non-String map keys still open | R7, R14 |
 | ⬜ | Escape JSON keys; drop identity conversions and `ignore_for_file: unnecessary_cast` | R15, A6 |
 | ⬜ | **Differential test suite** against json_serializable, and a **parity matrix** in `configuration.md` | H7 |
 | ✅ | Rename `--delete-conflicting-outputs` to `--force` (the old name stays as an alias) | R13 · Spec 0001 |
