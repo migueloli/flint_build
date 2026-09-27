@@ -220,6 +220,14 @@ extension {{ class.name }}Describe on {{ class.name }} {
 
 Tip: while writing a template, dump the whole context with `{{ classes | json_encode(pretty=true) }}`.
 
+**When a template has a problem**, the build reports it and exits non-zero instead of crashing:
+
+- A missing file or a syntax error is reported once, with Tera's explanation (line, column and what it
+  expected). The files that plugin matches are **left untouched**, so their existing output survives a typo.
+  Other files build normally.
+- A render error (for example an unknown variable) is reported for each source file it happens in, and that
+  file's output isn't changed.
+
 ## Template context
 
 These variables are available in every template, for both built-in and custom plugins:

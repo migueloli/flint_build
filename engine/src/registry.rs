@@ -33,8 +33,8 @@ mod tests {
             _filename: &str,
             _parsed_file: ParsedFile,
             _plugin: &PluginConfig,
-        ) -> String {
-            "MockOutput".to_string()
+        ) -> Result<String, crate::error::FlintError> {
+            Ok("MockOutput".to_string())
         }
     }
 
@@ -64,7 +64,9 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(
-            generator.generate("test.dart", dummy_file, &dummy_plugin),
+            generator
+                .generate("test.dart", dummy_file, &dummy_plugin)
+                .unwrap(),
             "MockOutput"
         );
     }

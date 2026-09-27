@@ -10,4 +10,23 @@ pub enum FlintError {
         source_line: String,
         pointer: String,
     },
+    #[error("Plugin '{plugin}': {message}")]
+    Template { plugin: String, message: String },
+}
+
+impl FlintError {
+    /// A template error for `plugin`. Tera's own message is only the outermost line ("Failed to parse …"),
+    /// so the whole `source()` chain is included to say what and where.
+    pub fn template(plugin: &str, error: &tera::Error) -> Self {
+        let mut message = error.to_string();
+        let mut source = std::error::Error::source(error);
+        while let Some(cause) = source {
+            message.push_str(&format!(": {}", cause.to_string().trim()));
+            source = cause.source();
+        }
+        FlintError::Template {
+            plugin: plugin.to_string(),
+            message,
+        }
+    }
 }

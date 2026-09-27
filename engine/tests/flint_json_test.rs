@@ -14,7 +14,9 @@ fn test_user_model() {
     let classes = parser::parse_file(input_path).unwrap();
     let generator: Box<dyn generators::Generator> =
         Box::new(generators::flint_json::emitter::FlintJsonGenerator);
-    let section = generator.generate("user_model.dart", classes, &plugin);
+    let section = generator
+        .generate("user_model.dart", classes, &plugin)
+        .unwrap();
     let generated = output::assemble("user_model.dart", &[("flint_json", section)]);
 
     insta::assert_snapshot!(generated);
@@ -30,7 +32,9 @@ fn test_generic_model() {
     let classes = parser::parse_file(input_path).unwrap();
     let generator: Box<dyn generators::Generator> =
         Box::new(generators::flint_json::emitter::FlintJsonGenerator);
-    let section = generator.generate("generic_model.dart", classes, &plugin);
+    let section = generator
+        .generate("generic_model.dart", classes, &plugin)
+        .unwrap();
     let generated = output::assemble("generic_model.dart", &[("flint_json", section)]);
 
     insta::assert_snapshot!(generated);

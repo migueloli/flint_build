@@ -1,7 +1,7 @@
 use crate::config::{self, FlintConfig, PluginConfig, Pubspec};
 use crate::discovery;
 use crate::generators::generic::GenericTeraGenerator;
-use crate::generators::{Generator, matches_plugin};
+use crate::generators::{Generator, check_template, matches_plugin};
 use crate::output;
 use crate::parser;
 use crate::registry::PluginRegistry;
@@ -21,6 +21,8 @@ pub struct BuildReport {
     pub unchanged: usize,
     /// Skipped because the output is newer than the source.
     pub up_to_date: usize,
+    /// Left untouched because a plugin that matches them has a broken template.
+    pub blocked: usize,
     /// Owned outputs whose source no longer produces anything.
     pub deleted: Vec<PathBuf>,
     pub notes: Vec<String>,
@@ -44,6 +46,9 @@ struct ActivePlugin<'a> {
     name: String,
     config: PluginConfig,
     generator: PluginGenerator<'a>,
+    /// Its template couldn't be loaded (already reported). Files it matches are left untouched, so a
+    /// typo in a template never deletes or strips outputs (spec 0004).
+    broken: bool,
 }
 
 impl ActivePlugin<'_> {
@@ -62,6 +67,8 @@ enum Outcome {
     Unchanged,
     Deleted(PathBuf),
     Warning(String),
+    /// Left untouched because a matching plugin's template is broken.
+    Blocked,
 }
 
 pub fn run_build(force: bool, registry: &PluginRegistry) -> Result<()> {
@@ -77,7 +84,7 @@ pub fn run_build(force: bool, registry: &PluginRegistry) -> Result<()> {
     let report = build(Path::new("."), &pubspec, force, registry)?;
     print_report(&report);
     if !report.errors.is_empty() {
-        bail!("{} file(s) failed to build", report.errors.len());
+        bail!("Build finished with {} error(s)", report.errors.len());
     }
     Ok(())
 }
@@ -115,6 +122,7 @@ pub fn build(
         match outcome {
             Ok(Outcome::UpToDate) => report.up_to_date += 1,
             Ok(Outcome::Nothing) => {}
+            Ok(Outcome::Blocked) => report.blocked += 1,
             Ok(Outcome::Written(path)) => report.written.push(path),
             Ok(Outcome::Unchanged) => report.unchanged += 1,
             Ok(Outcome::Deleted(path)) => report.deleted.push(path),
@@ -149,6 +157,14 @@ fn active_plugins<'a>(
         if let Some(template_path) = &config.template_path {
             config.template_path = Some(root.join(template_path).to_string_lossy().into_owned());
         }
+        // A template that can't be loaded would fail for every file; report it once and skip the plugin.
+        let broken = match check_template(&name, &config) {
+            Ok(()) => false,
+            Err(error) => {
+                report.errors.push(error.to_string());
+                true
+            }
+        };
         let generator = match registry.get(&name) {
             Some(generator) => PluginGenerator::Registered(generator),
             None if config.template_path.is_some() => {
@@ -170,6 +186,7 @@ fn active_plugins<'a>(
             name,
             config,
             generator,
+            broken,
         });
     }
     plugins
@@ -211,6 +228,13 @@ fn process_source(
     let filename = file_name(source);
     let output_name = file_name(&output);
 
+    if plugins
+        .iter()
+        .any(|plugin| plugin.broken && matches_plugin(&parsed, &plugin.config))
+    {
+        return Ok(Outcome::Blocked);
+    }
+
     let mut sections = Vec::new();
     for plugin in plugins {
         if !matches_plugin(&parsed, &plugin.config) {
@@ -218,7 +242,7 @@ fn process_source(
         }
         let body = plugin
             .generator()
-            .generate(&filename, parsed.clone(), &plugin.config);
+            .generate(&filename, parsed.clone(), &plugin.config)?;
         let body = output::strip_legacy_preamble(&body);
         if !body.is_empty() {
             sections.push((plugin.name.as_str(), body));
@@ -305,7 +329,8 @@ fn print_report(report: &BuildReport) {
         eprintln!("  {} {}", "❌".red(), error.red());
     }
 
-    if report.written.is_empty() && report.unchanged == 0 && report.up_to_date == 0 {
+    let nothing_done = report.written.is_empty() && report.unchanged == 0 && report.up_to_date == 0;
+    if nothing_done && report.errors.is_empty() {
         println!("{} No annotations found. Nothing to build.", "ℹ️".yellow());
     } else {
         println!(
@@ -314,6 +339,13 @@ fn print_report(report: &BuildReport) {
             report.written.len(),
             report.unchanged,
             report.up_to_date
+        );
+    }
+    if report.blocked > 0 {
+        println!(
+            "{} {} file(s) left unchanged because a plugin's template has errors.",
+            "⚠️".yellow(),
+            report.blocked
         );
     }
 }

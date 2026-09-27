@@ -117,9 +117,11 @@ flowchart LR
 ### 5.2 The `Generator` trait
 
 ```rust
-// Current: returns this plugin's *section*; the engine adds the header and `part of` (§9)
+// Current: returns this plugin's *section*; the engine adds the header and `part of` (§9).
+// Template problems come back as FlintError::Template (spec 0004).
 pub trait Generator: Send + Sync {
-    fn generate(&self, filename: &str, parsed_file: ParsedFile, plugin: &PluginConfig) -> String;
+    fn generate(&self, filename: &str, parsed_file: ParsedFile, plugin: &PluginConfig)
+        -> Result<String, FlintError>;
 }
 ```
 
@@ -228,8 +230,9 @@ Design rules:
 
 ## 10. Error handling
 
-- **Current:** `anyhow` everywhere, one typed error (`FlintError::Syntax`). Template problems panic (R12).
-  Per-file errors are collected into `BuildReport.errors` (as strings) and the build exits non-zero if any
+- **Current:** `anyhow` in the builder and config; typed `FlintError::Syntax` and `FlintError::Template`
+  ([spec 0004](specs/0004-template-errors.md)). No `unwrap`/`expect` in non-test code. A template that can't be
+  loaded is reported once per plugin, and files that plugin matches are left untouched. Per-file errors are collected into `BuildReport.errors` (as strings) and the build exits non-zero if any
   occurred; one bad file no longer hides the others.
 - **Target:** library code returns `Result<_, FlintError>` (`thiserror`), and `anyhow` is only used in
   `main.rs`. Per-file `Diagnostic { severity, file, span, message, hint }` values are collected, not

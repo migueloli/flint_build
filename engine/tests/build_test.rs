@@ -288,3 +288,101 @@ fn test_template_copied_from_old_builtin_gets_one_part_of() {
     assert_eq!(generated.matches("DO NOT MODIFY BY HAND").count(), 1);
     assert!(generated.contains("// ignore_for_file: unnecessary_cast"));
 }
+
+fn package_with_template(template: Option<&str>) -> Package {
+    let package = Package::new(
+        "plugins:\n  flint_json:\n  custom:\n    class_annotations: [\"@JsonSerializable\"]\n    template_path: custom.tera\n",
+    );
+    if let Some(template) = template {
+        package.write("custom.tera", template);
+    }
+    package.write("lib/user.dart", USER);
+    package
+}
+
+#[test]
+fn test_missing_template_is_an_error_and_other_plugins_still_run() {
+    let package = Package::new(
+        "plugins:\n  flint_json:\n  custom:\n    class_annotations: [\"@Describe\"]\n    template_path: custom.tera\n",
+    );
+    package.write("lib/user.dart", USER);
+    package.write(
+        "lib/described.dart",
+        "part 'described.g.dart';\n\n@Describe()\nclass Described {}\n",
+    );
+
+    let report = package.build(false);
+
+    assert_eq!(report.errors.len(), 1, "{:?}", report.errors);
+    assert!(report.errors[0].contains("Plugin 'custom'"));
+    assert!(report.errors[0].contains("custom.tera"));
+    // Files the broken plugin doesn't match are built as usual; the ones it matches are left alone.
+    assert!(package.read("lib/user.g.dart").contains("_$UserFromJson"));
+    assert!(!package.exists("lib/described.g.dart"));
+    assert_eq!(report.blocked, 1);
+}
+
+#[test]
+fn test_template_syntax_error_explains_where() {
+    let package = package_with_template(Some("{% for c in classes %}{{ c.name }\n"));
+
+    let report = package.build(false);
+
+    assert_eq!(report.errors.len(), 1, "{:?}", report.errors);
+    assert!(report.errors[0].contains("Plugin 'custom'"));
+    assert!(report.errors[0].contains("1:"), "{}", report.errors[0]);
+}
+
+#[test]
+fn test_template_render_error_is_reported_per_file() {
+    let package = package_with_template(Some("{{ nope }}\n"));
+
+    let report = package.build(false);
+
+    assert_eq!(report.errors.len(), 1, "{:?}", report.errors);
+    assert!(report.errors[0].contains("user.dart"));
+    assert!(report.errors[0].contains("nope"), "{}", report.errors[0]);
+    assert!(!package.exists("lib/user.g.dart"));
+}
+
+#[test]
+fn test_broken_template_leaves_its_outputs_untouched() {
+    let package = Package::new(
+        "plugins:\n  flint_json:\n  describe:\n    class_annotations: [\"@Describe\"]\n    template_path: describe.tera\n",
+    );
+    package.write(
+        "describe.tera",
+        "{% for class in classes %}// describes {{ class.name }}\n{% endfor %}",
+    );
+    // Only the describe plugin matches only.dart; both plugins match shared.dart.
+    package.write(
+        "lib/only.dart",
+        "part 'only.g.dart';\n\n@Describe()\nclass Only {}\n",
+    );
+    package.write(
+        "lib/shared.dart",
+        &format!(
+            "{}\n@Describe()\nclass Extra {{}}\n",
+            USER.replace("user.g.dart", "shared.g.dart")
+        ),
+    );
+    package.build(false);
+    let only = package.read("lib/only.g.dart");
+    let shared = package.read("lib/shared.g.dart");
+    assert!(shared.contains("// describes Extra") && shared.contains("_$UserFromJson"));
+
+    // A typo in the template while the sources are being edited: nothing the plugin touches may change.
+    package.write(
+        "describe.tera",
+        "{% for class in classes %}{{ class.name }\n",
+    );
+    package.age("lib/only.g.dart");
+    package.age("lib/shared.g.dart");
+    let report = package.build(false);
+
+    assert_eq!(report.errors.len(), 1, "{:?}", report.errors);
+    assert!(report.deleted.is_empty(), "{:?}", report.deleted);
+    assert_eq!(report.blocked, 2);
+    assert_eq!(package.read("lib/only.g.dart"), only);
+    assert_eq!(package.read("lib/shared.g.dart"), shared);
+}

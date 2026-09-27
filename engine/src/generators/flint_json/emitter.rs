@@ -1,3 +1,4 @@
+use crate::error::FlintError;
 use crate::generators::{Generator, TemplateEngine, retain_annotated, select_variant_values};
 use crate::{
     config::PluginConfig,
@@ -8,7 +9,12 @@ use tera::Context;
 pub struct FlintJsonGenerator;
 
 impl Generator for FlintJsonGenerator {
-    fn generate(&self, filename: &str, parsed_file: ParsedFile, plugin: &PluginConfig) -> String {
+    fn generate(
+        &self,
+        filename: &str,
+        parsed_file: ParsedFile,
+        plugin: &PluginConfig,
+    ) -> Result<String, FlintError> {
         generate_full_file(filename, parsed_file, plugin)
     }
 }
@@ -17,7 +23,7 @@ pub fn generate_full_file(
     filename: &str,
     mut parsed_file: ParsedFile,
     plugin: &PluginConfig,
-) -> String {
+) -> Result<String, FlintError> {
     retain_annotated(&mut parsed_file, plugin);
     select_variant_values(&mut parsed_file, plugin);
     for value in parsed_file
@@ -76,20 +82,25 @@ pub fn generate_full_file(
         }
     }
 
+    let template_error = |e: tera::Error| FlintError::template("flint_json", &e);
     let mut engine = TemplateEngine::new();
     let internal_template = include_str!("../../templates/flint_json.tera");
-    engine.load_template(
-        "flint_json",
-        internal_template,
-        plugin.template_path.as_ref(),
-    );
+    engine
+        .load_template(
+            "flint_json",
+            internal_template,
+            plugin.template_path.as_ref(),
+        )
+        .map_err(template_error)?;
 
     let mut context = Context::new();
     context.insert("classes", &parsed_file.classes);
     context.insert("enums", &parsed_file.enums);
     context.insert("filename", filename);
 
-    engine.render("flint_json", &context)
+    engine
+        .render("flint_json", &context)
+        .map_err(template_error)
 }
 
 /// Fills options the class's annotations leave out with the plugin-wide defaults from `flint.yaml` or
@@ -437,7 +448,8 @@ mod tests {
                 template_path: None,
                 ..Default::default()
             },
-        );
+        )
+        .unwrap();
 
         assert!(output.contains("const MyDateTimeConverter().fromJson"));
     }
@@ -488,7 +500,8 @@ mod tests {
                 template_path: None,
                 ..Default::default()
             },
-        );
+        )
+        .unwrap();
 
         assert!(output.contains("address?.toJson()"));
     }
@@ -533,7 +546,8 @@ mod tests {
         };
         let address = || field("address", TypeKind::Custom("Address".to_string()), false);
 
-        let output = generate_full_file("user.dart", user_file(&[], vec![address()]), &plugin);
+        let output =
+            generate_full_file("user.dart", user_file(&[], vec![address()]), &plugin).unwrap();
         assert!(output.contains("'address': instance.address.toJson(),"));
         assert!(!output.contains("_$UserFromJson"));
 
@@ -541,7 +555,7 @@ mod tests {
             &[("explicitToJson", "false"), ("createFactory", "true")],
             vec![address()],
         );
-        let output = generate_full_file("user.dart", overridden, &plugin);
+        let output = generate_full_file("user.dart", overridden, &plugin).unwrap();
         assert!(output.contains("'address': instance.address,"));
         assert!(output.contains("_$UserFromJson"));
     }
@@ -566,14 +580,14 @@ mod tests {
         let from_class = user_file(&[("includeIfNull", "false")], fields());
 
         for output in [
-            generate_full_file("user.dart", user_file(&[], fields()), &from_plugin),
-            generate_full_file("user.dart", from_class, &base),
+            generate_full_file("user.dart", user_file(&[], fields()), &from_plugin).unwrap(),
+            generate_full_file("user.dart", from_class, &base).unwrap(),
         ] {
             assert!(output.contains("if (instance.nickname != null)"));
             assert!(!output.contains("if (instance.id != null)"));
         }
 
-        let output = generate_full_file("user.dart", user_file(&[], fields()), &base);
+        let output = generate_full_file("user.dart", user_file(&[], fields()), &base).unwrap();
         assert!(!output.contains("!= null)"));
     }
 }

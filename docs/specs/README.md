@@ -34,3 +34,4 @@ Specs aren't edited after `Done`. A later change gets a new spec that supersedes
 | [0001](0001-generated-output-ownership.md) | Generated output ownership | Done | R1, R2, R4, R5, R13 |
 | [0002](0002-read-build-yaml.md) | Read json_serializable options from `build.yaml` | Done | SDD open question 1 |
 | [0003](0003-field-rename-camel.md) | `field_rename: camel` means lowerCamelCase; unknown values are errors | Done | SDD open question 2 |
+| [0004](0004-template-errors.md) | Template errors are reported, not panics | Done | R12 |

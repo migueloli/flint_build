@@ -1,4 +1,5 @@
 use crate::config::PluginConfig;
+use crate::error::FlintError;
 use crate::parser::dart_types::{DartClass, DartEnum, ParsedFile};
 use tera::{Context, Tera};
 
@@ -8,7 +9,23 @@ pub mod generic;
 pub trait Generator: Send + Sync {
     /// Renders this plugin's section of `<file>.g.dart`. The engine adds the file header and the
     /// `part of` directive (spec 0001), so the section contains only generated declarations.
-    fn generate(&self, filename: &str, parsed_file: ParsedFile, plugin: &PluginConfig) -> String;
+    fn generate(
+        &self,
+        filename: &str,
+        parsed_file: ParsedFile,
+        plugin: &PluginConfig,
+    ) -> Result<String, FlintError>;
+}
+
+/// Loads the plugin's `template_path` once, so a missing file or a syntax error is reported before any
+/// source is processed (spec 0004).
+pub fn check_template(plugin_name: &str, plugin: &PluginConfig) -> Result<(), FlintError> {
+    match &plugin.template_path {
+        Some(path) => TemplateEngine::new()
+            .load_template_file(plugin_name, path)
+            .map_err(|e| FlintError::template(plugin_name, &e)),
+        None => Ok(()),
+    }
 }
 
 fn class_matches(class: &DartClass, plugin: &PluginConfig) -> bool {
@@ -77,24 +94,19 @@ impl TemplateEngine {
         name: &str,
         default_template: &str,
         custom_path: Option<&String>,
-    ) {
-        if let Some(path) = custom_path {
-            self.tera.add_template_file(path, Some(name)).unwrap();
-        } else {
-            self.tera.add_raw_template(name, default_template).unwrap();
+    ) -> Result<(), tera::Error> {
+        match custom_path {
+            Some(path) => self.load_template_file(name, path),
+            None => self.tera.add_raw_template(name, default_template),
         }
     }
 
-    pub fn load_template_file(&mut self, name: &str, path: &str) {
-        self.tera
-            .add_template_file(path, Some(name))
-            .expect("Failed to load template file");
+    pub fn load_template_file(&mut self, name: &str, path: &str) -> Result<(), tera::Error> {
+        self.tera.add_template_file(path, Some(name))
     }
 
-    pub fn render(&self, name: &str, context: &Context) -> String {
-        self.tera
-            .render(name, context)
-            .expect("Template render failed")
+    pub fn render(&self, name: &str, context: &Context) -> Result<String, tera::Error> {
+        self.tera.render(name, context)
     }
 }
 
@@ -128,12 +140,41 @@ mod tests {
     #[test]
     fn test_template_engine_raw() {
         let mut engine = TemplateEngine::default();
-        engine.load_template("test_tpl", "Hello {{ name }}", None);
+        engine
+            .load_template("test_tpl", "Hello {{ name }}", None)
+            .unwrap();
 
         let mut context = tera::Context::new();
         context.insert("name", "Flint");
 
-        let result = engine.render("test_tpl", &context);
+        let result = engine.render("test_tpl", &context).unwrap();
         assert_eq!(result, "Hello Flint");
+    }
+
+    #[test]
+    fn test_template_errors_include_the_cause() {
+        let plugin = |path: &str| PluginConfig {
+            template_path: Some(path.to_string()),
+            ..Default::default()
+        };
+        let dir = tempfile::tempdir().unwrap();
+
+        let missing = dir.path().join("missing.tera");
+        let error = check_template("custom", &plugin(missing.to_str().unwrap()))
+            .unwrap_err()
+            .to_string();
+        assert!(error.starts_with("Plugin 'custom': "), "{error}");
+        assert!(error.contains("missing.tera"), "{error}");
+
+        let broken = dir.path().join("broken.tera");
+        std::fs::write(&broken, "{{ name }\n").unwrap();
+        let error = check_template("custom", &plugin(broken.to_str().unwrap()))
+            .unwrap_err()
+            .to_string();
+        // Tera's own message is only "Failed to parse …"; the cause says where and why.
+        assert!(error.contains("Failed to parse"), "{error}");
+        assert!(error.contains("1:"), "{error}");
+
+        assert!(check_template("custom", &PluginConfig::default()).is_ok());
     }
 }

@@ -50,6 +50,8 @@ fn test_generic_generator_execution() {
     let generator = GenericTeraGenerator {
         plugin_name: "mock_plugin".to_string(),
     };
-    let output = generator.generate("mock.dart", parsed_file, &config);
+    let output = generator
+        .generate("mock.dart", parsed_file, &config)
+        .unwrap();
     assert_eq!(output, "Hello MockUser and MockEnum!");
 }
