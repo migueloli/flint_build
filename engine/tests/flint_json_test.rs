@@ -76,6 +76,10 @@ fn test_cross_file_enums() {
         "lib/cross_file_model.dart",
         "lib/src/status.dart",
         "lib/src/mood.dart",
+        "lib/export_model.dart",
+        "lib/src/catalog.dart",
+        "lib/src/grade.dart",
+        "lib/src/label.dart",
     ] {
         let target = dir.path().join(relative);
         std::fs::create_dir_all(target.parent().unwrap()).unwrap();
@@ -95,4 +99,8 @@ fn test_cross_file_enums() {
     let generated =
         std::fs::read_to_string(dir.path().join("lib/cross_file_model.g.dart")).unwrap();
     insta::assert_snapshot!(generated);
+
+    // Through a barrel file's `export`s, imported as package:<this package>/….
+    let generated = std::fs::read_to_string(dir.path().join("lib/export_model.g.dart")).unwrap();
+    insta::assert_snapshot!("export_model", generated);
 }

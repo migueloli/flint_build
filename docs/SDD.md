@@ -62,23 +62,25 @@ imports, types, or constants. That's where the speed comes from, and also where 
 | Literal annotation arguments (`name: 'id'`) | Values of `const` references (`name: kIdKey`) |
 | Type parameters | Types from other packages, type aliases, extension types |
 
-**How we deal with it (Target):** we resolve **within the project** without doing full type analysis:
+**How we deal with it** ([spec 0005](specs/0005-project-symbol-index.md), Current): we resolve **within the
+project** without doing full type analysis:
 
-1. **Index pass:** parse every file in the build roots in parallel and record every top-level declaration
-   (`name → {kind: class|enum|mixin|typedef|extension type, file, annotations, constructors}`). This is cheap:
-   tree-sitter is already doing the parse.
-2. **Generate pass:** generators look type names up in the index. A name that isn't in the index and isn't a
-   known `dart:core` type is an *unresolved type*. It becomes a clear diagnostic (with a hint such as
-   `@JsonKey(fromJson:)` or a `converters:` entry) instead of silently generated `X.fromJson`.
-3. **Escape hatches:** `flint.yaml` can list external types, e.g.
-   `external_types: { Money: { kind: class, from_json: true } }`, so types from other packages don't need
-   resolution.
+1. **Index pass:** parse every file under `lib/` in parallel and record each file's top-level declarations
+   (`name → {kind: class|enum|mixin|typedef|extension type, has_from_json, has_to_json}`, plus an enum's
+   values), its `import`/`export` directives (prefixes, `show`/`hide`) and its parts. On 1,000 files this
+   costs about as much as parsing alone (~72 ms, 4 cores), because the queries are compiled once.
+2. **Resolve:** each field type is looked up the way Dart does: the file's library first, then its project
+   imports and their transitive `export`s. Two visible declarations are an ambiguity error. The output then
+   also depends on the files its types come from (§12).
+3. **Generate:** `flint_json` converts by kind (enums get a per-library value map; classes need `fromJson`).
+   A mixin, typedef, extension type, record or function type, or a name nothing declares, is an error with a
+   fix (`@JsonKey(fromJson:, toJson:)` or a converter) instead of Dart that doesn't compile.
+4. **Escape hatch:** other packages aren't indexed. A name Flint can't find, in a file that imports another
+   package, is assumed to be a class (one warning per name); `external_types: [Money]` under the plugin
+   confirms it.
 
-**Current** ([spec 0005](specs/0005-project-symbol-index.md)): steps 1 and 2 exist; the index records
-`name → {kind, file, has_from_json, has_to_json}` (and an enum's values). `flint_json` errors on a class
-without `fromJson`, on mixins, typedefs and extension types, and on a name nothing declares or could import.
-A name it can't find in a file that imports another package is assumed to be a class, with one warning per
-name. The escape hatch is a plain list, `external_types: [Money]`, per plugin.
+**Target:** keep the index in a cache (§12) so a no-op build doesn't parse every file, and add constructors
+to the declarations for R8.
 
 This keeps Flint syntax-only, with no Dart SDK needed at build time, while fixing review items R7 and R8.
 
@@ -158,6 +160,8 @@ returns a **section** rather than a whole file, so several plugins can share one
 ParsedFile { classes: [DartClass], enums: [DartEnum], part_directives, part_of?,
              directives: [{ kind: Import|Export, uri, prefix?, show, hide }],
              declarations: [{ name, kind: Class|Enum|Mixin|TypeAlias|ExtensionType, has_from_json, has_to_json }] }
+// index::ResolvedType { kind, file?, has_from_json, has_to_json } per type name a file's generated classes use,
+// plus (not in the template context) the declaring path, an enum's declaration, and possibly_external.
 DartClass  { name, type_parameters: [String], metadata: {String: String}, fields: [DartField] }
 DartField  { name, line, dart_type: DartType, is_final, metadata: {String: String},
              converter?, from_json_expr?, to_json_expr? }   // last three are emitter scratch state

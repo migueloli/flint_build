@@ -4,11 +4,13 @@ import 'package:flint_dart_golden/annotations_model.dart';
 import 'package:flint_dart_golden/core_types_model.dart';
 import 'package:flint_dart_golden/cross_file_model.dart';
 import 'package:flint_dart_golden/enum_values_model.dart';
+import 'package:flint_dart_golden/export_model.dart';
 import 'package:flint_dart_golden/external_model.dart';
 import 'package:flint_dart_golden/generic_model.dart';
 import 'package:flint_dart_golden/options_model.dart';
 import 'package:flint_dart_golden/prefixed_model.dart';
 import 'package:flint_dart_golden/user_model.dart';
+import 'package:flint_dart_golden/src/catalog.dart';
 import 'package:flint_dart_golden/src/mood.dart' as m;
 import 'package:flint_dart_golden/src/status.dart';
 import 'package:golden_money/golden_money.dart';
@@ -301,6 +303,26 @@ void main() {
       expect(wallet.balance, const Money(150, 'EUR'));
       expect(wallet.history, [const Money(1, 'USD')]);
       expect(wire(wallet), json);
+    });
+  });
+
+  group('types through export (spec 0005)', () {
+    test('an enum and a class from a barrel file round-trip', () {
+      final json = {
+        'level': 'high',
+        'tag': {'name': 'a'},
+        'tags': [
+          {'name': 'b'},
+        ],
+        'byLevel': {
+          'low': {'name': 'c'},
+        },
+      };
+      final shelf = Shelf.fromJson(wire(json));
+      expect(shelf.level, Grade.high);
+      expect(shelf.tag, const Label('a'));
+      expect(shelf.byLevel, {Grade.low: const Label('c')});
+      expect(wire(shelf), json);
     });
   });
 }

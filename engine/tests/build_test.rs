@@ -727,3 +727,33 @@ fn test_external_types_also_cover_files_without_other_packages() {
     assert!(report.warnings.is_empty(), "{:?}", report.warnings);
     assert!(package.read("lib/model.g.dart").contains("Money.fromJson("));
 }
+
+#[test]
+fn test_editing_an_enum_in_another_file_regenerates_its_map() {
+    let package = Package::json();
+    fs::create_dir_all(package.path("lib/src")).unwrap();
+    package.write("lib/src/color.dart", "enum Color { red }\n");
+    package.write(
+        "lib/model.dart",
+        &model_with_field("import 'src/color.dart';\n", "final Color color;"),
+    );
+    package.build(false);
+    assert!(
+        package
+            .read("lib/model.g.dart")
+            .contains("Color.red: 'red'")
+    );
+
+    // Only color.dart changes; model.dart and its output are older.
+    package.set_mtime("lib/model.dart", 1);
+    package.set_mtime("lib/model.g.dart", 2);
+    package.write("lib/src/color.dart", "enum Color { red, green }\n");
+    let report = package.build(false);
+
+    assert_eq!(report.written, vec![package.path("lib/model.g.dart")]);
+    assert!(
+        package
+            .read("lib/model.g.dart")
+            .contains("Color.green: 'green'")
+    );
+}

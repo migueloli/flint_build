@@ -1,0 +1,38 @@
+---
+source: tests/flint_json_test.rs
+assertion_line: 105
+expression: generated
+---
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// flint_build 0.1.0
+
+part of 'export_model.dart';
+
+// **************************************************************************
+// flint_json
+// **************************************************************************
+
+// ignore_for_file: unnecessary_cast
+
+Shelf _$ShelfFromJson(
+  Map<String, dynamic> json,
+) => Shelf(
+      level: _$GradeEnumMap.entries.firstWhere((entry) => entry.value == json['level']).key,
+      tag: Label.fromJson(json['tag'] as Map<String, dynamic>),
+      tags: (json['tags'] as List<dynamic>).map((e) => Label.fromJson(e as Map<String, dynamic>)).toList(),
+      byLevel: (json['byLevel'] as Map<String, dynamic>).map((k, v) => MapEntry(_$GradeEnumMap.entries.firstWhere((entry) => entry.value.toString() == k).key, Label.fromJson(v as Map<String, dynamic>))),
+    );
+
+Map<String, dynamic> _$ShelfToJson(
+  Shelf instance,
+) => <String, dynamic>{
+      'level': _$GradeEnumMap[instance.level],
+      'tag': instance.tag.toJson(),
+      'tags': instance.tags.map((elem) => elem.toJson()).toList(),
+      'byLevel': instance.byLevel.map((key, value) => MapEntry(_$GradeEnumMap[key].toString(), value.toJson())),
+    };
+
+const _$GradeEnumMap = {
+  Grade.low: 'low',
+  Grade.high: 'high',
+};

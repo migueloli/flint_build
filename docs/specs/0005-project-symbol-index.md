@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| **Status** | In progress (accepted with the proposed answers to the open questions) |
+| **Status** | Done (accepted with the proposed answers to the open questions; steps 1–7 implemented) |
 | **Resolves** | R7 (and two related bugs found while writing this spec), A1 as a prerequisite |
 | **Touches** | `parser/` (declarations, imports, type names), new `index` module, `builder.rs`, `generators/` (`Generator` trait, `flint_json` emitter and template), `config/flint.rs`, docs |
 
@@ -172,16 +172,28 @@ its source, the shared inputs (spec 0001), **and every file its resolved types c
 
 ## Acceptance criteria
 
-- [ ] Every row of the “What each kind generates” table has a Dart golden fixture that analyzes cleanly and
+- [x] Every row of the “What each kind generates” table has a Dart golden fixture that analyzes cleanly and
       round-trips, including enums from another file, through an `export`, and through an import prefix.
-- [ ] The Problem table's model generates compiling code, except the record field, which gets the error above.
-- [ ] Two visible declarations with the same name produce an ambiguity error naming both files.
-- [ ] Editing an enum in `lib/src/color.dart` regenerates `model.g.dart` on the next non-forced build.
-- [ ] An unresolved name in a file that imports another package generates as today and warns once; listing
-      it in `external_types` removes the warning.
-- [ ] Existing snapshots and the example's output don't change (they only use same-file types).
-- [ ] On the 1,000-file benchmark, a no-op build stays under 100 ms and a `--force` build is faster than
+      *(Golden files: `cross_file_model` (enums from another file, prefixed, un-annotated),
+      `export_model` (an enum and a class through a barrel file's `export`s, imported as
+      `package:<self>/…`), `prefixed_model`, `core_types_model`, `external_model`, `user_model`. The error rows
+      are errors, so they're covered by build tests instead: `test_class_without_from_json_is_an_error`,
+      `test_mixins_typedefs_and_extension_types_are_errors`, `test_unsupported_field_type_is_reported_with_its_line`.)*
+- [x] The Problem table's model generates compiling code, except the record field, which gets the error above.
+      *(Each row is in one of the golden files above; a record with `@JsonKey` hooks is in `prefixed_model`.)*
+- [x] Two visible declarations with the same name produce an ambiguity error naming both files.
+      *(`test_ambiguous_type_is_an_error_naming_both_files`.)*
+- [x] Editing an enum in `lib/src/color.dart` regenerates `model.g.dart` on the next non-forced build.
+      *(`test_editing_an_enum_in_another_file_regenerates_its_map`.)*
+- [x] An unresolved name in a file that imports another package generates as today and warns once; listing
+      it in `external_types` removes the warning. *(`test_unknown_type_from_another_package_warns_once`.)*
+- [x] Existing snapshots and the example's output don't change (they only use same-file types).
+      *(One intended exception: step 5 renamed the enum lookup's parameter to `entry`, fixing a pre-existing
+      shadowing bug, which changed one token in every enum decode.)*
+- [x] On the 1,000-file benchmark, a no-op build stays under 100 ms and a `--force` build is faster than
       today's 1.9 s (engine-only timer, same machine class, method recorded in the benchmark script).
+      *(`engine/bench/run.sh 1000 5`, 4 cores, after step 6: no-op 84–93 ms, `--force` 268–287 ms, parse-only
+      70–78 ms.)*
 
 ## Plan
 
@@ -236,7 +248,20 @@ Each step is mergeable on its own and keeps CI green.
      `x` isn't this package; `dart:` libraries don't count.
    - Golden fixture: `external_model.dart` uses `Money` from a local path package
      (`tests/dart_golden/packages/golden_money`), plain and prefixed, listed in `external_types`.
-7. Docs: support matrix, template context, SDD §4/§6/§7, roadmap, review.
+7. ✅ Docs: support matrix, template context, SDD §4/§6/§7, roadmap, review. Closing checks added an
+   `export` golden fixture (`export_model.dart`, with its snapshot) and a `flint_json` test that editing an
+   enum in another file regenerates the map. The benchmark was re-run (see the acceptance criteria).
+
+## Follow-ups
+
+- **Index cache (decision 4):** the no-op build is inside the 100 ms budget with ~10% margin on 1,000 files.
+  A cache in `.dart_tool/flint/` is Phase 3 work, together with content hashes (R11).
+- **Re-export changes:** a file in the middle of an `export` chain isn't a dependency of the output; `--force`
+  covers it until the cache.
+- **Warnings on up-to-date builds:** the `external_types` warning appears when a file is generated. Replaying
+  it on no-op builds needs the cache too.
+- **Not in scope, still open:** constructors (R8), `$enumDecode` and `unknownEnumValue` (R10), non-`String`
+  map keys other than enums (R14), `toJson` checks for `explicitToJson` on classes without `toJson`.
 
 ## Decisions
 

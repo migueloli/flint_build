@@ -14,7 +14,7 @@ First version with a stable project layout. Highlights since the prototype:
 - **Several plugins per file**, as sections in `flint.yaml` order.
 - **`build.yaml` support** ([spec 0002](../docs/specs/0002-read-build-yaml.md)): json_serializable options
   are read from `build.yaml`, and `flint.yaml` is optional for json_serializable projects.
-- **Types across files** ([spec 0005](../docs/specs/0005-project-symbol-index.md), in progress): enums and
+- **Types across files** ([spec 0005](../docs/specs/0005-project-symbol-index.md)): enums and
   classes from any file in the package (also through import prefixes and exports), `num`, `dynamic`,
   `Object`, `Uri`, `BigInt`, `Duration`, `Set` and `Iterable`. Types Flint can't convert (a class without
   `fromJson`, records, mixins, typedefs, extension types, unknown names) are errors with a fix, instead of
