@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| **Status** | Draft |
+| **Status** | In progress (accepted with the proposed answers to the open questions) |
 | **Resolves** | R8 (and a related bug found while writing this spec: `final int a, b;` loses `b`) |
 | **Touches** | `parser/` (constructors, getters, field modifiers), `generators/flint_json/` (emitter, template), `index.rs` (superclass members, step 3), docs |
 
@@ -151,12 +151,12 @@ Errors are per source file (spec 0001): the output is left unchanged and the bui
 Custom templates keep `class.fields`, which now lists every variable of a multi-variable declaration, and gets:
 
 - `field.is_late`, `field.has_initializer`, `field.is_private`;
-- `class.getters`: `[{ name, dart_type, is_static, metadata, line }]`;
+- `class.getters`: `[{ name, dart_type, metadata, line }]` (instance getters only);
 - `class.constructors`: `[{ name (null for the unnamed one), is_factory, is_const, line, params: [{ name,
   kind: "positional" | "optional_positional" | "named", required, default (Dart source or null),
   initializes: "this" | "super" | "plain", dart_type (plain parameters only) }] }]`.
 
-Static fields are still left out of `class.fields`, as today.
+Static fields and getters are left out.
 
 The `flint_json` template gets, per class, `class.from_json` (the constructor to call and its arguments in
 order, each with the member it came from) and `class.json_members` (the members `toJson` writes). A custom
@@ -200,9 +200,19 @@ order, each with the member it came from) and `class.json_members` (the members 
 
 Each step is mergeable on its own and keeps CI green.
 
-1. **Parser:** multi-variable fields (bug fix; a snapshot only changes for classes that use them), field
+1. ✅ **Parser:** multi-variable fields (bug fix; a snapshot only changes for classes that use them), field
    modifiers, getters, constructors and parameters, and the template context additions. No `flint_json`
-   output changes except the `a, b` fix.
+   output changes except the `a, b` fix. Notes:
+   - **Second bug fixed:** static fields with a type (`static int created = 0;`) were parsed as instance
+     fields (only `static const x = …` was skipped, by accident of the grammar). Statics are now dropped
+     explicitly, fields and getters alike, so getters have no `is_static` flag.
+   - Grammar quirks, covered by the parser test: a `= default` is a *sibling* of its parameter inside
+     `[…]`/`{…}`, and `required` is a sibling token for plain parameters but a `type_identifier` inside
+     `required this.x`.
+   - Golden and snapshot fixture `constructors_model.dart` (`Pair` with `final int a, b;`, a static and a
+     getter); steps 2 and 3 extend it.
+   - Benchmark (`engine/bench/run.sh 1000 5`): no-op 85–97 ms typical, the same as before this step measured
+     in the same session (82–110 ms). The machine's run-to-run spread already reaches the 100 ms budget.
 2. **Constructor-aware `fromJson`/`toJson`** for a class's own members: constructor choice, positional and
    named arguments, constructor defaults, cascades, member rules (private, unsettable, getters), the three
    errors. Golden `constructors_model.dart`. `super.x` parameters and plain parameters that match nothing in
@@ -211,7 +221,18 @@ Each step is mergeable on its own and keeps CI green.
    other packages, generic superclasses and mixins with fields. Golden `inheritance_model.dart`.
 4. **Docs:** support matrix, template context, SDD §4/§6, roadmap, review; spec Done.
 
-## Open questions
+## Decisions
+
+The open questions were accepted with the proposed answers:
+
+1. **Private members** are skipped unless their `@JsonKey` includes them, as json_serializable does.
+2. **Unsettable `final` fields and getters** are left out of `toJson` when `fromJson` is generated;
+   `@JsonKey(includeToJson: true)` keeps one.
+3. **Getters with `createFactory: false`** are written by `toJson`; the changelog calls this out.
+4. **Superclasses** are handled in this spec, as step 3.
+5. **Default expression:** Flint keeps its `json['k'] == null ? d : conv` form.
+
+## Open questions (resolved)
 
 1. **Private members:** skip them unless `@JsonKey` includes them, as json_serializable does? Today Flint
    writes them to `toJson` (and generates a named argument that can't compile). *Proposed: yes; the only

@@ -44,7 +44,7 @@ with json_serializable.
 | | Item | Refs |
 | --- | ---- | ---- |
 | ✅ | **Project symbol index:** resolve enums and classes across files; clear “unresolved type” diagnostics; `external_types` | R7 · SDD §4 · [Spec 0005](specs/0005-project-symbol-index.md) |
-| ⬜ | **Constructor-aware emission:** positional/named/`this.` params; skip static, late and initialised fields; private-field rules; superclass fields | R8 · [Spec 0006](specs/0006-constructor-aware-emission.md) (draft) |
+| 🟨 | **Constructor-aware emission:** positional/named/`this.` params; skip static, late and initialised fields; private-field rules; superclass fields | R8 · [Spec 0006](specs/0006-constructor-aware-emission.md) |
 | 🟨 | Scope metadata to configured `field_annotations` / `variant_annotations` (`variant_annotations` done with R3) | R9 |
 | ⬜ | Emit `$enumDecode` / `$enumDecodeNullable`; support `unknownEnumValue` | R10 |
 | 🟨 | More types: `num`, `dynamic`, `Object`, `Uri`, `BigInt`, `Duration`, `Set`, `Iterable` (done, spec 0005 step 3); non-String map keys still open | R7, R14 |

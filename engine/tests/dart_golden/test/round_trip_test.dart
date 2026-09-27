@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flint_dart_golden/annotations_model.dart';
+import 'package:flint_dart_golden/constructors_model.dart';
 import 'package:flint_dart_golden/core_types_model.dart';
 import 'package:flint_dart_golden/cross_file_model.dart';
 import 'package:flint_dart_golden/enum_values_model.dart';
@@ -323,6 +324,15 @@ void main() {
       expect(shelf.tag, const Label('a'));
       expect(shelf.byLevel, {Grade.low: const Label('c')});
       expect(wire(shelf), json);
+    });
+  });
+
+  group('constructors and members (spec 0006)', () {
+    test('every variable of a multi-variable field; no statics or getters', () {
+      final json = {'a': 1, 'b': 2};
+      final pair = Pair.fromJson(wire(json));
+      expect([pair.a, pair.b], [1, 2]);
+      expect(wire(pair), json);
     });
   });
 }

@@ -757,3 +757,41 @@ fn test_editing_an_enum_in_another_file_regenerates_its_map() {
             .contains("Color.green: 'green'")
     );
 }
+
+#[test]
+fn test_templates_see_constructors_getters_and_field_flags() {
+    let package = Package::new(
+        "plugins:\n  describe:\n    class_annotations: [\"@Describe\"]\n    template_path: describe.tera\n",
+    );
+    package.write(
+        "describe.tera",
+        "{% for class in classes %}\
+{% for f in class.fields %}// field {{ f.name }} late={{ f.is_late }} init={{ f.has_initializer }} private={{ f.is_private }}\n{% endfor %}\
+{% for g in class.getters %}// getter {{ g.name }}\n{% endfor %}\
+{% for c in class.constructors %}// constructor {{ c.name | default(value=\"(unnamed)\") }} factory={{ c.is_factory }}:\
+{% for p in c.params %} {{ p.kind }}/{{ p.initializes }}/{{ p.name }}{% if p.required %}!{% endif %}{% if p.default %}={{ p.default }}{% endif %}{% endfor %}\n{% endfor %}\
+{% endfor %}",
+    );
+    package.write(
+        "lib/model.dart",
+        "part 'model.g.dart';\n\n@Describe()\nclass Model {\n  final int a, _b;\n  late String c = 'x';\n  int get sum => a;\n  Model(this.a, [int b = 0]) : _b = b;\n  factory Model.named({required int a}) => Model(a);\n}\n",
+    );
+
+    let report = package.build(false);
+
+    assert!(report.errors.is_empty(), "{:?}", report.errors);
+    let generated = package.read("lib/model.g.dart");
+    for line in [
+        "// field a late=false init=false private=false",
+        "// field _b late=false init=false private=true",
+        "// field c late=true init=true private=false",
+        "// getter sum",
+        "// constructor (unnamed) factory=false: positional/this/a! optional_positional/plain/b=0",
+        "// constructor named factory=true: named/plain/a!",
+    ] {
+        assert!(
+            generated.contains(line),
+            "missing {line:?} in:\n{generated}"
+        );
+    }
+}

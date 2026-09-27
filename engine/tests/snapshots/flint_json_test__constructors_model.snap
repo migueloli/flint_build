@@ -1,0 +1,29 @@
+---
+source: tests/flint_json_test.rs
+assertion_line: 124
+expression: generated
+---
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// flint_build 0.1.0
+
+part of 'constructors_model.dart';
+
+// **************************************************************************
+// flint_json
+// **************************************************************************
+
+// ignore_for_file: unnecessary_cast
+
+Pair _$PairFromJson(
+  Map<String, dynamic> json,
+) => Pair(
+      a: (json['a'] as num).toInt(),
+      b: (json['b'] as num).toInt(),
+    );
+
+Map<String, dynamic> _$PairToJson(
+  Pair instance,
+) => <String, dynamic>{
+      'a': instance.a,
+      'b': instance.b,
+    };

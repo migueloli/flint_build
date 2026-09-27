@@ -14,6 +14,7 @@ fn test_generic_generator_execution() {
         fields: vec![],
         metadata,
         type_parameters: vec![],
+        ..Default::default()
     };
 
     let dart_enum = flint_build::parser::dart_types::DartEnum {

@@ -19,6 +19,9 @@ First version with a stable project layout. Highlights since the prototype:
   `Object`, `Uri`, `BigInt`, `Duration`, `Set` and `Iterable`. Types Flint can't convert (a class without
   `fromJson`, records, mixins, typedefs, extension types, unknown names) are errors with a fix, instead of
   code that doesn't compile. Classes from other packages warn once unless listed in `external_types`.
+- **Fields** ([spec 0006](../docs/specs/0006-constructor-aware-emission.md), in progress): every variable of
+  `final int a, b;` is serialized (only `a` was), and static fields are no longer treated as instance
+  fields. Custom templates get `class.constructors`, `class.getters` and new field flags.
 - **`--force`** replaces `--delete-conflicting-outputs` (kept as an alias, like `-d`).
 - **Watch mode** rebuilds once per change instead of looping on its own writes.
 - **Fixes:** classes and enums with several annotations (R3); typed `@JsonValue` values and quotes inside

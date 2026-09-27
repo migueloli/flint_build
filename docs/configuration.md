@@ -220,6 +220,8 @@ this package ignore the list.
 | Records, function types, fields without a declared type | ❌ | Reported as an error for that file (with the line), unless the field has `@JsonKey(fromJson:, toJson:)`, a converter, or is ignored |
 | Mixins, typedefs, extension types | ❌ | Reported as an error for that file, with the same exceptions |
 | Positional constructors, fields not set by the constructor | ❌ | Always generates named arguments for every field (R8) |
+| Several variables in one declaration (`final int a, b;`) | ✅ | Each is a field |
+| Static fields and getters | ✅ | Ignored, as in json_serializable |
 | Classes and enums with several annotations (`@immutable @JsonSerializable()`) | ✅ | In any order |
 | `@JsonSerializable(explicitToJson: true)` | ✅ | Package-wide default: `explicit_to_json` |
 | `@JsonSerializable(createFactory: false / createToJson: false)` | ✅ | Package-wide defaults: `create_factory` / `create_to_json` |
@@ -292,7 +294,32 @@ These variables are available in every template, for both built-in and custom pl
   "name": "M",
   "type_parameters": ["T"],
   "metadata": { "Model": "", "tag": "'x'" },   // annotation names → "", named args → raw source text
-  "fields": [ /* Field */ ]
+  "fields": [ /* Field */ ],                   // instance fields, one per variable (`final int a, b;`)
+  "getters": [ { "name": "sum", "line": 9, "dart_type": { … }, "metadata": { … } } ],   // instance getters
+  "constructors": [ /* Constructor */ ]
+}
+```
+
+Static fields and getters are left out.
+
+**Constructor**
+
+```jsonc
+{
+  "name": "named",          // null for the unnamed constructor
+  "is_factory": false,
+  "is_const": true,
+  "line": 14,
+  "params": [
+    {
+      "name": "x",
+      "kind": "named",      // "positional" | "optional_positional" | "named"
+      "required": true,     // positional parameters, and named ones marked `required`
+      "default": "0",       // the default value as Dart source, or null
+      "initializes": "this",  // "this" (this.x) | "super" (super.x) | "plain" (int x)
+      "dart_type": null     // the declared type, for plain parameters only
+    }
+  ]
 }
 ```
 
@@ -302,6 +329,9 @@ These variables are available in every template, for both built-in and custom pl
 {
   "name": "id",
   "is_final": true,
+  "is_late": false,
+  "has_initializer": false, // declared with `= value`
+  "is_private": false,      // the name starts with `_`
   "line": 12,               // 1-based line of the declaration
   "dart_type": { "kind": "Int", "is_nullable": true },
   "metadata": { "JsonKey": "", "name": "'id_'" },

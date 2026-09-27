@@ -162,8 +162,14 @@ ParsedFile { classes: [DartClass], enums: [DartEnum], part_directives, part_of?,
              declarations: [{ name, kind: Class|Enum|Mixin|TypeAlias|ExtensionType, has_from_json, has_to_json }] }
 // index::ResolvedType { kind, file?, has_from_json, has_to_json } per type name a file's generated classes use,
 // plus (not in the template context) the declaring path, an enum's declaration, and possibly_external.
-DartClass  { name, type_parameters: [String], metadata: {String: String}, fields: [DartField] }
-DartField  { name, line, dart_type: DartType, is_final, metadata: {String: String},
+DartClass  { name, type_parameters: [String], metadata: {String: String}, fields: [DartField],
+             getters: [{ name, line, dart_type, metadata }],
+             constructors: [{ name?, is_factory, is_const, line,
+                              params: [{ name, kind: Positional|OptionalPositional|Named, required, default?,
+                                         initializes: This|Super|Plain, dart_type? }] }] }   // spec 0006
+           // fields: one per variable (`final int a, b;`), statics left out
+DartField  { name, line, dart_type: DartType, is_final, is_late, has_initializer, is_private,
+             metadata: {String: String},
              converter?, from_json_expr?, to_json_expr? }   // last three are emitter scratch state
 DartType   { kind: String|Int|Double|Bool|DateTime|Num|Dynamic|Object|Uri|BigInt|Duration
                    |List(T)|Set(T)|Iterable(T)|Map(K,V)|Custom(name)|Unsupported(text), is_nullable }

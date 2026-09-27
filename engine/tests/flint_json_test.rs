@@ -104,3 +104,27 @@ fn test_cross_file_enums() {
     let generated = std::fs::read_to_string(dir.path().join("lib/export_model.g.dart")).unwrap();
     insta::assert_snapshot!("export_model", generated);
 }
+
+#[test]
+fn test_constructors_model() {
+    let input_path = Path::new("tests/fixtures/gold/constructors_model.dart");
+
+    let config = FlintConfig::load_from_file("tests/fixtures/flint.yaml").unwrap();
+    let plugin = config.plugins.unwrap().get("flint_json").unwrap().clone();
+
+    let classes = parser::parse_file(input_path).unwrap();
+    let generator: Box<dyn generators::Generator> =
+        Box::new(generators::flint_json::emitter::FlintJsonGenerator);
+    let section = generator
+        .generate(
+            "constructors_model.dart",
+            classes,
+            &plugin,
+            &Default::default(),
+        )
+        .unwrap()
+        .code;
+    let generated = output::assemble("constructors_model.dart", &[("flint_json", section)]);
+
+    insta::assert_snapshot!(generated);
+}

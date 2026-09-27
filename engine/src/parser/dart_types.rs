@@ -94,14 +94,75 @@ pub struct DartField {
     pub to_json_expr: Option<String>,
     pub metadata: HashMap<String, String>,
     pub converter: Option<String>,
+    pub is_late: bool,
+    /// Declared with `= value` (`final tags = const [];`), so a constructor can't set it (spec 0006).
+    pub has_initializer: bool,
+    /// The name starts with `_`.
+    pub is_private: bool,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct DartClass {
     pub name: String,
+    /// Instance fields, one per variable (`final int a, b;` gives two). Static fields are left out.
     pub fields: Vec<DartField>,
     pub metadata: HashMap<String, String>,
     pub type_parameters: Vec<String>,
+    /// Instance getters (`int get sum => …`), in declaration order (spec 0006).
+    pub getters: Vec<DartGetter>,
+    /// Every constructor, in declaration order (spec 0006).
+    pub constructors: Vec<DartConstructor>,
+}
+
+/// An instance getter. Static getters are left out.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct DartGetter {
+    pub name: String,
+    pub line: usize,
+    pub dart_type: DartType,
+    pub metadata: HashMap<String, String>,
+}
+
+/// `const Point.origin({required this.x})` →
+/// `{ name: Some("origin"), is_factory: false, is_const: true, params: [x] }`.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct DartConstructor {
+    /// `None` for the unnamed constructor.
+    pub name: Option<String>,
+    pub is_factory: bool,
+    pub is_const: bool,
+    pub line: usize,
+    pub params: Vec<DartParameter>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct DartParameter {
+    pub name: String,
+    pub kind: ParameterKind,
+    /// Positional parameters, and named ones marked `required`.
+    pub required: bool,
+    /// The default value as Dart source (`0`, `const [1]`), like `@JsonValue` literals (R6).
+    pub default: Option<String>,
+    pub initializes: Initializes,
+    /// The declared type, for plain parameters (`int x`); `this.x` and `super.x` take the field's.
+    pub dart_type: Option<DartType>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ParameterKind {
+    Positional,
+    OptionalPositional,
+    Named,
+}
+
+/// How a parameter reaches the object: `this.x`, `super.x`, or a plain `int x`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Initializes {
+    This,
+    Super,
+    Plain,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]

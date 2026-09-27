@@ -36,4 +36,4 @@ Specs aren't edited after `Done`. A later change gets a new spec that supersedes
 | [0003](0003-field-rename-camel.md) | `field_rename: camel` means lowerCamelCase; unknown values are errors | Done | SDD open question 2 |
 | [0004](0004-template-errors.md) | Template errors are reported, not panics | Done | R12 |
 | [0005](0005-project-symbol-index.md) | Project symbol index: resolve field types across files | Done | R7, A1 |
-| [0006](0006-constructor-aware-emission.md) | Constructor-aware emission: build `fromJson` from the real constructor | Draft | R8 |
+| [0006](0006-constructor-aware-emission.md) | Constructor-aware emission: build `fromJson` from the real constructor | In progress | R8 |

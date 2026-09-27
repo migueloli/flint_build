@@ -644,6 +644,9 @@ mod tests {
             to_json_expr: None,
             metadata: std::collections::HashMap::new(),
             converter: None,
+            is_late: false,
+            has_initializer: false,
+            is_private: false,
         };
 
         let mut field = make_field("myCamelCaseField");
@@ -740,6 +743,9 @@ mod tests {
                 m
             },
             converter: None,
+            is_late: false,
+            has_initializer: false,
+            is_private: false,
         };
 
         let class = DartClass {
@@ -751,6 +757,7 @@ mod tests {
                 m
             },
             type_parameters: vec![],
+            ..Default::default()
         };
 
         let parsed_file = ParsedFile {
@@ -793,6 +800,9 @@ mod tests {
             to_json_expr: None,
             metadata: std::collections::HashMap::new(),
             converter: None,
+            is_late: false,
+            has_initializer: false,
+            is_private: false,
         };
 
         let class = DartClass {
@@ -805,6 +815,7 @@ mod tests {
                 m
             },
             type_parameters: vec![],
+            ..Default::default()
         };
 
         let parsed_file = ParsedFile {
@@ -843,6 +854,9 @@ mod tests {
             to_json_expr: None,
             metadata: std::collections::HashMap::new(),
             converter: None,
+            is_late: false,
+            has_initializer: false,
+            is_private: false,
         }
     }
 
@@ -858,6 +872,7 @@ mod tests {
                 fields,
                 metadata,
                 type_parameters: vec![],
+                ..Default::default()
             }],
             enums: vec![],
             ..Default::default()

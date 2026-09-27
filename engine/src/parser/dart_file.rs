@@ -1,6 +1,7 @@
 use crate::parser::dart_types::{
-    DartClass, DartEnum, DartEnumValue, DartEnumValueAnnotation, DartField, DartType, Declaration,
-    DeclarationKind, Directive, DirectiveKind, ParsedFile, TypeKind,
+    DartClass, DartConstructor, DartEnum, DartEnumValue, DartEnumValueAnnotation, DartField,
+    DartGetter, DartParameter, DartType, Declaration, DeclarationKind, Directive, DirectiveKind,
+    Initializes, ParameterKind, ParsedFile, TypeKind,
 };
 use anyhow::{Context, Result};
 use std::collections::HashMap;
@@ -344,84 +345,261 @@ fn read_annotations(node: Node, content: &str) -> (Vec<String>, HashMap<String, 
     (names, metadata)
 }
 
-fn extract_fields_from_tree(body: Node, content: &str) -> Vec<DartField> {
+/// The members of a class body that matter for serialization: instance fields (one per variable), instance
+/// getters, and constructors (spec 0006). Static members are skipped.
+fn extract_members(
+    body: Node,
+    content: &str,
+) -> (Vec<DartField>, Vec<DartGetter>, Vec<DartConstructor>) {
     let mut fields = Vec::new();
+    let mut getters = Vec::new();
+    let mut constructors = Vec::new();
     let mut cursor = body.walk();
-
-    for child in body.children(&mut cursor) {
-        if child.kind() == "class_member" {
-            let mut inner_cursor = child.walk();
-            for inner in child.children(&mut inner_cursor) {
-                if inner.kind() == "declaration"
-                    && let Some(field) = parse_field(inner, content)
-                {
-                    fields.push(field);
-                }
+    for member in body.children(&mut cursor) {
+        let nodes: Vec<Node> = if member.kind() == "class_member" {
+            let mut c = member.walk();
+            member.children(&mut c).collect()
+        } else {
+            vec![member]
+        };
+        for node in nodes {
+            match node.kind() {
+                "declaration" | "field_declaration" | "method_signature" => {}
+                _ => continue,
             }
-        } else if (child.kind() == "field_declaration" || child.kind() == "declaration")
-            && let Some(field) = parse_field(child, content)
+            if has_child(node, "static") {
+                continue;
+            }
+            let mut c = node.walk();
+            let signature = node.named_children(&mut c).find(|n| {
+                matches!(
+                    n.kind(),
+                    "constructor_signature"
+                        | "constant_constructor_signature"
+                        | "factory_constructor_signature"
+                        | "redirecting_factory_constructor_signature"
+                        | "getter_signature"
+                )
+            });
+            match signature {
+                Some(getter) if getter.kind() == "getter_signature" => {
+                    if let Some(getter) = parse_getter(member, getter, content) {
+                        getters.push(getter);
+                    }
+                }
+                Some(signature) => constructors.push(parse_constructor(signature, content)),
+                None if node.kind() != "method_signature" => {
+                    fields.extend(parse_fields(node, content))
+                }
+                None => {}
+            }
+        }
+    }
+    (fields, getters, constructors)
+}
+
+fn has_child(node: Node, kind: &str) -> bool {
+    let mut cursor = node.walk();
+    node.children(&mut cursor).any(|child| child.kind() == kind)
+}
+
+/// The type written among `node`'s children, as source text from its first to its last type node (so
+/// prefixes like `m.Money` keep their dot and records or function types aren't lost), and whether it ends
+/// in `?`. `required`, which the grammar sometimes parses as a type name, isn't part of it.
+fn declared_type(node: Node, content: &str) -> (String, bool) {
+    let mut span: Option<(usize, usize)> = None;
+    let mut is_nullable = false;
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        match child.kind() {
+            "type_identifier" if text(child, content) == "required" => {}
+            "type_identifier" | "type_arguments" | "record_type" | "function_type"
+            | "void_type" => {
+                let start = span.map_or(child.start_byte(), |(start, _)| start);
+                span = Some((start, child.end_byte()));
+            }
+            "?" if span.is_some() => is_nullable = true,
+            _ => {}
+        }
+    }
+    let type_text = span.map_or(String::new(), |(start, end)| {
+        content[start..end].to_string()
+    });
+    (type_text, is_nullable)
+}
+
+/// One `DartField` per variable of a field declaration (`final int a, b;` gives `a` and `b`).
+fn parse_fields(declaration: Node<'_>, content: &str) -> Vec<DartField> {
+    // Field annotations are usually siblings of the declaration, inside its `class_member`.
+    let (_, mut metadata) = read_annotations(declaration, content);
+    if metadata.is_empty()
+        && let Some(parent) = declaration.parent()
+    {
+        metadata = read_annotations(parent, content).1;
+    }
+    let (type_text, is_nullable) = declared_type(declaration, content);
+    let is_final = has_child(declaration, "final");
+    let is_late = has_child(declaration, "late");
+
+    let mut fields = Vec::new();
+    let mut cursor = declaration.walk();
+    for list in declaration
+        .children(&mut cursor)
+        .filter(|n| n.kind() == "initialized_identifier_list")
+    {
+        let mut list_cursor = list.walk();
+        for variable in list
+            .children(&mut list_cursor)
+            .filter(|n| n.kind() == "initialized_identifier")
         {
-            fields.push(field);
+            let Some(name) = variable.child_by_field_name("name") else {
+                continue;
+            };
+            let name = text(name, content).to_string();
+            log::trace!("Resolved type for field {}: {}", name, type_text);
+            fields.push(DartField {
+                is_private: name.starts_with('_'),
+                name,
+                line: declaration.start_position().row + 1,
+                dart_type: parse_dart_type(&type_text, is_nullable),
+                is_final,
+                from_json_expr: None,
+                to_json_expr: None,
+                metadata: metadata.clone(),
+                converter: None,
+                is_late,
+                has_initializer: variable.child_by_field_name("value").is_some(),
+            });
         }
     }
     fields
 }
 
-fn parse_field(field: Node<'_>, content: &str) -> Option<DartField> {
-    // Field annotations are usually siblings of the declaration, inside its `class_member`.
-    let (_, mut metadata) = read_annotations(field, content);
-    if metadata.is_empty()
-        && let Some(parent) = field.parent()
-    {
-        metadata = read_annotations(parent, content).1;
-    }
+fn parse_getter(member: Node, signature: Node, content: &str) -> Option<DartGetter> {
+    let name = text(signature.child_by_field_name("name")?, content).to_string();
+    let (type_text, is_nullable) = declared_type(signature, content);
+    Some(DartGetter {
+        name,
+        line: signature.start_position().row + 1,
+        dart_type: parse_dart_type(&type_text, is_nullable),
+        metadata: read_annotations(member, content).1,
+    })
+}
 
-    // The type is the source text from its first to its last type node, so prefixes (`m.Money`) keep
-    // their dot and records or function types aren't lost.
-    let mut type_span: Option<(usize, usize)> = None;
-    let mut name_str = String::new();
-    let mut is_final = false;
-    let mut is_nullable = false;
-
-    let mut decl_cursor = field.walk();
-    for decl_child in field.children(&mut decl_cursor) {
-        let kind = decl_child.kind();
-        match kind {
-            "final" => is_final = true,
-            "type_identifier" | "type_arguments" | "record_type" | "function_type"
-            | "void_type" => {
-                let start = type_span.map_or(decl_child.start_byte(), |(start, _)| start);
-                type_span = Some((start, decl_child.end_byte()));
-            }
-            "?" => is_nullable = true,
-            "initialized_identifier_list" => {
-                if let Some(init_id) = decl_child.child(0)
-                    && let Some(name_node) = init_id.child(0)
-                {
-                    name_str = content[name_node.start_byte()..name_node.end_byte()].to_string();
+fn parse_constructor(signature: Node, content: &str) -> DartConstructor {
+    // `Point.origin` is three `name` children: `Point`, `.`, `origin`.
+    let mut cursor = signature.walk();
+    let names: Vec<&str> = signature
+        .children_by_field_name("name", &mut cursor)
+        .filter(|n| n.kind() == "identifier")
+        .map(|n| text(n, content))
+        .collect();
+    let mut params = Vec::new();
+    if let Some(list) = signature.child_by_field_name("parameters") {
+        let mut c = list.walk();
+        for child in list.children(&mut c) {
+            match child.kind() {
+                "formal_parameter" => params.extend(parse_parameter(
+                    child,
+                    ParameterKind::Positional,
+                    false,
+                    content,
+                )),
+                "optional_formal_parameters" => {
+                    params.extend(parse_optional_parameters(child, content))
                 }
+                _ => {}
+            }
+        }
+    }
+    DartConstructor {
+        name: names.get(1).map(|name| name.to_string()),
+        is_factory: signature.kind().contains("factory"),
+        is_const: signature.kind() == "constant_constructor_signature",
+        line: signature.start_position().row + 1,
+        params,
+    }
+}
+
+/// `[int z = 0]` or `{required this.x, this.y = 2}`. A `required` keyword and a `= default` are siblings of
+/// the parameter they belong to, before and after it.
+fn parse_optional_parameters(node: Node, content: &str) -> Vec<DartParameter> {
+    let named = node.child(0).is_some_and(|open| open.kind() == "{");
+    let kind = if named {
+        ParameterKind::Named
+    } else {
+        ParameterKind::OptionalPositional
+    };
+    let mut params: Vec<DartParameter> = Vec::new();
+    let mut required = false;
+    let mut after_equals = false;
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        match child.kind() {
+            "required" => required = true,
+            "formal_parameter" => {
+                params.extend(parse_parameter(child, kind, required, content));
+                required = false;
+            }
+            "=" => after_equals = true,
+            "," | "[" | "]" | "{" | "}" | "annotation" | "comment" => {}
+            _ if after_equals => {
+                if let Some(last) = params.last_mut() {
+                    last.default = Some(text(child, content).to_string());
+                }
+                after_equals = false;
             }
             _ => {}
         }
     }
+    params
+}
 
-    let type_text = type_span.map_or("", |(start, end)| &content[start..end]);
-    log::trace!("Resolved type for field {}: {}", name_str, type_text);
-
-    if !name_str.is_empty() {
-        return Some(DartField {
-            name: name_str,
-            line: field.start_position().row + 1,
-            dart_type: parse_dart_type(type_text, is_nullable),
-            is_final,
-            from_json_expr: None,
-            to_json_expr: None,
-            metadata,
-            converter: None,
-        });
-    }
-
-    None
+fn parse_parameter(
+    node: Node,
+    kind: ParameterKind,
+    required: bool,
+    content: &str,
+) -> Option<DartParameter> {
+    let mut cursor = node.walk();
+    let initializer = node
+        .named_children(&mut cursor)
+        .find(|n| matches!(n.kind(), "constructor_param" | "super_formal_parameter"));
+    let (name, initializes, dart_type, required_keyword) = match initializer {
+        Some(inner) => {
+            let mut c = inner.walk();
+            let name = inner
+                .children(&mut c)
+                .filter(|n| n.kind() == "identifier")
+                .last()?;
+            let initializes = if inner.kind() == "super_formal_parameter" {
+                Initializes::Super
+            } else {
+                Initializes::This
+            };
+            // `required this.x` puts `required` inside the parameter, parsed as a type name.
+            let mut c = inner.walk();
+            let required_keyword = inner
+                .children(&mut c)
+                .any(|n| text(n, content) == "required");
+            (text(name, content), initializes, None, required_keyword)
+        }
+        None => {
+            let name = node.child_by_field_name("name")?;
+            let (type_text, is_nullable) = declared_type(node, content);
+            let dart_type =
+                (!type_text.is_empty()).then(|| parse_dart_type(&type_text, is_nullable));
+            (text(name, content), Initializes::Plain, dart_type, false)
+        }
+    };
+    Some(DartParameter {
+        name: name.to_string(),
+        kind,
+        required: kind == ParameterKind::Positional || required || required_keyword,
+        default: None,
+        initializes,
+        dart_type,
+    })
 }
 
 /// Builds a single-argument collection kind (`TypeKind::List`, `Set` or `Iterable`) from its element type.
@@ -696,8 +874,8 @@ fn extract_classes(root: Node, content: &str) -> Result<Vec<DartClass>> {
             }
         }
 
-        let fields = class_body_node
-            .map(|body| extract_fields_from_tree(body, content))
+        let (fields, getters, constructors) = class_body_node
+            .map(|body| extract_members(body, content))
             .unwrap_or_default();
 
         classes.push(DartClass {
@@ -705,6 +883,8 @@ fn extract_classes(root: Node, content: &str) -> Result<Vec<DartClass>> {
             fields,
             metadata,
             type_parameters,
+            getters,
+            constructors,
         });
     }
     Ok(classes)
@@ -1139,5 +1319,145 @@ class Applied = Object with Mx;
 
         assert!(error.contains("Syntax Error"), "{error}");
         assert!(error.contains("line 1"), "{error}");
+    }
+
+    #[test]
+    fn test_members_constructors_and_getters() {
+        let code = r#"
+class P {
+  static const o = 0;
+  static int s = 1;
+  @JsonKey(name: 'ex')
+  final int x, y;
+  late final String l;
+  late String m = 'a';
+  final List<int> t = const [];
+  int? _n;
+  @JsonKey(includeToJson: true)
+  List<int>? get sum => null;
+  static int get st => 1;
+  P(this.x, super.y, [int z = 0]) : l = 'q';
+  const P.c({required this.x, this.y = 2, required List<int>? v, int? w});
+  factory P.f(int a) => P(a, a);
+  factory P.r(int a) = Q;
+  P.b({@Deprecated('x') this.t = const [1, 2]}) {
+    print(t);
+  }
+}
+"#;
+        let tree = parse_snippet(code);
+        let class = &extract_classes(tree.root_node(), code).unwrap()[0];
+
+        let fields: Vec<(&str, String, bool, bool, bool, bool)> = class
+            .fields
+            .iter()
+            .map(|f| {
+                (
+                    f.name.as_str(),
+                    f.dart_type.to_string(),
+                    f.is_final,
+                    f.is_late,
+                    f.has_initializer,
+                    f.is_private,
+                )
+            })
+            .collect();
+        assert_eq!(
+            fields,
+            vec![
+                ("x", "int".into(), true, false, false, false),
+                ("y", "int".into(), true, false, false, false),
+                ("l", "String".into(), true, true, false, false),
+                ("m", "String".into(), false, true, true, false),
+                ("t", "List<int>".into(), true, false, true, false),
+                ("_n", "int?".into(), false, false, false, true),
+            ]
+        );
+        // An annotation applies to every variable of the declaration.
+        assert_eq!(
+            class.fields[1].metadata.get("name").map(String::as_str),
+            Some("'ex'")
+        );
+
+        assert_eq!(class.getters.len(), 1);
+        assert_eq!(class.getters[0].name, "sum");
+        assert_eq!(class.getters[0].dart_type.to_string(), "List<int>?");
+        assert!(class.getters[0].metadata.contains_key("includeToJson"));
+
+        let summary: Vec<(Option<&str>, bool, bool, Vec<String>)> = class
+            .constructors
+            .iter()
+            .map(|c| {
+                (
+                    c.name.as_deref(),
+                    c.is_factory,
+                    c.is_const,
+                    c.params
+                        .iter()
+                        .map(|p| {
+                            format!(
+                                "{:?} {:?} {}{}{}{}",
+                                p.kind,
+                                p.initializes,
+                                if p.required { "required " } else { "" },
+                                p.name,
+                                p.dart_type
+                                    .as_ref()
+                                    .map(|t| format!(": {t}"))
+                                    .unwrap_or_default(),
+                                p.default
+                                    .as_ref()
+                                    .map(|d| format!(" = {d}"))
+                                    .unwrap_or_default(),
+                            )
+                        })
+                        .collect(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            summary,
+            vec![
+                (
+                    None,
+                    false,
+                    false,
+                    vec![
+                        "Positional This required x".to_string(),
+                        "Positional Super required y".to_string(),
+                        "OptionalPositional Plain z: int = 0".to_string(),
+                    ]
+                ),
+                (
+                    Some("c"),
+                    false,
+                    true,
+                    vec![
+                        "Named This required x".to_string(),
+                        "Named This y = 2".to_string(),
+                        "Named Plain required v: List<int>?".to_string(),
+                        "Named Plain w: int?".to_string(),
+                    ]
+                ),
+                (
+                    Some("f"),
+                    true,
+                    false,
+                    vec!["Positional Plain required a: int".to_string()]
+                ),
+                (
+                    Some("r"),
+                    true,
+                    false,
+                    vec!["Positional Plain required a: int".to_string()]
+                ),
+                (
+                    Some("b"),
+                    false,
+                    false,
+                    vec!["Named This t = const [1, 2]".to_string()]
+                ),
+            ]
+        );
     }
 }
