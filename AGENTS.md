@@ -18,13 +18,13 @@ engine/   Rust crate "flint_build" (lib + bin). All the logic lives here.
   src/config/            pubspec.yaml + flint.yaml + build.yaml loading; resolve() merges them
   src/discovery/         walk lib/, split sources vs *.g.dart
   src/parser/            tree-sitter → ParsedFile (dart_file.rs, dart_types.rs)
-  src/generators/        Generator trait, flint_json native emitter, generic Tera generator
+  src/generators/        Generator trait, flint_json (members.rs plan + emitter.rs), generic Tera generator
   src/templates/         built-in flint_json.tera (embedded with include_str!)
   src/watcher/           notify + debounce; ignores access events and .g.dart paths
   tests/                 integration + insta snapshots (tests/snapshots/*.snap)
 cli/      Dart package "flint_build": bin/flint_build.dart only (launcher)
   example/               sample app + benchmark (tool/benchmark.dart)
-docs/     SDD.md, ROADMAP.md, REVIEW.md, configuration.md, specs/
+docs/     HANDOFF.md (start here), SDD.md, ROADMAP.md, REVIEW.md, configuration.md, specs/
 ```
 
 ## Commands
@@ -104,3 +104,10 @@ catch you out:
 - `DartField.from_json_expr` / `to_json_expr` / `converter` are emitter scratch state stored on the parsed
   model (A4).
 - The CLI finds the engine at `cli/../engine/target/…`, so it only works in this monorepo (D1).
+- tree-sitter-dart quirks (spec 0006): a parameter's `= default` is a *sibling* of the parameter inside
+  `[…]`/`{…}`; `required` is a sibling token for `required int x` but a `type_identifier` inside
+  `required this.x`; `static set x(…)` puts `static` inside the setter's signature. Check the tree before
+  writing a query (the recipe is in [docs/HANDOFF.md](docs/HANDOFF.md#6-how-to-work-on-this-repo)).
+- Which members `flint_json` serializes is decided in one place, `generators::flint_json::members::plan`,
+  following json_serializable's rules. Before changing a rule, check json_serializable's real output (recipe
+  in HANDOFF §6); deliberate deviations are listed in the specs and in HANDOFF §4.

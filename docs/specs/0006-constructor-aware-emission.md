@@ -189,12 +189,17 @@ order, each with the member it came from) and `class.json_members` (the members 
 - [ ] Every row of the “What json_serializable does” table has a Dart golden fixture (a new
       `constructors_model.dart`, plus `inheritance_model.dart` in step 3) whose round-trip test expects the
       JSON json_serializable produces; the three error rows are build tests with the messages above.
-- [ ] `final int a, b;` produces two fields, in the parser test and in a snapshot.
-- [ ] The `Point` model from the Problem section generates code that analyzes cleanly.
-- [ ] Existing snapshots and the example's output don't change (they only use named `this.x` parameters
+      *(Done for every row except the two superclass rows (`Child`, `Kid`), which are step 3. Errors:
+      `test_constructor_errors_name_the_parameter_and_leave_the_output`.)*
+- [x] `final int a, b;` produces two fields, in the parser test and in a snapshot. *(`Pair`.)*
+- [x] The `Point` model from the Problem section generates code that analyzes cleanly. *(`ProblemPoint`,
+      with a round trip.)*
+- [x] Existing snapshots and the example's output don't change (they only use named `this.x` parameters
       without defaults).
-- [ ] A custom template sees `class.constructors`, `class.getters` and the new field flags (template test).
-- [ ] The 1,000-file no-op benchmark stays under 100 ms (`engine/bench/run.sh 1000 5`).
+- [x] A custom template sees `class.constructors`, `class.getters` and the new field flags (template test).
+      *(`test_templates_see_constructors_getters_and_field_flags`.)*
+- [x] The 1,000-file no-op benchmark stays under 100 ms (`engine/bench/run.sh 1000 5`). *(86–91 ms after step
+      2; re-check after step 3.)*
 
 ## Plan
 
@@ -246,6 +251,8 @@ Each step is mergeable on its own and keeps CI green.
    - Benchmark (`engine/bench/run.sh 1000 5`): no-op 86–91 ms, `--force` 251–286 ms.
 3. **Superclass members** from the same package through the index, with the dependency rule; errors for
    other packages, generic superclasses and mixins with fields. Golden `inheritance_model.dart`.
+   *(Next. The working checklist, including what the parser still lacks (the `superclass:` field of
+   `class_declaration` isn't read yet), is in [HANDOFF.md §2](../HANDOFF.md#2-the-next-task-spec-0006-step-3-superclass-members).)*
 4. **Docs:** support matrix, template context, SDD §4/§6, roadmap, review; spec Done.
 
 ## Decisions

@@ -94,7 +94,8 @@ Severity:
    compiles, each fix is a guess.
 3. 🟨 **Project-wide symbol index (R7, R8):** cross-file enums and real constructors are what stop Flint handling
    real apps. This is the biggest design change on the list. *(R7 done: [spec 0005](specs/0005-project-symbol-index.md).
-   R8, constructor-aware emission, is next.)*
+   R8 mostly done: [spec 0006](specs/0006-constructor-aware-emission.md) steps 1–2; superclass members are
+   step 3.)*
 4. **Distribution (D1, D2):** until the CLI can find a prebuilt, version-matched engine, only people who clone
    this repo can use Flint.
 5. **Honest benchmarks (D3):** the engine is genuinely fast, but the published numbers mostly measure Dart VM

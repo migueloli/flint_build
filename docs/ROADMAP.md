@@ -6,6 +6,8 @@ code is written (see the [spec workflow](specs/README.md)).
 
 Status: ⬜ not started · 🟨 in progress · ✅ done
 
+**Current state and the next task:** see [HANDOFF.md](HANDOFF.md).
+
 ---
 
 ## Phase 0: Hygiene (small, unblocks everything)
@@ -54,6 +56,9 @@ with json_serializable.
 | ✅ | Read json_serializable options from `build.yaml`; `flint.yaml` optional for json_serializable projects | [Spec 0002](specs/0002-read-build-yaml.md) |
 | ✅ | `field_rename: camel` means lowerCamelCase; unknown `field_rename` values are errors | [Spec 0003](specs/0003-field-rename-camel.md) |
 | ⬜ | `@JsonSerializable(fieldRename: …)` per class | — |
+| ⬜ | `@JsonKey(readValue:, required:, disallowNullValue:)`, `@JsonSerializable(checked:)`, `genericArgumentFactories: false` | Spec 0006 non-goals |
+| ⬜ | Check `toJson` exists on nested classes when `explicitToJson: true` (the `fromJson` check exists, spec 0005) | Spec 0005 follow-ups |
+| ⬜ | Match prefixed annotations (`@json.JsonSerializable()`) | SDD §5.1 |
 
 ## Phase 3: Incremental and fast at scale
 
@@ -61,6 +66,7 @@ with json_serializable.
 | --- | ---- | ---- |
 | 🟨 | Compile queries and templates once; discover once; parse once for all plugins (queries, discovery and parsing done; templates still per file) | A1, A3 |
 | 🟨 | Content-hash cache in `.dart_tool/flint/` with an engine/config/template fingerprint (mtime-based version of the fingerprint and stale-output deletion shipped with spec 0001) | R11 · SDD §12 |
+| ⬜ | **Index cache** so a no-op build doesn't parse every file (no-op on 1,000 files is ~90 ms of a 100 ms budget); also tracks re-export chains and replays warnings on up-to-date builds | Spec 0005 follow-ups · [HANDOFF §3](HANDOFF.md#3-after-that-in-recommended-order) |
 | ⬜ | Watch mode rebuilds only the dirty set, including files that depend on changed symbols | R5 · SDD §12 |
 | ⬜ | `build --check` for CI (non-zero exit if outputs are stale) | — |
 | ⬜ | **Benchmark rewrite:** synthetic 10/100/1000-model projects; `hyperfine`; report engine-only *and* end-to-end; define cold/warm | D3 |
@@ -88,7 +94,10 @@ with json_serializable.
 
 ## Ideas and suggestions
 
-These are worth considering but not scheduled. Promote one to a phase by writing a spec.
+These are worth considering but not scheduled. Promote one to a phase by writing a spec. Newer suggestions
+from the spec 0005 and 0006 work (`flint_build explain`, notes for silently dropped members, a
+json_serializable reference harness, finishing the render model) are in
+[HANDOFF.md §7](HANDOFF.md#7-feature-suggestions-and-improvements).
 
 - **Dump the parsed model as JSON** (`flint_build dump-ir lib/foo.dart`) so generators can be written in any
   language, including Dart, reading the model from stdin. It also makes a good debugging tool for template

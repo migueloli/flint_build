@@ -102,6 +102,7 @@ yet; it's on the [roadmap](docs/ROADMAP.md#phase-3-incremental-and-fast-at-scale
 
 | Doc | For |
 | --- | --- |
+| [docs/HANDOFF.md](docs/HANDOFF.md) | Contributors picking up the work: current state, next task, open decisions, suggestions |
 | [docs/configuration.md](docs/configuration.md) | Users: commands, `flint.yaml`, support matrix, template context |
 | [docs/SDD.md](docs/SDD.md) | Contributors: architecture, data model, design decisions, target design |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Everyone: phased plan and ideas |

@@ -28,7 +28,8 @@ watcher::watch      notify + 500 ms debounce on lib/, ignoring reads and .g.dart
 | [`config/`](src/config) | `Pubspec`, `FlintConfig`/`PluginConfig` with `flint_json` defaults, `build_yaml` reader, and `resolve` (flint.yaml > build.yaml > defaults) |
 | [`discovery/`](src/discovery) | `find_dart_files` / `find_generated_files` using `walkdir` |
 | [`parser/`](src/parser) | tree-sitter queries → `DartClass`, `DartField`, `DartType`, `DartEnum`. Syntax errors with a caret |
-| [`generators/`](src/generators) | `Generator` trait, `TemplateEngine` (Tera), `flint_json` emitter, `generic` template generator |
+| [`index.rs`](src/index.rs) | `SymbolIndex`: resolves a type name used in a file across the package (spec 0005) |
+| [`generators/`](src/generators) | `Generator` trait, `TemplateEngine` (Tera), `flint_json` (`members.rs`: constructor and member plan, spec 0006; `emitter.rs`), `generic` template generator |
 | [`templates/`](src/templates) | Built-in `flint_json.tera`, embedded in the binary with `include_str!` |
 | [`registry.rs`](src/registry.rs) | `PluginRegistry`: name → `Box<dyn Generator>` |
 | [`builder.rs`](src/builder.rs) | `build` / `clean` orchestration, write and delete rules, mtime-based skip. `run_build` / `run_clean` print the reports |

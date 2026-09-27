@@ -2,8 +2,9 @@
 
 ## Claude Code notes
 
-- Start any non-trivial task by checking `docs/ROADMAP.md` and `docs/REVIEW.md` for the matching finding ID,
-  and `docs/specs/` for an existing spec.
+- Start with `docs/HANDOFF.md`: the current state, the next task and open decisions. Then check
+  `docs/ROADMAP.md` and `docs/REVIEW.md` for the matching finding ID, and `docs/specs/` for an existing spec.
+- When you finish a spec step or leave work half done, update `docs/HANDOFF.md` in the same commit.
 - Cloud sessions may not have the Dart SDK. It can be installed into the scratchpad from
   `https://storage.googleapis.com/dart-archive/channels/stable/release/<version>/sdk/dartsdk-linux-x64-release.zip`
   (the latest version is in `.../channels/stable/release/latest/VERSION`), then put on `PATH` for
