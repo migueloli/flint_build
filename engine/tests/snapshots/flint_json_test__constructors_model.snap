@@ -1,0 +1,256 @@
+---
+source: tests/flint_json_test.rs
+assertion_line: 129
+expression: generated
+---
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// flint_build 0.1.0
+
+part of 'constructors_model.dart';
+
+// **************************************************************************
+// flint_json
+// **************************************************************************
+
+// ignore_for_file: unnecessary_cast
+
+Pair _$PairFromJson(
+  Map<String, dynamic> json,
+) => Pair(
+      a: (json['a'] as num).toInt(),
+      b: (json['b'] as num).toInt(),
+    );
+
+Map<String, dynamic> _$PairToJson(
+  Pair instance,
+) => <String, dynamic>{
+      'a': instance.a,
+      'b': instance.b,
+    };
+
+Coords _$CoordsFromJson(
+  Map<String, dynamic> json,
+) => Coords(
+      (json['x'] as num).toInt(),
+      (json['y'] as num).toInt(),
+      json['z'] == null ? 0 : (json['z'] as num).toInt(),
+    )
+      ..label = json['label'] as String
+      ..note = json['note'] as String?
+      ..count = (json['count'] as num).toInt();
+
+Map<String, dynamic> _$CoordsToJson(
+  Coords instance,
+) => <String, dynamic>{
+      'x': instance.x,
+      'y': instance.y,
+      'z': instance.z,
+      'label': instance.label,
+      'note': instance.note,
+      'count': instance.count,
+    };
+
+Opts _$OptsFromJson(
+  Map<String, dynamic> json,
+) => Opts(
+      (json['a'] as num).toInt(),
+      b: (json['b'] as num).toInt(),
+      c: json['c'] as String?,
+      d: json['d'] == null ? 7 : (json['d'] as num).toInt(),
+    );
+
+Map<String, dynamic> _$OptsToJson(
+  Opts instance,
+) => <String, dynamic>{
+      'a': instance.a,
+      'b': instance.b,
+      'c': instance.c,
+      'd': instance.d,
+    };
+
+Secret _$SecretFromJson(
+  Map<String, dynamic> json,
+) => Secret(
+      visible: (json['visible'] as num).toInt(),
+      secret: json['secret'] == null ? 0 : (json['secret'] as num).toInt(),
+    );
+
+Map<String, dynamic> _$SecretToJson(
+  Secret instance,
+) => <String, dynamic>{
+      'visible': instance.visible,
+      'secret': instance.secret,
+    };
+
+Made _$MadeFromJson(
+  Map<String, dynamic> json,
+) => Made.create(
+      x: (json['x'] as num).toInt(),
+    );
+
+Map<String, dynamic> _$MadeToJson(
+  Made instance,
+) => <String, dynamic>{
+      'x': instance.x,
+    };
+
+Plain _$PlainFromJson(
+  Map<String, dynamic> json,
+) => Plain(
+      (json['x'] as num).toInt(),
+      y: json['y'] == null ? 3 : (json['y'] as num).toInt(),
+    );
+
+Map<String, dynamic> _$PlainToJson(
+  Plain instance,
+) => <String, dynamic>{
+      'x': instance.x,
+      'y': instance.y,
+    };
+
+PrivKey _$PrivKeyFromJson(
+  Map<String, dynamic> json,
+) => PrivKey(
+      (json['_hidden'] as num).toInt(),
+    );
+
+Map<String, dynamic> _$PrivKeyToJson(
+  PrivKey instance,
+) => <String, dynamic>{
+      '_hidden': instance._hidden,
+    };
+
+LateFinal _$LateFinalFromJson(
+  Map<String, dynamic> json,
+) => LateFinal(
+      (json['x'] as num).toInt(),
+    )
+      ..y = json['y'] as String;
+
+Map<String, dynamic> _$LateFinalToJson(
+  LateFinal instance,
+) => <String, dynamic>{
+      'x': instance.x,
+      'y': instance.y,
+      'derived': instance.derived,
+    };
+
+Twice _$TwiceFromJson(
+  Map<String, dynamic> json,
+) => Twice(
+      (json['x'] as num).toInt(),
+    );
+
+Map<String, dynamic> _$TwiceToJson(
+  Twice instance,
+) => <String, dynamic>{
+      'x': instance.x,
+      'twice': instance.twice,
+    };
+
+Renamed _$RenamedFromJson(
+  Map<String, dynamic> json,
+) => Renamed(
+      json['the_x'] == null ? 5 : (json['the_x'] as num).toInt(),
+      items: json['items'] == null ? const [1] : (json['items'] as List<dynamic>).map((e) => (e as num).toInt()).toList(),
+    );
+
+Map<String, dynamic> _$RenamedToJson(
+  Renamed instance,
+) => <String, dynamic>{
+      'the_x': instance.x,
+      'items': instance.items.map((elem) => elem).toList(),
+    };
+
+
+Map<String, dynamic> _$ToOnlyToJson(
+  ToOnly instance,
+) => <String, dynamic>{
+      'x': instance.x,
+      'tags': instance.tags.map((elem) => elem).toList(),
+      'sum': instance.sum,
+      'untyped': instance.untyped,
+    };
+
+PosKey _$PosKeyFromJson(
+  Map<String, dynamic> json,
+) => PosKey(
+      (json['X'] as num).toInt(),
+      json['y'] == null ? null : (json['y'] as num).toInt(),
+    );
+
+Map<String, dynamic> _$PosKeyToJson(
+  PosKey instance,
+) => <String, dynamic>{
+      'X': instance.x,
+      'y': instance.y,
+    };
+
+Implicit _$ImplicitFromJson(
+  Map<String, dynamic> json,
+) => Implicit()
+      ..a = json['a'] as String?
+      ..b = (json['b'] as num).toInt();
+
+Map<String, dynamic> _$ImplicitToJson(
+  Implicit instance,
+) => <String, dynamic>{
+      'a': instance.a,
+      'b': instance.b,
+    };
+
+ProblemPoint _$ProblemPointFromJson(
+  Map<String, dynamic> json,
+) => ProblemPoint(
+      (json['x'] as num).toInt(),
+      (json['y'] as num).toInt(),
+      json['z'] == null ? 0 : (json['z'] as num).toInt(),
+      0,
+      json['a'] == null ? 1 : (json['a'] as num).toInt(),
+      json['b'] == null ? 2 : (json['b'] as num).toInt(),
+    )
+      ..label = json['label'] as String;
+
+Map<String, dynamic> _$ProblemPointToJson(
+  ProblemPoint instance,
+) => <String, dynamic>{
+      'x': instance.x,
+      'y': instance.y,
+      'z': instance.z,
+      'label': instance.label,
+      'a': instance.a,
+      'b': instance.b,
+    };
+
+Limits _$LimitsFromJson(
+  Map<String, dynamic> json,
+) => Limits(
+      limit: json['limit'] == null ? Limits.defaultLimit * 2 : (json['limit'] as num).toInt(),
+    )
+      ..level = (json['level'] as num).toInt();
+
+Map<String, dynamic> _$LimitsToJson(
+  Limits instance,
+) => <String, dynamic>{
+      'limit': instance.limit,
+      'level': instance.level,
+    };
+
+Defaults _$DefaultsFromJson(
+  Map<String, dynamic> json,
+) => Defaults(
+      speed: json['speed'] == null ? Speed.fast : _$SpeedEnumMap.entries.firstWhere((entry) => entry.value == json['speed']).key,
+      gap: json['gap'] == null ? const Duration(seconds: 2) : Duration(microseconds: (json['gap'] as num).toInt()),
+    );
+
+Map<String, dynamic> _$DefaultsToJson(
+  Defaults instance,
+) => <String, dynamic>{
+      'speed': _$SpeedEnumMap[instance.speed],
+      'gap': instance.gap.inMicroseconds,
+    };
+
+const _$SpeedEnumMap = {
+  Speed.slow: 'slow',
+  Speed.fast: 'fast',
+};

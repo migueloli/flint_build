@@ -1,15 +1,18 @@
 ---
 source: tests/flint_json_test.rs
+assertion_line: 36
 expression: generated
 ---
 // GENERATED CODE - DO NOT MODIFY BY HAND
-// ignore_for_file: unnecessary_cast
+// flint_build 0.1.0
 
 part of 'generic_model.dart';
 
 // **************************************************************************
-// JsonSerializableGenerator (Powered by Flint)
+// flint_json
 // **************************************************************************
+
+// ignore_for_file: unnecessary_cast
 
 ApiResponse<T> _$ApiResponseFromJson<T>(
   Map<String, dynamic> json,

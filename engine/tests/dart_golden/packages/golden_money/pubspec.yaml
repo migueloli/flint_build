@@ -1,0 +1,6 @@
+name: golden_money
+description: A stand-in for a third-party package with its own JSON classes (spec 0005 external types).
+publish_to: none
+
+environment:
+  sdk: ^3.5.0

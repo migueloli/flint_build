@@ -14,6 +14,7 @@ fn test_generic_generator_execution() {
         fields: vec![],
         metadata,
         type_parameters: vec![],
+        ..Default::default()
     };
 
     let dart_enum = flint_build::parser::dart_types::DartEnum {
@@ -25,11 +26,16 @@ fn test_generic_generator_execution() {
     let parsed_file = ParsedFile {
         classes: vec![class],
         enums: vec![dart_enum],
+        ..Default::default()
     };
 
-    let temp_dir = std::env::temp_dir();
-    let template_path = temp_dir.join("mock_template.tera");
-    std::fs::write(&template_path, "Hello {{ classes[0].name }} and {{ enums[0].name }}!").unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let template_path = dir.path().join("mock_template.tera");
+    std::fs::write(
+        &template_path,
+        "Hello {{ classes[0].name }} and {{ enums[0].name }}!",
+    )
+    .unwrap();
 
     let config = PluginConfig {
         class_annotations: vec!["@MockAnnotation".to_string()],
@@ -39,11 +45,15 @@ fn test_generic_generator_execution() {
         field_rename: None,
         converters: None,
         template_path: Some(template_path.to_str().unwrap().to_string()),
+        ..Default::default()
     };
 
     let generator = GenericTeraGenerator {
         plugin_name: "mock_plugin".to_string(),
     };
-    let output = generator.generate("mock.dart", parsed_file, &config);
+    let output = generator
+        .generate("mock.dart", parsed_file, &config, &Default::default())
+        .unwrap()
+        .code;
     assert_eq!(output, "Hello MockUser and MockEnum!");
 }

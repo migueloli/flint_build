@@ -1,11 +1,13 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
-// ignore_for_file: unnecessary_cast
+// flint_build 0.1.0
 
 part of 'user_model.dart';
 
 // **************************************************************************
-// JsonSerializableGenerator (Powered by Flint)
+// flint_json
 // **************************************************************************
+
+// ignore_for_file: unnecessary_cast
 
 Metadata _$MetadataFromJson(
   Map<String, dynamic> json,
@@ -39,7 +41,7 @@ UserModel _$UserModelFromJson(
       optionalStats: json['optionalStats'] == null ? null : (json['optionalStats'] as Map<String, dynamic>).map((k, v) => MapEntry(k as String, (v as num).toInt())),
       optionalTags: json['optionalTags'] == null ? null : (json['optionalTags'] as List<dynamic>).map((e) => e as String).toList(),
       optionalSubModel: json['optionalMetadata'] == null ? null : Metadata.fromJson(json['optionalMetadata'] as Map<String, dynamic>),
-      status: _$StatusEnumMap.entries.firstWhere((e) => e.value == json['status']).key,
+      status: _$StatusEnumMap.entries.firstWhere((entry) => entry.value == json['status']).key,
     );
 
 Map<String, dynamic> _$UserModelToJson(
@@ -67,4 +69,3 @@ const _$StatusEnumMap = {
   Status.active: 'active',
   Status.inactive: 'inactive',
 };
-

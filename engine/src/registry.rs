@@ -33,8 +33,9 @@ mod tests {
             _filename: &str,
             _parsed_file: ParsedFile,
             _plugin: &PluginConfig,
-        ) -> String {
-            "MockOutput".to_string()
+            _types: &crate::index::ResolvedTypes,
+        ) -> Result<crate::generators::Generated, crate::error::FlintError> {
+            Ok("MockOutput".to_string().into())
         }
     }
 
@@ -56,11 +57,19 @@ mod tests {
             field_rename: None,
             converters: None,
             template_path: None,
+            ..Default::default()
         };
         let dummy_file = ParsedFile {
             classes: vec![],
             enums: vec![],
+            ..Default::default()
         };
-        assert_eq!(generator.generate("test.dart", dummy_file, &dummy_plugin), "MockOutput");
+        assert_eq!(
+            generator
+                .generate("test.dart", dummy_file, &dummy_plugin, &Default::default())
+                .unwrap()
+                .code,
+            "MockOutput"
+        );
     }
 }

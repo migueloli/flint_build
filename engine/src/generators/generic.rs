@@ -1,5 +1,9 @@
 use crate::config::PluginConfig;
-use crate::generators::{Generator, TemplateEngine};
+use crate::error::FlintError;
+use crate::generators::{
+    Generated, Generator, TemplateEngine, retain_annotated, select_variant_values,
+};
+use crate::index::ResolvedTypes;
 use crate::parser::dart_types::ParsedFile;
 use tera::Context;
 
@@ -13,32 +17,28 @@ impl Generator for GenericTeraGenerator {
         filename: &str,
         mut parsed_file: ParsedFile,
         plugin: &PluginConfig,
-    ) -> String {
-        parsed_file.classes.retain(|class| {
-            class
-                .metadata
-                .keys()
-                .any(|k| plugin.class_annotations.contains(&format!("@{}", k)))
-        });
+        types: &ResolvedTypes,
+    ) -> Result<Generated, FlintError> {
+        retain_annotated(&mut parsed_file, plugin);
+        select_variant_values(&mut parsed_file, plugin);
 
-        parsed_file.enums.retain(|e| {
-            e.annotations.iter().any(|a| {
-                plugin
-                    .enum_annotations
-                    .contains(&format!("@{}", a.trim_start_matches('@')))
-            })
-        });
-
+        let template_error = |e: tera::Error| FlintError::template(&self.plugin_name, &e);
         let mut engine = TemplateEngine::new();
         if let Some(path) = &plugin.template_path {
-            engine.load_template_file(&self.plugin_name, path);
+            engine
+                .load_template_file(&self.plugin_name, path)
+                .map_err(template_error)?;
         }
 
         let mut context = Context::new();
         context.insert("classes", &parsed_file.classes);
         context.insert("enums", &parsed_file.enums);
         context.insert("filename", filename);
+        context.insert("resolved_types", types);
 
-        engine.render(&self.plugin_name, &context)
+        engine
+            .render(&self.plugin_name, &context)
+            .map(Generated::from)
+            .map_err(template_error)
     }
 }

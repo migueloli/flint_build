@@ -1,0 +1,15 @@
+name: flint_dart_golden
+description: Fixture models whose Flint output must compile and round-trip. See README.md.
+publish_to: none
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  golden_money:
+    path: packages/golden_money
+  json_annotation: ^4.9.0
+  meta: ^1.9.0
+
+dev_dependencies:
+  test: ^1.25.0

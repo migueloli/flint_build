@@ -3,7 +3,7 @@ use std::time::Instant;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use colored::Colorize;
-use flint_build::builder::{run_build, run_clean};
+use flint_build::builder::{run_build, run_clean, run_dump_model};
 use flint_build::generators::flint_json::emitter::FlintJsonGenerator;
 use flint_build::registry::PluginRegistry;
 use flint_build::watcher;
@@ -20,18 +20,36 @@ struct Cli {
 enum Commands {
     /// Run a single build
     Build {
-        /// Delete conflicting outputs before building
-        #[arg(short, long, default_value_t = false)]
-        delete_conflicting_outputs: bool,
+        /// Regenerate every file, and overwrite .g.dart files Flint didn't generate
+        #[arg(
+            short,
+            long,
+            visible_alias = "delete-conflicting-outputs",
+            short_alias = 'd'
+        )]
+        force: bool,
     },
     /// Watch the filesystem and rebuild on changes
     Watch {
-        /// Delete conflicting outputs before building
-        #[arg(short, long, default_value_t = false)]
-        delete_conflicting_outputs: bool,
+        /// Regenerate every file, and overwrite .g.dart files Flint didn't generate
+        #[arg(
+            short,
+            long,
+            visible_alias = "delete-conflicting-outputs",
+            short_alias = 'd'
+        )]
+        force: bool,
     },
     /// Clean all generated files
     Clean,
+    /// Print the generator model (spec 0007) of Dart files as JSON: what generators and templates see
+    DumpModel {
+        /// Files to describe, relative to the package root (default: every file under lib/)
+        files: Vec<std::path::PathBuf>,
+        /// Print the model's JSON Schema instead
+        #[arg(long)]
+        schema: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -44,13 +62,11 @@ fn main() -> Result<()> {
     registry.register("flint_json", Box::new(FlintJsonGenerator));
 
     match &cli.command {
-        Commands::Build {
-            delete_conflicting_outputs,
-        } => run_build(*delete_conflicting_outputs, &registry)?,
-        Commands::Watch {
-            delete_conflicting_outputs,
-        } => watcher::watch("lib", || run_build(*delete_conflicting_outputs, &registry))?,
+        Commands::Build { force } => run_build(*force, &registry)?,
+        Commands::Watch { force } => watcher::watch("lib", || run_build(*force, &registry))?,
         Commands::Clean => run_clean()?,
+        // JSON on stdout: no timing footer.
+        Commands::DumpModel { files, schema } => return run_dump_model(files, *schema),
     }
 
     let duration = start.elapsed();

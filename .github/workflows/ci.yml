@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  engine:
+    name: Engine (fmt, clippy, tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test --locked
+
+  coverage:
+    name: Engine test coverage (at least 90% of lines)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      # The floor is AGENTS.md rule 10. Raise it as coverage grows; lowering it is an owner decision.
+      - run: cargo llvm-cov --locked --summary-only --fail-under-lines 90
+
+  msrv:
+    name: Engine builds on its minimum Rust (1.88)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v5
+      # Keep in step with `rust-version` in engine/Cargo.toml.
+      - uses: dtolnay/rust-toolchain@1.88
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      - run: cargo check --locked --all-targets
+
+  dart:
+    name: Generated Dart compiles (golden check)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - name: Golden check (generate, dart analyze, dart test)
+        run: engine/tests/dart_golden/check.sh
+      - name: Example output is up to date
+        working-directory: cli/example
+        run: |
+          ../../engine/target/release/flint_build build --force
+          git diff --exit-code -- lib
+      # End-to-end test of the Dart launcher: `dart run flint_build` finds the engine and forwards arguments.
+      - name: Launcher runs the engine (dart run flint_build)
+        working-directory: cli/example
+        run: |
+          dart pub get
+          dart run flint_build build --force
+          git diff --exit-code -- lib
+      - name: Analyze CLI and example
+        working-directory: cli
+        run: |
+          dart pub get
+          dart analyze
+          cd example
+          dart pub get
+          dart analyze
