@@ -5,9 +5,12 @@ People are welcome to read it too. It's the short version of [docs/SDD.md](docs/
 
 ## What this project is
 
-Flint (`flint_build`) is a fast replacement for Dart's `build_runner` + `json_serializable`. A Rust engine
-parses Dart with tree-sitter (syntax only, no type resolution) and writes `<file>.g.dart` part files. A thin
-Dart CLI finds the engine binary and runs it.
+Flint (`flint_build`) is a fast replacement for Dart's `build_runner`: a code-generation platform. A Rust
+engine parses Dart with tree-sitter (syntax only, no analyzer), builds a project index, and runs generators
+that write owned output files. `flint_json` (json_serializable) is the first built-in generator; custom
+generators are Tera templates today, and Dart or YAML generators are planned
+([spec 0007](docs/specs/0007-generator-platform.md)). The target generators are listed in
+[docs/ROADMAP.md](docs/ROADMAP.md#generators). A thin Dart CLI finds the engine binary and runs it.
 
 ```text
 engine/   Rust crate "flint_build" (lib + bin). All the logic lives here.
@@ -44,7 +47,7 @@ Dart golden check (needs a Dart SDK): `engine/tests/dart_golden/check.sh`. It bu
 the fixtures, then runs `dart analyze --fatal-infos` and `dart test`. CI (`.github/workflows/ci.yml`) runs it
 together with the Rust checks.
 
-Benchmark: `engine/bench/run.sh [files] [runs]` times the engine alone on a synthetic project (rule 8).
+Benchmark: `engine/bench/run.sh [files] [runs]` times the engine alone on a synthetic project (rule 9).
 
 End-to-end check without the Dart SDK: `cd cli/example && ../../engine/target/release/flint_build build --force`,
 then `git diff lib/user_model.g.dart`. Any output change must be intentional.
@@ -65,14 +68,17 @@ With the Dart SDK: `cd cli/example && dart pub get && dart run flint_build build
 4. **No panics in library code.** Return `Result`. `unwrap`/`expect` are fine in tests and in provably
    infallible spots (add a comment explaining why). Use `thiserror` for typed errors and `anyhow` at the
    binary edge.
-5. **The parser stays syntax-only.** Don't add a dependency on the Dart SDK or analyzer. Cross-file knowledge
-   comes from the project symbol index ([SDD §4](docs/SDD.md#4-the-key-constraint-parsing-syntax-only)).
-6. **Specs come before larger changes.** Anything that changes generated output, `flint.yaml`, CLI flags, the
+5. **The parser stays syntax-only.** The engine never depends on the Dart analyzer. Cross-file knowledge
+   comes from the project symbol index ([SDD §4](docs/SDD.md#4-the-key-constraint-parsing-syntax-only)). The
+   Dart SDK is only needed to *run* generators that users write in Dart (planned, spec 0007), never to parse.
+6. **Built-in generators use the public generator API.** Anything `flint_json` or a future built-in needs from
+   the model must be available to custom generators too (spec 0007). Don't give built-ins private shortcuts.
+7. **Specs come before larger changes.** Anything that changes generated output, `flint.yaml`, CLI flags, the
    template context, or the `Generator` trait needs a spec in `docs/specs/` first
    ([workflow](docs/specs/README.md)). If there is none, write a draft and stop for review.
-7. **Docs change with the code.** When behaviour changes, update `docs/configuration.md` (support matrix),
+8. **Docs change with the code.** When behaviour changes, update `docs/configuration.md` (support matrix),
    `docs/SDD.md` (Current vs Target), `docs/ROADMAP.md` status, and the READMEs **in the same change**.
-8. **No unmeasured performance claims.** Numbers in the docs must come from a benchmark in the repo, with the
+9. **No unmeasured performance claims.** Numbers in the docs must come from a benchmark in the repo, with the
    method stated (engine-only vs `dart run` end to end).
 
 ## Conventions

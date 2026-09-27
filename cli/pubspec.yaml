@@ -1,6 +1,6 @@
 name: flint_build
 description: >-
-  Fast, native code generation for Dart and Flutter: a build_runner + json_serializable replacement
+  Fast, native code generation for Dart and Flutter: a build_runner replacement
   powered by a Rust engine. This package is the `dart run flint_build` launcher.
 version: 0.1.0
 repository: https://github.com/migueloli/flint_build

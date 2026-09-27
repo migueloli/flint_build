@@ -1,12 +1,16 @@
 # Flint Build ⚡
 
-A native, parallel code generator for Dart and Flutter that works like `build_runner` + `json_serializable`.
-The engine is written in Rust and parses Dart with [tree-sitter](https://tree-sitter.github.io/).
+A fast replacement for `build_runner`: a native, parallel code-generation platform for Dart and Flutter.
+The engine is written in Rust and parses Dart with [tree-sitter](https://tree-sitter.github.io/). Generators
+run on top of it: built-in ones that match the packages Flutter apps already use, and your own, written as
+templates or (planned) in Dart.
 
-> **Status: experimental (engine 0.1.0).** Flint generates correct `json_serializable`-style code for the
-> common cases below, but it has known gaps that can produce code that doesn't compile. Read
-> [Known limitations](#known-limitations) before trying it on a real project. Flint only writes, overwrites
-> or deletes `.g.dart` files it generated itself, so other generators' files are safe.
+> **Status: experimental (engine 0.1.0).** The first built-in generator, `flint_json`, generates correct
+> `json_serializable`-style code for the common cases below. More generators (riverpod_generator, freezed,
+> drift, flutter_gen, mockito, go_router_builder, envied) and Dart-written custom generators are planned; see
+> the [roadmap](docs/ROADMAP.md). Read [Known limitations](#known-limitations) before trying it on a real
+> project. Flint only writes, overwrites or deletes files it generated itself, so it can run next to
+> `build_runner` while you migrate.
 
 ---
 
@@ -51,11 +55,17 @@ fvm dart run flint_build watch     # rebuild on change
 
 In your own project, add Flint as a path dev-dependency. If you already use json_serializable, that's all:
 Flint reads your existing `build.yaml` options and needs no `flint.yaml`. See the [CLI README](cli/README.md). Flint isn't on pub.dev yet, because the CLI can only find the engine inside
-this repository (see the [roadmap](docs/ROADMAP.md#phase-4-installable-by-anyone)).
+this repository (see the [roadmap](docs/ROADMAP.md#phase-6-installable-by-anyone)).
 
 ## What it supports
 
-`@JsonSerializable` classes with `String`/`int`/`double`/`bool`/`DateTime`, `num`/`dynamic`/`Object`,
+**Today:** the built-in `flint_json` generator (json_serializable) and custom generators written as
+[Tera](https://keats.github.io/tera/) templates. **Planned** ([spec 0007](docs/specs/0007-generator-platform.md)):
+a versioned generator API that built-in and custom generators share, custom generators written in Dart or
+declared in YAML, generators with their own output files and non-Dart inputs (assets, `.env`), and the
+generators in the [roadmap](docs/ROADMAP.md#generators).
+
+`flint_json` handles `@JsonSerializable` classes with `String`/`int`/`double`/`bool`/`DateTime`, `num`/`dynamic`/`Object`,
 `Uri`/`BigInt`/`Duration`, `List`/`Set`/`Iterable`, `Map<String, V>`, nested models (also through import
 prefixes), classes from other packages (`external_types`), generic classes, enums from any file in the
 package, custom converters, and the common `@JsonKey`
@@ -96,7 +106,7 @@ files, each with one model and one enum) and times the engine alone. On a 4-core
 
 These are typical of five runs after a warm-up. A no-op build parses every file on every build, because
 Flint resolves types across files (spec 0005). A comparison with build_runner at this size isn't measured
-yet; it's on the [roadmap](docs/ROADMAP.md#phase-3-incremental-and-fast-at-scale).
+yet; it's on the [roadmap](docs/ROADMAP.md#phase-5-incremental-and-fast-at-scale).
 
 ## Documentation
 

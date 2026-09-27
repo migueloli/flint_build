@@ -1,7 +1,7 @@
 # Flint engine (Rust)
 
-The Rust crate `flint_build`. It provides the binary that the [Dart CLI](../cli/README.md) runs, and a
-library you can embed. It parses Dart source with **tree-sitter** (syntax only), runs generators in parallel
+The Rust crate `flint_build`, the core of Flint, a fast replacement for `build_runner`. It provides the binary
+that the [Dart CLI](../cli/README.md) runs, and a library you can embed. It parses Dart source with **tree-sitter** (syntax only), runs generators in parallel
 with **rayon**, and renders output with **Tera** templates.
 
 For the design as a whole (current vs target), see [docs/SDD.md](../docs/SDD.md).

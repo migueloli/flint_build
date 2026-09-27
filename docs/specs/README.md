@@ -37,3 +37,4 @@ Specs aren't edited after `Done`. A later change gets a new spec that supersedes
 | [0004](0004-template-errors.md) | Template errors are reported, not panics | Done | R12 |
 | [0005](0005-project-symbol-index.md) | Project symbol index: resolve field types across files | Done | R7, A1 |
 | [0006](0006-constructor-aware-emission.md) | Constructor-aware emission: build `fromJson` from the real constructor | In progress | R8 |
+| [0007](0007-generator-platform.md) | Generator platform: one versioned API for built-in and custom generators | Draft | SDD goals 1, 3, 4; A4, A5, R9 |

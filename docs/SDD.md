@@ -13,29 +13,45 @@ you implement a Target item, move its text to Current and link the spec.
 
 ## 1. Purpose
 
-Flint is a code generator for Dart/Flutter projects. It reads annotated Dart source, such as
-`@JsonSerializable()` classes, and writes companion `.g.dart` part files, doing the same job as
-`build_runner` + `json_serializable`. The heavy work runs in a native Rust binary. That avoids the Dart VM
-startup and whole-program analysis that make `build_runner` slow.
+Flint is a fast replacement for `build_runner`: a code-generation platform for Dart and Flutter projects.
+The engine, a native Rust binary, does the shared work: finding sources, parsing them (syntax only), indexing
+the project, deciding which files it owns, and writing outputs. Generators run on top of it. That avoids the
+Dart VM startup and whole-program analysis that make `build_runner` slow.
+
+There are two kinds of generators, and they use the same API (§5.2, spec 0007):
+
+- **Built-in generators** ship with Flint and reproduce the packages Flutter apps already use.
+  `flint_json` (json_serializable) exists; the target list is in [ROADMAP.md](ROADMAP.md#generators).
+- **Custom generators** are written by users: Tera templates today, and Dart programs or YAML declarations
+  once spec 0007 lands. Custom generators must be able to do what the built-ins do.
 
 ## 2. Goals and non-goals
 
 **Goals**
 
-1. **Drop-in output:** for supported features, the generated code behaves like json_serializable's output. It
-   compiles and produces the same JSON.
-2. **Speed that grows with the project:** build time grows with the number of *changed* files, and all cores
+1. **Replace `build_runner` for the generators Flutter apps rely on:** json_serializable, riverpod_generator,
+   freezed, drift, flutter_gen, mockito, go_router_builder and envied first; auto_route, retrofit, injectable
+   and slang later.
+2. **Drop-in output:** a built-in generator's output behaves like the original package's. It compiles and,
+   for serialization, produces the same JSON. Deliberate deviations are listed in the specs.
+3. **Open to custom generators** in Dart, YAML or templates, with a versioned model and output contract, so
+   the community can port generators without the Dart analyzer (spec 0007).
+4. **Coexistence during migration:** Flint and `build_runner` can run on the same project, each owning
+   different outputs, so a project can move one generator at a time.
+5. **Speed that grows with the project:** build time grows with the number of *changed* files, and all cores
    are used.
-3. **Never damages user code:** Flint only writes and deletes files it can prove it owns (see §9).
-4. **Extensible without Rust:** users can add a generator with a Tera template and a `flint.yaml` entry.
-5. **Predictable:** the same inputs always produce byte-identical outputs, whatever the thread scheduling or
-   plugin order.
+6. **Never damages user code:** Flint only writes and deletes files it can prove it owns (see §9).
+7. **Predictable:** the same inputs always produce byte-identical outputs, whatever the thread scheduling or
+   generator order.
 
 **Non-goals (for now)**
 
-- Replacing `build_runner` for generators that need full type resolution across packages, such as `freezed`
-  unions or `riverpod_generator`. See §4 for why.
-- Running Dart code at build time.
+- Running existing `build_runner` builders (source_gen generators) unchanged. They depend on the Dart
+  analyzer; Flint reimplements the important ones and lets the rest keep running under `build_runner`
+  (goal 4).
+- Full type resolution like the analyzer's. Flint resolves as much as its generators need, from syntax
+  (§4).
+- Running user Dart code at build time other than Dart generators the user configured.
 - Being a general Dart analyzer or language server.
 
 ## 3. Context
@@ -43,7 +59,7 @@ startup and whole-program analysis that make `build_runner` slow.
 ```text
 Dart/Flutter project
  ├── pubspec.yaml         ← package name (read)
- ├── flint.yaml           ← plugin configuration (read, optional for json_serializable projects)
+ ├── flint.yaml           ← generator ("plugin") configuration (read, optional for json_serializable projects)
  ├── build.yaml           ← json_serializable options (read, optional; spec 0002)
  └── lib/**.dart          ← annotated sources (read)
         └── *.g.dart      ← generated parts (written/deleted by Flint)
@@ -82,7 +98,18 @@ project** without doing full type analysis:
 **Target:** keep the index in a cache (§12) so a no-op build doesn't parse every file, and add constructors
 to the declarations for R8.
 
-This keeps Flint syntax-only, with no Dart SDK needed at build time, while fixing review items R7 and R8.
+**Where this is heading (Target, spec 0007 and later):** the generators on the roadmap need more than
+json_serializable did, but still mostly things syntax can give:
+
+| Needed by | What | How, without the analyzer |
+| --------- | ---- | ------------------------- |
+| freezed, riverpod_generator, go_router_builder | Top-level functions, redirecting factories, supertypes, generics, full annotation arguments | Parser and model v1 (spec 0007) |
+| freezed, most generators | Superclass members | The index (spec 0006 step 3) |
+| mockito, drift, riverpod_generator | Declarations from *other packages* (`http.Client`'s methods, a `Table` base class) | Index dependency sources read-only, found through `.dart_tool/package_config.json` (later spec) |
+| drift | SQL in `.drift` files and annotations | A SQL parser for drift's dialect, as a later built-in |
+| flutter_gen, envied, slang | Non-Dart inputs (assets, `.env`, translation files) | Generators declare input globs (spec 0007) |
+
+The engine stays analyzer-free. The Dart SDK is only needed to run generators that users write in Dart.
 
 ## 5. Architecture
 
@@ -332,6 +359,8 @@ except benchmarks on every push (`.github/workflows/ci.yml`).
 | DD6 | Read json_serializable's `build.yaml` options instead of requiring a `flint.yaml` | Migrating then needs no new file and keeps the JSON wire format identical | Flint's options diverge from json_serializable's |
 | DD7 | `field_rename` is parsed into a `FieldRename` enum at load time; `camel` = lowerCamelCase | A typo can't silently change the wire format; names match serde and common usage | — |
 | DD8 | Ownership is a marker line in the file, not a manifest | Survives `git checkout`, copying and deleted caches; checking it only reads the first 1 KiB | Files need to be recognised without being opened |
+| DD9 | Flint replaces `build_runner` as a platform; built-in generators are written against the same public API as custom ones | Custom generators can then do anything a built-in does; the API gets exercised by real generators | A built-in needs something the API can't express: extend the API, don't bypass it |
+| DD10 | Reimplement popular generators instead of hosting `build_runner` builders | Hosting source_gen builders needs the analyzer, which is the cost Flint exists to avoid | — |
 
 ## 16. Open questions
 
@@ -339,7 +368,9 @@ except benchmarks on every push (`.github/workflows/ci.yml`).
    **Resolved: yes.** See [spec 0002](specs/0002-read-build-yaml.md) and DD6.
 2. ~~Should `field_rename: camel` mean PascalCase or be removed?~~ **Resolved:** it means lowerCamelCase,
    and unknown values are errors. See [spec 0003](specs/0003-field-rename-camel.md) and DD7.
-3. Should the parsed model be exposed as JSON (`flint_build dump-ir`) so people can write generators in any
-   language?
+3. ~~Should the parsed model be exposed as JSON so people can write generators in any language?~~
+   **Yes**, as the versioned generator model of [spec 0007](specs/0007-generator-platform.md) (draft), which
+   Dart generators receive and `flint_build dump-model` prints.
 4. Is sharing one `.g.dart` (DD5) compatible with projects that run build_runner alongside Flint during a
-   migration?
+   migration? **No:** build_runner's source_gen merges its generators into the same `x.g.dart`. Spec 0007
+   proposes a separate shared part for Flint during migration.

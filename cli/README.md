@@ -1,7 +1,7 @@
 # flint_build (Dart CLI)
 
-The Dart entry point for [Flint](../README.md), a native, parallel replacement for `build_runner` +
-`json_serializable`. This package contains only a launcher: `dart run flint_build` finds the Rust engine
+The Dart entry point for [Flint](../README.md), a native, parallel replacement for `build_runner`. Its first
+built-in generator covers `json_serializable`; more are planned. This package contains only a launcher: `dart run flint_build` finds the Rust engine
 binary and runs it with your arguments.
 
 > **Experimental.** Read the [known limitations](../README.md#known-limitations) first.

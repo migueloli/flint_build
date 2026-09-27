@@ -1,12 +1,19 @@
 # Roadmap
 
-This is the plan for taking Flint from a working prototype to a tool you can safely run on real Flutter apps.
+This is the plan for taking Flint from a working prototype to a fast replacement for `build_runner` that you
+can safely run on real Flutter apps: a generator platform, the built-in generators Flutter apps rely on
+(see [Generators](#generators)), custom generators in Dart, YAML or templates, and coexistence with
+`build_runner` while a project migrates.
 Finding IDs (R1, D3, …) refer to [REVIEW.md](REVIEW.md). Larger items get a spec in [specs/](specs/) before any
 code is written (see the [spec workflow](specs/README.md)).
 
 Status: ⬜ not started · 🟨 in progress · ✅ done
 
 **Current state and the next task:** see [HANDOFF.md](HANDOFF.md).
+
+Phases were renumbered on 2026-09-27 when the generator platform (Phase 3) and built-in generators (Phase 4)
+were added. Specs 0001–0006 were written before that: their “Phase 3” (cache, incremental builds) is now
+Phase 5, and “Phase 4” (distribution) is now Phase 6.
 
 ---
 
@@ -38,10 +45,11 @@ Goal: Flint never damages a project, and generated code compiles for everything 
 | ✅ | Keep the literal's kind in annotation arguments; emit typed `@JsonValue` maps | R6 |
 | ✅ | `Result`-returning generators and collected errors; no panics on bad templates | R12 · [Spec 0004](specs/0004-template-errors.md) |
 
-## Phase 2: json_serializable parity
+## Phase 2: json_serializable parity (the first built-in generator, `flint_json`)
 
 Goal: the example app, and a realistic mid-size app, build with Flint and pass the same round-trip tests as
-with json_serializable.
+with json_serializable. Much of this work (the index, constructors, the golden harness) is shared by every
+later generator.
 
 | | Item | Refs |
 | --- | ---- | ---- |
@@ -60,7 +68,31 @@ with json_serializable.
 | ⬜ | Check `toJson` exists on nested classes when `explicitToJson: true` (the `fromJson` check exists, spec 0005) | Spec 0005 follow-ups |
 | ⬜ | Match prefixed annotations (`@json.JsonSerializable()`) | SDD §5.1 |
 
-## Phase 3: Incremental and fast at scale
+## Phase 3: Generator platform
+
+Goal: generators, built-in or custom, are written against one versioned API, in Rust, Dart, YAML or Tera, and
+Flint can run next to `build_runner` during a migration.
+→ [Spec 0007](specs/0007-generator-platform.md) (draft)
+
+| | Item | Refs |
+| --- | ---- | ---- |
+| ⬜ | **Generator model v1:** a versioned, documented model of each library (classes, enums, mixins, extensions, typedefs, top-level functions and variables, constructors, supertypes, generics, annotations with structured arguments, doc comments, resolved types) | Spec 0007 · A4, A5, R9 |
+| ⬜ | `flint_build dump-model <file>`: print the model as JSON (debugging, and a way to write generators in any language) | Spec 0007 |
+| ⬜ | **Output kinds:** a section of the shared part (today), a generator's own part file (`.freezed.dart`), a standalone library (`lib/gen/assets.gen.dart`), all with the ownership marker | Spec 0007 · DD5 |
+| ⬜ | **Dart generators:** a `flint_generator` package with typed model classes; Flint compiles the generator once (AOT, cached) and runs it once per build, not per file | Spec 0007 |
+| ⬜ | **YAML generators:** declarative selection (annotations on classes, functions, fields…) plus inline or file templates; Tera helpers for casing and types; `context_version` | Spec 0007 |
+| ⬜ | **Non-Dart inputs:** generators declare input globs (assets, `.env`, translation files) | Spec 0007 |
+| ⬜ | **Coexistence with `build_runner`:** a separate shared part for Flint during migration; guidance (or automation) to disable migrated builders in `build.yaml` | Spec 0007 · SDD §16 |
+| ⬜ | `flint_build migrate`: list a build_runner project's generators, which Flint can take over, and switch them file by file | Spec 0007 follow-up |
+| ⬜ | Index declarations from **dependency packages** (read-only, syntax-only, via `.dart_tool/package_config.json`), for mockito, drift and cross-package types | Later spec · SDD §4 |
+
+## Phase 4: Built-in generators
+
+Goal: the generators in [Generators](#generators), each matching the original package's output and behaviour,
+proven by golden fixtures and a comparison against the original. Each gets its own spec, written against the
+spec 0007 API.
+
+## Phase 5: Incremental and fast at scale
 
 | | Item | Refs |
 | --- | ---- | ---- |
@@ -71,7 +103,7 @@ with json_serializable.
 | ⬜ | `build --check` for CI (non-zero exit if outputs are stale) | — |
 | ⬜ | **Benchmark rewrite:** synthetic 10/100/1000-model projects; `hyperfine`; report engine-only *and* end-to-end; define cold/warm | D3 |
 
-## Phase 4: Installable by anyone
+## Phase 6: Installable by anyone
 
 | | Item | Refs |
 | --- | ---- | ---- |
@@ -80,15 +112,36 @@ with json_serializable.
 | ⬜ | `--root`, include/exclude globs, `test/` and `bin/` roots, pub workspaces / melos | A2 |
 | ⬜ | Publish `flint_build` to pub.dev and crates.io. pub.dev needs a `LICENSE` inside `cli/` too | D1 |
 
-## Phase 5: Platform and ecosystem
+## Phase 7: Ecosystem
 
 | | Item |
 | --- | ---- |
-| ⬜ | Stable, versioned **template context** (`context_version`), plus Tera filters for casing and type helpers |
-| ⬜ | Per-plugin `output_extension` (e.g. `.flint.dart`) for generators that need their own file |
-| ⬜ | More built-in generators: `copyWith`, `==`/`hashCode`, `toString` (the most-used parts of freezed without unions) |
-| ⬜ | `flint_build migrate`: check a build_runner project and list what Flint can't generate yet (options are already read from `build.yaml`, spec 0002) |
 | ⬜ | `flint_build doctor`: check `part` directives, unresolved types, stale outputs, version mismatch |
+| ⬜ | Publish a guide and template repo for writing Flint generators in Dart |
+| ⬜ | A place to list community generators (a pub topic, or a page in the docs) |
+
+## Generators
+
+The generators Flint aims to replace, in priority order. “Needs” is what each one requires beyond what exists
+today; items in bold are platform work shared with other generators.
+
+| Priority | Package | Status | Output | Needs |
+| -------- | ------- | ------ | ------ | ----- |
+| 1 | json_serializable | 🟨 `flint_json`, spec 0005 done, spec 0006 steps 1–2 done | shared part (`.g.dart`) | superclass members (spec 0006 step 3), R9, R10, R14, R15 |
+| 2 | riverpod_generator | ⬜ | shared part | **top-level functions and their return types (`Future`, `Stream`)**, class-based notifiers, family parameters; its provider hash is computed from source text |
+| 3 | freezed | ⬜ | own part (`.freezed.dart`) | **redirecting factories**, unions and sealed classes, `copyWith` (deep), `==`/`hashCode`/`toString`, `@Default`, generics, **own-part output**; works with json_serializable |
+| 4 | drift | ⬜ | shared part, plus `.drift` files | table classes and their getters, **dependency declarations** (drift's `Table`), a SQL parser for `.drift` files and queries. The largest one |
+| 5 | flutter_gen | ⬜ | library (`lib/gen/*.gen.dart`) | **non-Dart inputs** (pubspec `flutter: assets`, fonts, colors), **library output** |
+| 6 | mockito | ⬜ | library (`*.mocks.dart`, imported by the test) | `@GenerateMocks`/`@GenerateNiceMocks` in **`test/` files (A2)**, **full class interfaces from dependency packages** (e.g. `http.Client`), generics |
+| 7 | go_router_builder | ⬜ | shared part | route classes, `@TypedGoRoute` trees with nested routes, parameters from constructors |
+| 8 | envied | ⬜ | shared part | **non-Dart input** (`.env`), obfuscation option |
+| later | auto_route | ⬜ | own part (`.gr.dart`) | `@RoutePage` classes across the project, the `@AutoRouterConfig` router |
+| later | retrofit | ⬜ | shared part | abstract methods with HTTP annotations, **method signatures**; works with json_serializable |
+| later | injectable | ⬜ | library (`*.config.dart`, imported) | **whole-project scan** of annotated classes, constructor dependencies, environments |
+| later | slang | ⬜ | library | **non-Dart inputs** (JSON/YAML/ARB translations) |
+
+Before writing a generator's spec, record the original package's real output for the shapes the spec covers
+(the recipe is in [HANDOFF.md](HANDOFF.md#6-how-to-work-on-this-repo)), as spec 0006 did.
 
 ---
 
@@ -99,9 +152,8 @@ from the spec 0005 and 0006 work (`flint_build explain`, notes for silently drop
 json_serializable reference harness, finishing the render model) are in
 [HANDOFF.md §7](HANDOFF.md#7-feature-suggestions-and-improvements).
 
-- **Dump the parsed model as JSON** (`flint_build dump-ir lib/foo.dart`) so generators can be written in any
-  language, including Dart, reading the model from stdin. It also makes a good debugging tool for template
-  authors.
+- ~~**Dump the parsed model as JSON**~~: now part of [spec 0007](specs/0007-generator-platform.md)
+  (`flint_build dump-model`, and the model Dart generators receive).
 - **WASM plugins** for generators that outgrow Tera, run sandboxed with `wasmtime`. Only worth it if real
   template users hit Tera's limits.
 - **Recommend running the binary directly.** `dart run` costs ~300 ms of VM startup per invocation, far more

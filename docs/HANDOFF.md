@@ -1,6 +1,7 @@
 # Handoff — state of the project and what comes next
 
-**Last updated:** 2026-09-27, at commit `660eead` on branch `claude/nice-turing-eu8mvu` (CI green).
+**Last updated:** 2026-09-27, on branch `claude/nice-turing-eu8mvu` (code at `660eead`; later commits are
+docs only). CI green.
 Read this first, then [AGENTS.md](../AGENTS.md) for the rules and [ROADMAP.md](ROADMAP.md) for the full plan.
 Update this file whenever you finish a step, change priorities, or leave work half done.
 
@@ -8,9 +9,17 @@ Update this file whenever you finish a step, change priorities, or leave work ha
 
 ## 1. Where things stand
 
-Flint (`flint_build`) is a Rust engine plus a Dart launcher that replaces `build_runner` + `json_serializable`.
-It is **experimental but usable for the common cases**. Output is checked by compiling and round-tripping
-real Dart in CI.
+Flint (`flint_build`) is a **fast replacement for `build_runner`**: a Rust engine (parsing, project index,
+output ownership) plus a Dart launcher, with generators on top. Built-in generators reproduce the packages
+Flutter apps use; custom generators are written by users (Tera today; Dart and YAML in spec 0007). Flint must
+coexist with `build_runner` while a project migrates. See SDD §1–2 and the
+[generator list](ROADMAP.md#generators).
+
+Today only the first built-in, `flint_json` (json_serializable), exists. It is **experimental but usable for
+the common cases**. Output is checked by compiling and round-tripping real Dart in CI.
+
+**Target generators, in the owner's priority order:** json_serializable, riverpod_generator, freezed, drift,
+flutter_gen, mockito, go_router_builder, envied. **Later:** auto_route, retrofit, injectable, slang.
 
 | Area | State |
 | ---- | ----- |
@@ -19,7 +28,7 @@ real Dart in CI.
 | CI | `.github/workflows/ci.yml`: fmt, clippy `-D warnings`, `cargo test --locked`, MSRV 1.88, Dart golden check, `dart analyze` on `cli/` and the example, example output current. Runs on PRs, pushes to `main`, manual dispatch |
 | Tests | 96 Rust tests (unit, build pipeline, insta snapshots), 31 Dart golden round-trip tests. All pass |
 | Performance | `engine/bench/run.sh 1000 5`, 4 cores, engine only: `--force` ~0.27 s, no-op ~86–91 ms (budget 100 ms, tight, see §4) |
-| Roadmap | Phase 0 done except the LICENSE placeholders · Phase 1 done · Phase 2 in progress (spec 0006) · Phases 3–5 not started, apart from the parts noted in the roadmap |
+| Roadmap | Phase 0 done except the LICENSE placeholders · Phase 1 done · Phase 2 (json_serializable) in progress, spec 0006 · Phase 3 (generator platform) drafted as spec 0007 · Phases 4–7 not started, apart from the parts noted in the roadmap |
 
 ### Specs
 
@@ -31,6 +40,7 @@ real Dart in CI.
 | [0004](specs/0004-template-errors.md) | Done | Template problems are errors, not panics |
 | [0005](specs/0005-project-symbol-index.md) | Done | Project symbol index: enums and classes from any file, `dart:core` types, type checks with clear errors, `external_types` |
 | [0006](specs/0006-constructor-aware-emission.md) | **In progress: steps 1–2 done, 3–4 open** | `fromJson` calls the real constructor; json_serializable's member rules |
+| [0007](specs/0007-generator-platform.md) | **Draft, waiting for review** | Generator platform: model v1, one contract for built-in and custom generators (Rust, Dart, YAML, Tera), output kinds, non-Dart inputs, coexistence with build_runner |
 
 ### Review findings ([REVIEW.md](REVIEW.md))
 
@@ -91,25 +101,36 @@ compare with a run of the previous commit in the same session; the machine's noi
 
 ## 3. After that, in recommended order
 
-Each item links to where it's tracked. The first two are decisions for the owner, not engineering work.
+Each item links to where it's tracked.
 
-1. **Owner decisions:** fill in the `LICENSE` placeholders (`[YEAR]`, `[COPYRIGHT HOLDER]`, H1); decide
-   whether to merge PR #1 and cut `0.2.0` (the changelog lists breaking output changes since `0.1.0`).
-2. **R10, `$enumDecode` and `unknownEnumValue`** (new spec, 0007). Today an unknown enum value throws a bare
-   `StateError` from `firstWhere`. Small, visible in real apps, and changes generated output, so it needs a
-   spec. Check json_serializable's exact output first (§6).
-3. **Index cache (Phase 3, R11).** The no-op build of 1,000 files is at ~90 ms against a 100 ms budget,
+1. **Owner review of [spec 0007](specs/0007-generator-platform.md)** (the generator platform). It has seven
+   open questions with proposed answers. Nothing in it should be implemented before it's accepted.
+2. **Finish spec 0006** (step 3 above, then step 4, docs). Superclass members matter to freezed and most other
+   generators too, not only json_serializable.
+3. **Implement spec 0007**, step by step (its Plan): model v1 and `dump-model` → trait v1 and output kinds →
+   YAML generators and project scope → non-Dart inputs → Dart generators and the `flint_generator` package →
+   coexistence. `flint_json` must move onto the public API with byte-identical output (AGENTS.md rule 6).
+4. **The next built-in generators**, one spec each, written against spec 0007, in the owner's order:
+   **riverpod_generator**, then **freezed**, then drift, flutter_gen, mockito, go_router_builder, envied.
+   Before each spec, record the original package's real output (§6), as spec 0006 did for json_serializable.
+   drift and mockito also need dependency packages in the index (a separate spec, “0008” in spec 0007).
+5. **Index cache (Phase 5, R11).** The no-op build of 1,000 files is at ~90 ms against a 100 ms budget,
    because every build parses every file for the index (spec 0005). A cache in `.dart_tool/flint/` keyed by
    content hash would also fix mtime problems (R11), re-export chains not being tracked, and warnings not
-   being repeated on up-to-date builds (all listed in spec 0005's follow-ups). Needs a spec.
-4. **Parity gaps, one small spec or fix each:** R9 (read field metadata only from `field_annotations`),
-   R14 (non-`String` map keys: `int`, `DateTime`…), R15 (escape `'`, `$` and `\` in JSON keys),
+   being repeated on up-to-date builds (all listed in spec 0005's follow-ups). More generators make this more
+   urgent. Needs a spec.
+6. **json_serializable parity gaps**, one small spec or fix each: R10 (`$enumDecode` and `unknownEnumValue`:
+   an unknown enum value throws a bare `StateError` today; check json_serializable's exact output first), R9
+   (read field metadata only from `field_annotations`; the structured annotations of spec 0007 help), R14
+   (non-`String` map keys: `int`, `DateTime`…), R15 (escape `'`, `$` and `\` in JSON keys),
    `@JsonSerializable(fieldRename:)` per class, `@JsonKey(readValue:, required:, disallowNullValue:)`,
    `genericArgumentFactories: false`, prefixed annotations (`@json.JsonSerializable()`).
-5. **Differential tests (rest of H7):** automate what was done by hand for spec 0006 — build the golden
-   fixtures with json_serializable too and compare JSON (§6 has the manual recipe).
-6. **Distribution (Phase 4, D1, D2):** the CLI only works inside this repo. Prebuilt binaries, a version
+7. **Differential tests (rest of H7):** automate what was done by hand for spec 0006: build fixtures with the
+   original generator too and compare. Every built-in generator will need this, so build it generically.
+8. **Distribution (Phase 6, D1, D2):** the CLI only works inside this repo. Prebuilt binaries, a version
    check, then pub.dev and crates.io.
+
+Owner decisions that don't block engineering are in §5.
 
 ---
 
@@ -143,7 +164,9 @@ Each item links to where it's tracked. The first two are decisions for the owner
 | LICENSE holder and year | — | `LICENSE` has `[YEAR]` and `[COPYRIGHT HOLDER]` |
 | Version | stay `0.1.0` until release, or `0.2.0` now | Output changed in breaking ways since the first `0.1.0` notes (constructors, private fields, getters, enum lookup parameter) |
 | PR #1 | merge now, or after spec 0006 | The branch head is green; each spec step was pushed and checked separately |
-| Spec 0007 scope | R10 alone, or R10 + R14 (enum/int map keys) | Both touch the enum conversion code |
+| Spec 0007 open questions | accept the proposed answers, or change them | Config key rename, who declares selection, Dart transport, coexistence default, built-ins in Rust or Dart, model size, where resolution data lives |
+| Scope of the R10 spec | R10 alone, or R10 + R14 (enum/int map keys) | Both touch the enum conversion code |
+| Order after freezed | drift, flutter_gen, mockito, go_router_builder, envied (as given) | flutter_gen and envied are small and exercise non-Dart inputs early; drift and mockito need the dependency index first. Reordering by effort is an option |
 
 ---
 
@@ -186,15 +209,32 @@ AGENTS.md.
 commit in the same session too: absolute numbers drift by ±10 ms between sessions.
 
 **Commits.** Conventional Commits with a scope (`feat(engine): … (spec 0006 step 3)`); mention review IDs;
-one commit per spec step; docs in the same commit as the behaviour (AGENTS.md rule 7).
+one commit per spec step; docs in the same commit as the behaviour (AGENTS.md rule 8).
 
 ---
 
 ## 7. Feature suggestions and improvements
 
-Not scheduled. The roadmap's “Ideas and suggestions” section has the longer-standing ones (dump the parsed
-model as JSON, WASM plugins, IDE integration, error codes, formatting the output). These came out of the work
-so far:
+Not scheduled. The roadmap's “Ideas and suggestions” section has the longer-standing ones (WASM plugins, IDE
+integration, error codes, formatting the output). These came out of the work so far.
+
+**For the generator platform (spec 0007 and after):**
+
+- **Scaffolding:** `flint_build new generator <name>` creates a Dart generator package (with
+  `flint_generator`, an example model, and a test), so writing one takes minutes.
+- **A testing kit for generator authors:** feed a Dart snippet, get the model and the generator's output,
+  compare with a golden file. Built on `dump-model`; the same kit tests the built-ins.
+- **One conformance harness for every built-in:** run the original package under build_runner and the Flint
+  generator on the same fixtures, and compare output behaviour (JSON round trips, `copyWith` results,
+  provider values). It generalises the manual recipe in §6.
+- **Cache generator responses** by a hash of the request, so unchanged libraries skip Dart generators too.
+- **Keep Dart generators warm in watch mode**, and recompile one automatically when its source changes.
+- **Discovery:** a pub topic (for example `flint-generator`) and a docs page listing community generators.
+- **Migration assistant** (`flint_build migrate`, roadmap Phase 3): read `pubspec.yaml` and `build.yaml`, list
+  the builders, say which Flint can take over, write the `flint.yaml`, the `build.yaml` lines that disable
+  them, and the `part` directives for coexistence.
+
+**For `flint_json` and the engine:**
 
 - **`flint_build explain <file>`**: print the plan for each class (constructor, which parameter takes which
   key, cascades, dropped members and why). The member rules are json_serializable's and are not obvious;
@@ -210,12 +250,12 @@ so far:
 - **Separate render model (A4).** Spec 0006 added a render model for `flint_json` (`JsonClass`, `FromJson`,
   `Value`). Finishing A4 would move `from_json_expr` / `to_json_expr` / `converter` off `DartField`, keeping
   the old fields only for template compatibility.
-- **`flint_build doctor`** (roadmap Phase 5) could reuse the index to list unresolved types, missing `part`
+- **`flint_build doctor`** (roadmap Phase 7) could reuse the index to list unresolved types, missing `part`
   directives and stale outputs, without generating anything.
 - **Per-class opt-out of the json_serializable deviations**, if users ask for byte-identical behaviour
   during migration.
 - **Watch mode on the cache.** Once the index cache exists, watch can rebuild only files whose dependencies
-  changed (roadmap Phase 3).
+  changed (roadmap Phase 5).
 
 When one of these is picked up, move it into the roadmap with a phase, and write a spec if it changes
 output, config, CLI flags, the template context or the `Generator` trait.
