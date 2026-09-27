@@ -43,7 +43,7 @@ with json_serializable.
 
 | | Item | Refs |
 | --- | ---- | ---- |
-| ⬜ | **Project symbol index:** resolve enums and classes across files; clear “unresolved type” diagnostics | R7 · SDD §4 |
+| ⬜ | **Project symbol index:** resolve enums and classes across files; clear “unresolved type” diagnostics | R7 · SDD §4 · [Spec 0005](specs/0005-project-symbol-index.md) (draft) |
 | ⬜ | **Constructor-aware emission:** positional/named/`this.` params; skip static, late and initialised fields; private-field rules | R8 |
 | 🟨 | Scope metadata to configured `field_annotations` / `variant_annotations` (`variant_annotations` done with R3) | R9 |
 | ⬜ | Emit `$enumDecode` / `$enumDecodeNullable`; support `unknownEnumValue` | R10 |
