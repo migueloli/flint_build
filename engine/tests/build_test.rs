@@ -70,7 +70,7 @@ impl Package {
     fn build(&self, force: bool) -> BuildReport {
         let mut registry = PluginRegistry::new();
         registry.register("flint_json", Box::new(FlintJsonGenerator));
-        let pubspec = Pubspec::from_str("name: app\n").unwrap();
+        let pubspec: Pubspec = "name: app\n".parse().unwrap();
         build(self.dir.path(), &pubspec, force, &registry).unwrap()
     }
 }

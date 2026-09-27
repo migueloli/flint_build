@@ -9,5 +9,5 @@
   (the latest version is in `.../channels/stable/release/latest/VERSION`), then put on `PATH` for
   `engine/tests/dart_golden/check.sh`. Without it, the engine can still be checked end to end by running
   `engine/target/release/flint_build build --force` inside `cli/example` and diffing the output.
-- Before finishing a change to `engine/`, run `cargo fmt`, `cargo clippy --all-targets`, and `cargo test`.
+- Before finishing a change to `engine/`, run `cargo fmt`, `cargo clippy --all-targets -- -D warnings`, and `cargo test`.
   Use `/code-review` on the diff for anything that changes generated output.

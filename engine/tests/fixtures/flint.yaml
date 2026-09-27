@@ -1,0 +1,6 @@
+# Config for tests/flint_json_test.rs. No template_path, so the snapshots cover the built-in
+# template compiled into the engine, which is what users get.
+plugins:
+  flint_json:
+    converters:
+      - "@MyConverter"

@@ -26,9 +26,24 @@ jobs:
         with:
           workspaces: engine
       - run: cargo fmt --check
-      # Not yet `-D warnings`: four known warnings remain (REVIEW H3).
-      - run: cargo clippy --all-targets
+      - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test --locked
+
+  msrv:
+    name: Engine builds on its minimum Rust (1.88)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v5
+      # Keep in step with `rust-version` in engine/Cargo.toml.
+      - uses: dtolnay/rust-toolchain@1.88
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      - run: cargo check --locked --all-targets
 
   dart:
     name: Generated Dart compiles (golden check)

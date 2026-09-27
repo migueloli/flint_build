@@ -65,7 +65,7 @@ use flint_build::parser;
 
 fn main() -> anyhow::Result<()> {
     // flint.yaml with just `plugins: { flint_json: }` gets json_serializable's annotation names as defaults.
-    let config = FlintConfig::from_str("plugins:\n  flint_json:\n")?;
+    let config: FlintConfig = "plugins:\n  flint_json:\n".parse()?;
     let plugin = &config.plugins.as_ref().unwrap()["flint_json"];
 
     let parsed = parser::parse_file(Path::new("lib/user_model.dart"))?;
@@ -87,7 +87,7 @@ cargo fmt --check
 
 - Unit tests live next to the code in `#[cfg(test)]` modules.
 - `tests/flint_json_test.rs` renders `tests/fixtures/gold/*.dart` and compares against
-  `tests/snapshots/*.snap`. It reads `engine/flint.yaml` as its config.
+  `tests/snapshots/*.snap`. It reads `tests/fixtures/flint.yaml` as its config, which uses the built-in template.
 - `tests/generic_generator_test.rs` covers the custom template path.
 
 When you change the emitter or a template, add a fixture that exercises the change and read the snapshot diff

@@ -14,12 +14,12 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
 | --- | ---- | ---- |
 | 🟨 | Add a `LICENSE` file (MIT, matching `Cargo.toml`). Added with placeholders: fill in `[YEAR]` and `[COPYRIGHT HOLDER]` | H1 |
 | ✅ | `cargo fmt --check` passes | H3 |
-| ⬜ | `cargo clippy -- -D warnings` passes. Rename `from_str` to a `FromStr` impl or `parse`; collapse the two `if`s in the parser | H3 |
-| ⬜ | Add `rust-version = "1.88"` to `engine/Cargo.toml` | H4 |
-| ✅ | CI workflow (`.github/workflows/ci.yml`): `cargo fmt --check`, `clippy`, `cargo test --locked` (fails on snapshot changes), the Dart golden check, `dart analyze` on `cli/` and the example, and a check that the example's committed output is current. Clippy isn't `-D warnings` yet (H3) | H2 |
-| ⬜ | Move `engine/flint.yaml` to `engine/tests/fixtures/`. Snapshot tests should use the built-in template | H5 |
-| 🟨 | Use `tempfile` in tests instead of fixed temp paths (done for new tests and discovery) | H6 |
-| ⬜ | Fix `cli/pubspec.yaml` metadata (description, version, repository) and `CHANGELOG.md`; move the example to `dev_dependencies` | D5 |
+| ✅ | `cargo clippy -- -D warnings` passes (`FromStr` impls for `FlintConfig`/`Pubspec`, collapsed `if`s); CI enforces it | H3 |
+| ✅ | Add `rust-version = "1.88"` to `engine/Cargo.toml` (verified: 1.88 builds, 1.87 doesn't; a CI job checks it) | H4 |
+| ✅ | CI workflow (`.github/workflows/ci.yml`): `cargo fmt --check`, `clippy -D warnings`, `cargo test --locked` (fails on snapshot changes), a Rust 1.88 build, the Dart golden check, `dart analyze` on `cli/` and the example, and a check that the example's committed output is current | H2 |
+| ✅ | Move `engine/flint.yaml` to `engine/tests/fixtures/`. Snapshot tests should use the built-in template | H5 |
+| ✅ | Use `tempfile` in tests instead of fixed temp paths | H6 |
+| ✅ | Fix `cli/pubspec.yaml` metadata (description, version `0.1.0` like the engine, repository, `publish_to: none` until D1) and `CHANGELOG.md`; move the example to `dev_dependencies`; drop unused dependencies | D5 |
 | ✅ | Accurate READMEs, SDD, configuration reference, agent instructions | H4 |
 
 ## Phase 1: Safe to run (P0)

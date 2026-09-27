@@ -3,6 +3,7 @@ use serde::Deserialize;
 use serde_yaml::Value;
 use std::collections::HashMap;
 use std::fs;
+use std::str::FromStr;
 
 #[derive(Debug, Deserialize)]
 pub struct Pubspec {
@@ -20,15 +21,18 @@ impl Pubspec {
             .any(|deps| deps.contains_key(package))
     }
 
-    pub fn from_str(content: &str) -> Result<Self> {
-        serde_yaml::from_str(content).context("Failed to parse pubspec.yaml format")
-    }
-
     pub fn load() -> Result<Self> {
-        let content = fs::read_to_string("pubspec.yaml")
-            .context("Failed to read pubspec.yaml. Are you in the root of a Dart project?")?;
+        fs::read_to_string("pubspec.yaml")
+            .context("Failed to read pubspec.yaml. Are you in the root of a Dart project?")?
+            .parse()
+    }
+}
 
-        Self::from_str(&content)
+impl FromStr for Pubspec {
+    type Err = anyhow::Error;
+
+    fn from_str(content: &str) -> Result<Self> {
+        serde_yaml::from_str(content).context("Failed to parse pubspec.yaml format")
     }
 }
 

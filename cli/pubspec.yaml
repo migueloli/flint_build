@@ -1,6 +1,11 @@
 name: flint_build
-description: A starting point for Dart libraries or applications.
-version: 1.0.0
+description: >-
+  Fast, native code generation for Dart and Flutter: a build_runner + json_serializable replacement
+  powered by a Rust engine. This package is the `dart run flint_build` launcher.
+version: 0.1.0
+repository: https://github.com/migueloli/flint_build
+issue_tracker: https://github.com/migueloli/flint_build/issues
+publish_to: none # Not publishable yet: the launcher needs the engine from this repository (REVIEW D1).
 
 environment:
   sdk: ^3.5.0
@@ -10,4 +15,3 @@ dependencies:
 
 dev_dependencies:
   lints: ^6.1.0
-  test: ^1.31.1

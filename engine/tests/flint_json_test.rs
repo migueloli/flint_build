@@ -8,7 +8,7 @@ use std::path::Path;
 fn test_user_model() {
     let input_path = Path::new("tests/fixtures/gold/user_model.dart");
 
-    let config = FlintConfig::load_from_file("flint.yaml").unwrap();
+    let config = FlintConfig::load_from_file("tests/fixtures/flint.yaml").unwrap();
     let plugin = config.plugins.unwrap().get("flint_json").unwrap().clone();
 
     let classes = parser::parse_file(input_path).unwrap();
@@ -26,7 +26,7 @@ fn test_user_model() {
 fn test_generic_model() {
     let input_path = Path::new("tests/fixtures/gold/generic_model.dart");
 
-    let config = FlintConfig::load_from_file("flint.yaml").unwrap();
+    let config = FlintConfig::load_from_file("tests/fixtures/flint.yaml").unwrap();
     let plugin = config.plugins.unwrap().get("flint_json").unwrap().clone();
 
     let classes = parser::parse_file(input_path).unwrap();

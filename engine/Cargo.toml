@@ -2,8 +2,11 @@
 name = "flint_build"
 version = "0.1.0"
 edition = "2024"
+# Let-chains need 1.88; checked in CI (1.87 fails to compile).
+rust-version = "1.88"
 description = "A fast, native build_runner replacement for Dart/Flutter projects"
 license = "MIT"
+repository = "https://github.com/migueloli/flint_build"
 
 [dependencies]
 rayon = "1.12"

@@ -100,7 +100,7 @@ benchmark suite is on the [roadmap](docs/ROADMAP.md#phase-3-incremental-and-fast
 
 ```bash
 cd engine
-cargo fmt && cargo clippy --all-targets && cargo test
+cargo fmt && cargo clippy --all-targets -- -D warnings && cargo test
 tests/dart_golden/check.sh     # generated Dart compiles and round-trips (needs a Dart SDK)
 ```
 

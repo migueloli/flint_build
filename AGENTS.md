@@ -74,7 +74,8 @@ With the Dart SDK: `cd cli/example && dart pub get && dart run flint_build build
 
 ## Conventions
 
-- Rust edition 2024, MSRV 1.88 (let-chains are used). Format with `rustfmt` defaults.
+- Rust edition 2024, MSRV 1.88 (`rust-version` in `Cargo.toml`, checked by CI; let-chains need it). Format
+  with `rustfmt` defaults. Clippy runs with `-D warnings` in CI.
 - Tests go next to the code (`#[cfg(test)] mod tests`) for units and in `engine/tests/` for pipeline and
   snapshot tests. Use temporary directories, never fixed paths in `/tmp`.
 - Commits use Conventional Commits with a scope, matching the history:
@@ -97,5 +98,4 @@ catch you out:
   ignoring access events, or watch mode loops.
 - `DartField.from_json_expr` / `to_json_expr` / `converter` are emitter scratch state stored on the parsed
   model (A4).
-- `engine/flint.yaml` is a test fixture used by `tests/flint_json_test.rs`, not a user config (H5).
 - The CLI finds the engine at `cli/../engine/target/…`, so it only works in this monorepo (D1).

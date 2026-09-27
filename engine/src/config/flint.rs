@@ -116,16 +116,20 @@ impl FromStr for FieldRename {
     }
 }
 
-impl FlintConfig {
-    pub fn from_str(content: &str) -> anyhow::Result<Self> {
+/// Parses `flint.yaml` content and applies the built-in plugin defaults.
+impl FromStr for FlintConfig {
+    type Err = anyhow::Error;
+
+    fn from_str(content: &str) -> anyhow::Result<Self> {
         let mut config: FlintConfig = serde_yaml::from_str(content)?;
         config.apply_builtin_defaults();
         Ok(config)
     }
+}
 
+impl FlintConfig {
     pub fn load_from_file(path: &str) -> anyhow::Result<Self> {
-        let content = std::fs::read_to_string(path)?;
-        Self::from_str(&content)
+        std::fs::read_to_string(path)?.parse()
     }
 
     /// A config that only enables `flint_json` with its defaults, as if `flint.yaml` were

@@ -28,8 +28,8 @@ fn test_generic_generator_execution() {
         ..Default::default()
     };
 
-    let temp_dir = std::env::temp_dir();
-    let template_path = temp_dir.join("mock_template.tera");
+    let dir = tempfile::tempdir().unwrap();
+    let template_path = dir.path().join("mock_template.tera");
     std::fs::write(
         &template_path,
         "Hello {{ classes[0].name }} and {{ enums[0].name }}!",

@@ -54,7 +54,9 @@ pub fn resolve(
     let mut warnings = Vec::new();
 
     let mut flint = match flint_yaml {
-        Some(content) => FlintConfig::from_str(content).context("Failed to parse flint.yaml")?,
+        Some(content) => content
+            .parse::<FlintConfig>()
+            .context("Failed to parse flint.yaml")?,
         None => {
             let (enabled, reason) = match &json_options {
                 Some(options) => (
@@ -129,7 +131,7 @@ mod tests {
         } else {
             ""
         };
-        Pubspec::from_str(&format!("name: app\n{deps}")).unwrap()
+        format!("name: app\n{deps}").parse().unwrap()
     }
 
     fn flint_json(config: &ProjectConfig) -> &PluginConfig {

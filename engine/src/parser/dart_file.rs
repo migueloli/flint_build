@@ -391,10 +391,10 @@ fn extract_classes(root: Node, content: &str) -> Result<Vec<DartClass>> {
             .iter()
             .find(|c| query.capture_names()[c.index as usize] == "class_decl")
             .map(|c| c.node);
-        if let Some(node) = class_decl_node {
-            if !processed_nodes.insert(node.id()) {
-                continue;
-            }
+        if let Some(node) = class_decl_node
+            && !processed_nodes.insert(node.id())
+        {
+            continue;
         }
 
         let mut class_name = String::new();
@@ -471,10 +471,10 @@ fn extract_enums(root: Node, content: &str) -> Result<Vec<DartEnum>> {
             .find(|c| query.capture_names()[c.index as usize] == "enum_decl")
             .map(|c| c.node);
 
-        if let Some(node) = enum_decl_node {
-            if !processed_nodes.insert(node.id()) {
-                continue; // Skip duplicate matches
-            }
+        if let Some(node) = enum_decl_node
+            && !processed_nodes.insert(node.id())
+        {
+            continue; // Skip duplicate matches
         }
 
         let mut enum_name = String::new();
@@ -706,13 +706,13 @@ mod tests {
 
     #[test]
     fn test_parse_file_syntax_error() {
-        let temp_dir = std::env::temp_dir();
-        let path = temp_dir.join("invalid.dart");
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("invalid.dart");
         std::fs::write(&path, "class ApiResponse { final invalid }").unwrap();
 
-        let res = parse_file(&path);
-        let _ = std::fs::remove_file(&path);
+        let error = parse_file(&path).unwrap_err().to_string();
 
-        assert!(res.is_err());
+        assert!(error.contains("Syntax Error"), "{error}");
+        assert!(error.contains("line 1"), "{error}");
     }
 }
