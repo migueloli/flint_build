@@ -20,6 +20,13 @@ pub fn generate_full_file(
 ) -> String {
     retain_annotated(&mut parsed_file, plugin);
     select_variant_values(&mut parsed_file, plugin);
+    for value in parsed_file
+        .enums
+        .iter_mut()
+        .flat_map(|e| e.values.iter_mut())
+    {
+        value.literal = value.literal.take().map(prefer_single_quotes);
+    }
 
     let enum_names: Vec<String> = parsed_file.enums.iter().map(|e| e.name.clone()).collect();
 
@@ -114,6 +121,29 @@ fn apply_plugin_defaults(class: &mut DartClass, plugin: &PluginConfig) {
     }
 }
 
+/// Rewrites a simple double-quoted string literal with single quotes, as json_serializable writes them
+/// (`"active"` → `'active'`). Anything that could change meaning (`'`, `\`, raw or triple quotes) or
+/// isn't a string (`1`, `true`) is kept exactly as written.
+fn prefer_single_quotes(literal: String) -> String {
+    match literal
+        .strip_prefix('"')
+        .and_then(|rest| rest.strip_suffix('"'))
+    {
+        Some(inner) if !inner.contains(['\'', '"', '\\']) && !literal.starts_with("\"\"\"") => {
+            format!("'{inner}'")
+        }
+        _ => literal,
+    }
+}
+
+/// The enum's name if a map key has an enum type generated in this file.
+fn enum_key<'a>(key: &'a DartType, enum_names: &[String]) -> Option<&'a str> {
+    match &key.kind {
+        TypeKind::Custom(name) if enum_names.contains(name) => Some(name),
+        _ => None,
+    }
+}
+
 fn generate_from_json_expression(
     dart_type: &DartType,
     access: &str,
@@ -141,7 +171,14 @@ fn generate_from_json_expression(
         TypeKind::Map(k, v) => {
             let key = "k";
             let value = "v";
-            let key_expr = generate_from_json_expression(k, key, enum_names, type_params);
+            // JSON object keys are always strings, so an enum key is matched by its value's string form
+            // (`@JsonValue(1)` is the key "1").
+            let key_expr = match enum_key(k, enum_names) {
+                Some(name) => format!(
+                    "_${name}EnumMap.entries.firstWhere((e) => e.value.toString() == {key}).key"
+                ),
+                None => generate_from_json_expression(k, key, enum_names, type_params),
+            };
             let value_expr = generate_from_json_expression(v, value, enum_names, type_params);
             format!(
                 "({} as Map<String, dynamic>).map(({}, {}) => MapEntry({}, {}))",
@@ -207,8 +244,12 @@ fn generate_to_json_expression(
             format!("{}{}map((elem) => {}).toList()", access, op, inner_expr)
         }
         TypeKind::Map(k, v) => {
-            let key_expr =
-                generate_to_json_expression(k, "key", explicit_to_json, enum_names, type_params);
+            let key_expr = match enum_key(k, enum_names) {
+                Some(name) => format!("_${name}EnumMap[key].toString()"),
+                None => {
+                    generate_to_json_expression(k, "key", explicit_to_json, enum_names, type_params)
+                }
+            };
             let value_expr =
                 generate_to_json_expression(v, "value", explicit_to_json, enum_names, type_params);
             let op = if dart_type.is_nullable { "?." } else { "." };
@@ -242,6 +283,19 @@ fn extract_field_name(field: &mut DartField, plugin: &PluginConfig) -> String {
 mod tests {
     use super::*;
     use crate::parser::dart_types::{DartClass, DartType, ParsedFile};
+
+    #[test]
+    fn test_prefer_single_quotes() {
+        let q = |s: &str| prefer_single_quotes(s.to_string());
+        assert_eq!(q("\"active\""), "'active'");
+        assert_eq!(q("'active'"), "'active'");
+        assert_eq!(q("\"it's\""), "\"it's\"");
+        assert_eq!(q("\"a\\nb\""), "\"a\\nb\"");
+        assert_eq!(q("\"\"\"doc\"\"\""), "\"\"\"doc\"\"\"");
+        assert_eq!(q("r\"raw\""), "r\"raw\"");
+        assert_eq!(q("1"), "1");
+        assert_eq!(q("\"\""), "''");
+    }
 
     #[test]
     fn test_extract_field_name_casing() {

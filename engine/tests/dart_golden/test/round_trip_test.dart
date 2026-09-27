@@ -1,13 +1,15 @@
 import 'dart:convert';
 
 import 'package:flint_dart_golden/annotations_model.dart';
+import 'package:flint_dart_golden/enum_values_model.dart';
 import 'package:flint_dart_golden/generic_model.dart';
 import 'package:flint_dart_golden/options_model.dart';
 import 'package:flint_dart_golden/user_model.dart';
 import 'package:test/test.dart';
 
 /// Encodes through `jsonEncode` so the result is exactly what would go over the wire.
-Map<String, dynamic> wire(Object? value) => jsonDecode(jsonEncode(value)) as Map<String, dynamic>;
+Map<String, dynamic> wire(Object? value) =>
+    jsonDecode(jsonEncode(value)) as Map<String, dynamic>;
 
 void main() {
   group('User', () {
@@ -60,7 +62,8 @@ void main() {
     });
 
     test('applies defaultValue and includeIfNull', () {
-      final json = User.fromJson({...full, 'locale': null, 'secret': null}).toJson();
+      final json =
+          User.fromJson({...full, 'locale': null, 'secret': null}).toJson();
       expect(json['locale'], 'unknown');
       expect(json.containsKey('secret'), isFalse);
       expect(json.containsKey('nickname'), isTrue);
@@ -76,13 +79,16 @@ void main() {
       };
       final page = Page<int>.fromJson(json, (value) => value as int);
       expect(page.items, [1, 2]);
-      expect(page.fetchedAt, DateTime.fromMillisecondsSinceEpoch(1767323045000, isUtc: true));
+      expect(page.fetchedAt,
+          DateTime.fromMillisecondsSinceEpoch(1767323045000, isUtc: true));
       expect(wire(page.toJson((value) => value)), json);
     });
   });
 
   group('class options', () {
-    test('explicitToJson, class-level includeIfNull, fromJson/toJson hooks and excluded fields', () {
+    test(
+        'explicitToJson, class-level includeIfNull, fromJson/toJson hooks and excluded fields',
+        () {
       final json = {
         'origin': {'x': 0, 'y': 0},
         'points': [
@@ -135,6 +141,51 @@ void main() {
       expect(Tagged.fromJson(json('mid')).level, Level.medium);
       expect(Tagged.fromJson(json('high')).level, Level.high);
       expect(wire(Tagged.fromJson(json('lo')))['level'], 'lo');
+    });
+  });
+
+  group('@JsonValue literal types (R6)', () {
+    test('int, bool and quoted string values keep their type on the wire', () {
+      for (final json in [
+        {
+          'priority': 2,
+          'backup': 1,
+          'toggle': true,
+          'quote': "it's",
+          'votes': {'1': 3},
+          'quotes': {"it's": 1}
+        },
+        {
+          'priority': 1,
+          'backup': null,
+          'toggle': false,
+          'quote': 'say "hi"',
+          'votes': {},
+          'quotes': {}
+        },
+        {
+          'priority': 1,
+          'backup': null,
+          'toggle': false,
+          'quote': 'plain',
+          'votes': {'2': 1},
+          'quotes': {'plain': 2}
+        },
+      ]) {
+        // Decode like real JSON, so nested maps are Map<String, dynamic>.
+        expect(wire(Ticket.fromJson(wire(json))), json);
+      }
+      final ticket = Ticket.fromJson({
+        'priority': 2,
+        'toggle': true,
+        'quote': "it's",
+        'votes': {'1': 3},
+        'quotes': <String, dynamic>{}
+      });
+      expect(ticket.votes, {Priority.low: 3});
+      expect(ticket.priority, Priority.high);
+      expect(ticket.toggle, Toggle.enabled);
+      expect(ticket.quote, Quote.apostrophe);
     });
   });
 }

@@ -40,11 +40,12 @@ pub fn select_variant_values(parsed_file: &mut ParsedFile, plugin: &PluginConfig
         .iter_mut()
         .flat_map(|e| e.values.iter_mut())
     {
-        value.value = value
+        let variant = value
             .annotations
             .iter()
-            .find(|a| plugin.variant_annotations.contains(&format!("@{}", a.name)))
-            .and_then(|a| a.value.clone());
+            .find(|a| plugin.variant_annotations.contains(&format!("@{}", a.name)));
+        value.value = variant.and_then(|a| a.value.clone());
+        value.literal = variant.and_then(|a| a.literal.clone());
     }
 }
 

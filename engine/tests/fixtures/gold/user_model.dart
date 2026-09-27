@@ -36,6 +36,8 @@ class UserModel {
   final MyEnum status;
   @JsonKey(includeIfNull: false)
   final String? secretData;
+  final Rank rank;
+  final Map<Rank, int> rankCounts;
 
   UserModel({
     required this.id,
@@ -55,6 +57,8 @@ class UserModel {
     this.optionalSubModel,
     required this.status,
     this.secretData,
+    required this.rank,
+    required this.rankCounts,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) => _$UserModel(json);
@@ -68,4 +72,14 @@ enum MyEnum {
   cancelled,
   @JsonValue('in_test')
   test,
+  @JsonValue("it's")
+  quoted,
+}
+
+@JsonEnum()
+enum Rank {
+  @JsonValue(1)
+  first,
+  @JsonValue(2)
+  second,
 }

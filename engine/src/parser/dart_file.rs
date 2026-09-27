@@ -281,9 +281,11 @@ fn extract_enum_values(name: String, body: Node, content: &str) -> DartEnum {
                     .child_by_field_name("name")
                     .and_then(|name| name.utf8_text(content.as_bytes()).ok())
                 {
+                    let literal = first_argument(node, content);
                     annotations.push(DartEnumValueAnnotation {
                         name: name.to_string(),
-                        value: process_json_value_node(node, content),
+                        value: literal.as_deref().map(|l| unquote(l).to_string()),
+                        literal,
                     });
                 }
             };
@@ -313,6 +315,7 @@ fn extract_enum_values(name: String, body: Node, content: &str) -> DartEnum {
                 values.push(DartEnumValue {
                     name: variant_name,
                     value: None,
+                    literal: None,
                     annotations,
                 });
             }
@@ -325,26 +328,34 @@ fn extract_enum_values(name: String, body: Node, content: &str) -> DartEnum {
     }
 }
 
-fn process_json_value_node(node: Node, content: &str) -> Option<String> {
-    let mut cursor = node.walk();
-    let mut args = String::new();
-    for child in node.children(&mut cursor) {
-        match child.kind() {
-            "arguments" | "annotation_arguments" => {
-                args = child
-                    .utf8_text(content.as_bytes())
-                    .unwrap_or("")
-                    .to_string();
-            }
-            _ => {}
+/// The first argument of an annotation, as written in the source: `@JsonValue(1)` → `1`.
+fn first_argument(annotation: Node, content: &str) -> Option<String> {
+    let mut cursor = annotation.walk();
+    let arguments = annotation
+        .children(&mut cursor)
+        .find(|child| child.kind() == "annotation_arguments")?;
+    let mut args_cursor = arguments.walk();
+    let argument = arguments
+        .children(&mut args_cursor)
+        .find(|child| child.kind() == "argument")?;
+    let text = argument.utf8_text(content.as_bytes()).ok()?.trim();
+    (!text.is_empty()).then(|| text.to_string())
+}
+
+/// Removes one pair of quotes from a Dart string literal (`'a'`, `"a"`, `'''a'''`, `r'a'`); anything
+/// else (numbers, booleans, identifiers) is returned unchanged. Escapes are left as written.
+fn unquote(literal: &str) -> &str {
+    let raw = literal.strip_prefix('r').unwrap_or(literal);
+    for quote in ["'''", "\"\"\"", "'", "\""] {
+        if raw.len() >= 2 * quote.len()
+            && let Some(inner) = raw
+                .strip_prefix(quote)
+                .and_then(|rest| rest.strip_suffix(quote))
+        {
+            return inner;
         }
     }
-    let val = args.trim_matches(|c| c == '(' || c == ')' || c == '"' || c == '\'' || c == ' ');
-    if val.is_empty() {
-        None
-    } else {
-        Some(val.to_string())
-    }
+    literal
 }
 
 fn find_error_node<'a>(node: Node<'a>) -> Option<Node<'a>> {
@@ -631,6 +642,55 @@ mod tests {
             enums[0].annotations,
             vec!["Tag".to_string(), "JsonEnum".to_string()]
         );
+    }
+
+    #[test]
+    fn test_enum_value_literals_keep_their_type_and_quotes() {
+        // R6: the literal's kind (and any quotes inside it) used to be lost.
+        let code = r#"
+            enum E {
+                @JsonValue(1) a,
+                @JsonValue(true) b,
+                @JsonValue("it's") c,
+                @JsonValue('say "hi"') d,
+                @JsonValue(kName) e,
+            }
+        "#;
+        let tree = parse_snippet(code);
+        let enums = extract_enums(tree.root_node(), code).unwrap();
+        let annotations: Vec<(Option<&str>, Option<&str>)> = enums[0]
+            .values
+            .iter()
+            .map(|v| {
+                (
+                    v.annotations[0].literal.as_deref(),
+                    v.annotations[0].value.as_deref(),
+                )
+            })
+            .collect();
+
+        assert_eq!(
+            annotations,
+            vec![
+                (Some("1"), Some("1")),
+                (Some("true"), Some("true")),
+                (Some("\"it's\""), Some("it's")),
+                (Some("'say \"hi\"'"), Some("say \"hi\"")),
+                (Some("kName"), Some("kName")),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_unquote() {
+        assert_eq!(unquote("'a'"), "a");
+        assert_eq!(unquote("\"a\""), "a");
+        assert_eq!(unquote("'''a'''"), "a");
+        assert_eq!(unquote("r'a\\b'"), "a\\b");
+        assert_eq!(unquote("'say \"hi\"'"), "say \"hi\"");
+        assert_eq!(unquote("12"), "12");
+        assert_eq!(unquote("red"), "red");
+        assert_eq!(unquote("'"), "'");
     }
 
     #[test]

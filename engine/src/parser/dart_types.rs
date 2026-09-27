@@ -53,15 +53,20 @@ pub struct DartEnumValue {
     /// The JSON value, taken from the first of the plugin's `variant_annotations` on this constant
     /// (see `generators::select_variant_values`). The parser leaves it empty.
     pub value: Option<String>,
+    /// The same value as Dart source (`1`, `true`, `"it's"`), so it can be emitted with its type intact.
+    pub literal: Option<String>,
     pub annotations: Vec<DartEnumValueAnnotation>,
 }
 
-/// An annotation on an enum constant: `@JsonValue('x')` → `{ name: "JsonValue", value: Some("x") }`.
+/// An annotation on an enum constant:
+/// `@JsonValue('x')` → `{ name: "JsonValue", value: Some("x"), literal: Some("'x'") }`.
 #[derive(Debug, Clone, Serialize)]
 pub struct DartEnumValueAnnotation {
     pub name: String,
-    /// The argument text without parentheses and quotes, if there is one.
+    /// The first argument with one pair of string quotes removed, if there is an argument.
     pub value: Option<String>,
+    /// The first argument exactly as written in the source.
+    pub literal: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

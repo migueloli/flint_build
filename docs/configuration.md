@@ -172,7 +172,7 @@ Rules for writing, keeping and deleting `.g.dart` files ([spec 0001](specs/0001-
 | Nested `@JsonSerializable` classes | ✅ | Called as `Type.fromJson(json as Map<String, dynamic>)` |
 | Generic classes `Foo<T>` | ✅ | Always generates `fromJsonT` / `toJsonT` parameters, as with `genericArgumentFactories: true` |
 | `@JsonEnum` enums **in the same file** | ✅ | ⚠️ Enums from other files are treated as classes (R7) |
-| `@JsonValue('x')` | ✅ | ⚠️ Numeric/bool values become strings (R6) |
+| `@JsonValue('x')`, `@JsonValue(1)`, `@JsonValue(true)` | ✅ | The value keeps its type and is emitted as written (plain `"x"` becomes `'x'`). As map keys, enum values are converted to strings, since JSON keys always are |
 | `num`, `dynamic`, `Object`, `Uri`, `BigInt`, `Duration`, `Set`, records | ❌ | Generated as `Type.fromJson(...)`, which doesn't compile (R7) |
 | Positional constructors, fields not set by the constructor | ❌ | Always generates named arguments for every field (R8) |
 | Classes and enums with several annotations (`@immutable @JsonSerializable()`) | ✅ | In any order |
@@ -271,16 +271,22 @@ These variables are available in every template, for both built-in and custom pl
   "values": [
     {
       "name": "a",
-      "value": "1",   // from the first of the plugin's variant_annotations, else null
-      "annotations": [ { "name": "JsonValue", "value": "1" }, { "name": "Note", "value": "legacy" } ]
+      "value": "1",     // from the first of the plugin's variant_annotations, else null
+      "literal": "1",   // the same argument as Dart source: 1, true, 'x', "it's"
+      "annotations": [
+        { "name": "JsonValue", "value": "1", "literal": "1" },
+        { "name": "Note", "value": "legacy", "literal": "'legacy'" }
+      ]
     },
-    { "name": "b", "value": null, "annotations": [] }
+    { "name": "b", "value": null, "literal": null, "annotations": [] }
   ]
 }
 ```
 
-A custom plugin only gets `value` if it sets `variant_annotations`. Every annotation on a constant is also
-listed in `annotations`, with its argument text (quotes and parentheses removed).
+A custom plugin only gets `value` and `literal` if it sets `variant_annotations`. Every annotation on a
+constant is also listed in `annotations`, with its first argument as `literal` (exact source) and `value` (one
+pair of string quotes removed). Emit `literal` when generating Dart, so numbers stay numbers and quotes inside
+strings stay valid.
 
 > **Stability:** this context isn't versioned yet, and field names may change (see
 > [SDD §6.2](SDD.md#62-target-parsed-model)). Metadata values are raw Dart source, so string arguments keep

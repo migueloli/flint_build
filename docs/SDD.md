@@ -148,8 +148,9 @@ DartClass  { name, type_parameters: [String], metadata: {String: String}, fields
 DartField  { name, dart_type: DartType, is_final, metadata: {String: String},
              converter?, from_json_expr?, to_json_expr? }   // last three are emitter scratch state
 DartType   { kind: String|Int|Double|Bool|DateTime|List(T)|Map(K,V)|Custom(name), is_nullable }
-DartEnum   { name, annotations: [String], values: [{ name, value?, annotations: [{ name, value? }] }] }
-           // value is set per plugin from its variant_annotations (generators::select_variant_values)
+DartEnum   { name, annotations: [String], values: [{ name, value?, literal?, annotations: [{ name, value?, literal? }] }] }
+           // value/literal are set per plugin from its variant_annotations (generators::select_variant_values);
+           // literal is the argument's Dart source, so its type survives (R6)
 ```
 
 `metadata` flattens every annotation on a node into one map. Annotation names become keys with a value of
@@ -161,7 +162,7 @@ Tera context; see [configuration.md → Template context](configuration.md#templ
 ```text
 SourceUnit  { path, part_directives: [String], library_name?, classes, enums, spans }
 Annotation  { name, prefix?, positional: [Literal|Expr], named: {String: Literal|Expr}, span }
-Literal     = String(s) | Int(i) | Double(f) | Bool(b) | Null | Expr(raw)   // keeps the literal's kind (R6)
+Literal     = String(s) | Int(i) | Double(f) | Bool(b) | Null | Expr(raw)   // enum values already keep raw source (R6)
 DartClass   { name, type_parameters, annotations: [Annotation], fields, constructors: [Constructor], span }
 Constructor { name?, params: [Param{ name, kind: positional|named|this, required, default? }] }  // R8
 DartField   { name, type: DartType, is_final, is_static, is_late, has_initializer, annotations, span }

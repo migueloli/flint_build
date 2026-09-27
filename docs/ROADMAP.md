@@ -33,7 +33,7 @@ Goal: Flint never damages a project, and generated code compiles for everything 
 | ✅ | **Multiple plugins per file:** parse once, concatenate sections in config order (`IndexMap`) | R4, A1 · Spec 0001 |
 | ✅ | Watch mode ignores `.g.dart` paths and access events (one rebuild per change) | R5 · Spec 0001 |
 | ✅ | Read *all* annotations on classes, fields, enums and enum constants (walk the nodes instead of one optional query capture); an enum constant's value comes only from `variant_annotations` | R3 |
-| ⬜ | Keep the literal's kind in annotation arguments; emit typed `@JsonValue` maps | R6 |
+| ✅ | Keep the literal's kind in annotation arguments; emit typed `@JsonValue` maps | R6 |
 | ⬜ | `Result`-returning generators and collected diagnostics; no panics on bad templates | R12 |
 
 ## Phase 2: json_serializable parity

@@ -48,6 +48,8 @@ UserModel _$UserModelFromJson(
       optionalSubModel: json['optionalMetadata'] == null ? null : Metadata.fromJson(json['optionalMetadata'] as Map<String, dynamic>),
       status: _$MyEnumEnumMap.entries.firstWhere((e) => e.value == json['status']).key,
       secretData: json['secretData'] as String?,
+      rank: _$RankEnumMap.entries.firstWhere((e) => e.value == json['rank']).key,
+      rankCounts: (json['rankCounts'] as Map<String, dynamic>).map((k, v) => MapEntry(_$RankEnumMap.entries.firstWhere((e) => e.value.toString() == k).key, (v as num).toInt())),
     );
 
 Map<String, dynamic> _$UserModelToJson(
@@ -71,6 +73,8 @@ Map<String, dynamic> _$UserModelToJson(
       'status': _$MyEnumEnumMap[instance.status],
   if (instance.secretData != null)
         'secretData': instance.secretData,
+      'rank': _$RankEnumMap[instance.rank],
+      'rankCounts': instance.rankCounts.map((key, value) => MapEntry(_$RankEnumMap[key].toString(), value)),
     };
 
 const _$MyEnumEnumMap = {
@@ -78,4 +82,9 @@ const _$MyEnumEnumMap = {
   MyEnum.completed: 'completed',
   MyEnum.cancelled: 'cancelled',
   MyEnum.test: 'in_test',
+  MyEnum.quoted: "it's",
+};
+const _$RankEnumMap = {
+  Rank.first: 1,
+  Rank.second: 2,
 };
