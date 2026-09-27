@@ -55,11 +55,14 @@ pub fn matches_plugin(parsed_file: &ParsedFile, plugin: &PluginConfig) -> bool {
 /// Sets each enum value's `value` from the first of the plugin's `variant_annotations` on it, so other
 /// annotations on a constant (`@Deprecated('…')`, …) never become its JSON value.
 pub fn select_variant_values(parsed_file: &mut ParsedFile, plugin: &PluginConfig) {
-    for value in parsed_file
-        .enums
-        .iter_mut()
-        .flat_map(|e| e.values.iter_mut())
-    {
+    for dart_enum in &mut parsed_file.enums {
+        select_enum_values(dart_enum, plugin);
+    }
+}
+
+/// [`select_variant_values`] for one enum, e.g. one declared in another file.
+pub fn select_enum_values(dart_enum: &mut DartEnum, plugin: &PluginConfig) {
+    for value in &mut dart_enum.values {
         let variant = value
             .annotations
             .iter()

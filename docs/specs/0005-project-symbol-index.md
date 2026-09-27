@@ -211,7 +211,17 @@ Each step is mergeable on its own and keeps CI green.
    - Measured (`engine/bench/run.sh 1000 5`, 4 cores): a no-op build now parses every file, **~83 ms typical,
      97 ms worst of 5** (was ~10 ms), inside the 100 ms budget but with little margin; `--force` unchanged at
      ~0.27 s. The index cache from decision 4 is likely needed for larger projects.
-5. Enum maps per using library; un-annotated and cross-file enums.
+5. ✅ Enum maps per using library; un-annotated and cross-file enums. The index keeps each enum's
+   declaration, and the emitter adds a `_$…EnumMap` for every enum its generated conversions use
+   (`_$m_MoodEnumMap` for a prefixed `m.Mood`), after the file's own `@JsonEnum` maps and in order of first
+   use. Fields with a converter, `@JsonKey` hooks or `ignore` don't pull a map in. The `flint_json` template
+   iterates `enum_maps`; `enums` keeps its meaning. Found along the way:
+   - **Shadowing bug (pre-existing):** a `List<SomeEnum>` decoded with
+     `(e) => …firstWhere((e) => e.value == e)`, comparing each entry with itself, so it never matched. No
+     fixture covered it. The lookup's parameter is now `entry`, which changes one token in every enum
+     decode (snapshots and the example regenerated).
+   - **Code review:** a class type parameter with the same name as an enum must win (`class Box<Kind>` next
+     to an imported `enum Kind`); fixed and tested.
 6. Class checks (`fromJson`), `external_types`, unresolved-name rules. (The dependency-aware up-to-date
    check moved to step 4.)
 7. Docs: support matrix, template context, SDD §4/§6/§7, roadmap, review.

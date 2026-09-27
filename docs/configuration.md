@@ -180,7 +180,7 @@ name are visible, the file gets an error naming both files; pick one with an imp
 | Nested `@JsonSerializable` classes | ✅ | Called as `Type.fromJson(json as Map<String, dynamic>)` |
 | Classes through an import prefix (`m.Money`) | ✅ | Called as `m.Money.fromJson(...)` |
 | Generic classes `Foo<T>` | ✅ | Always generates `fromJsonT` / `toJsonT` parameters, as with `genericArgumentFactories: true` |
-| `@JsonEnum` enums **in the same file** | ✅ | ⚠️ Enums from other files are treated as classes (R7) |
+| Enums, in the same file or another one, with or without `@JsonEnum` | ✅ | Each generated file gets its own copy of the value map (`_$StatusEnumMap`, or `_$m_MoodEnumMap` for `m.Mood`), because a private map only works inside its own library |
 | `@JsonValue('x')`, `@JsonValue(1)`, `@JsonValue(true)` | ✅ | The value keeps its type and is emitted as written (plain `"x"` becomes `'x'`). As map keys, enum values are converted to strings, since JSON keys always are |
 | `num`, `dynamic`, `Object` (and nullable) | ✅ | Taken as they are (`as num`, `as Object`, no cast for `dynamic`/`Object?`) |
 | `Uri`, `BigInt` | ✅ | Written as strings: `Uri.parse(...)` / `BigInt.parse(...)` and `toString()` |
@@ -251,6 +251,7 @@ These variables are available in every template, for both built-in and custom pl
 | `classes` | array | Classes carrying one of the plugin's `class_annotations` |
 | `resolved_types` | map | For each type name used in those classes' fields (as written, e.g. `Money` or `m.Money`): `{ kind, file, has_from_json, has_to_json }`, where `kind` is `class`, `enum`, `mixin`, `type_alias`, `extension_type` or `unresolved`, and `file` is the declaring file (`lib/src/money.dart`) or null |
 | `enums` | array | Enums carrying one of the plugin's `enum_annotations` |
+| `enum_maps` | array | `flint_json` only: the value maps this file needs, `{ map_name, type_name, values }`, including enums from other files |
 
 **Class**
 

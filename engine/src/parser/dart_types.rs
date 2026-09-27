@@ -104,7 +104,7 @@ pub struct DartClass {
     pub type_parameters: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct DartEnumValue {
     pub name: String,
     /// The JSON value, taken from the first of the plugin's `variant_annotations` on this constant
@@ -117,7 +117,7 @@ pub struct DartEnumValue {
 
 /// An annotation on an enum constant:
 /// `@JsonValue('x')` → `{ name: "JsonValue", value: Some("x"), literal: Some("'x'") }`.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct DartEnumValueAnnotation {
     pub name: String,
     /// The first argument with one pair of string quotes removed, if there is an argument.
@@ -126,7 +126,7 @@ pub struct DartEnumValueAnnotation {
     pub literal: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct DartEnum {
     pub name: String,
     pub annotations: Vec<String>,

@@ -2,11 +2,14 @@ import 'dart:convert';
 
 import 'package:flint_dart_golden/annotations_model.dart';
 import 'package:flint_dart_golden/core_types_model.dart';
+import 'package:flint_dart_golden/cross_file_model.dart';
 import 'package:flint_dart_golden/enum_values_model.dart';
 import 'package:flint_dart_golden/generic_model.dart';
 import 'package:flint_dart_golden/options_model.dart';
 import 'package:flint_dart_golden/prefixed_model.dart';
 import 'package:flint_dart_golden/user_model.dart';
+import 'package:flint_dart_golden/src/mood.dart' as m;
+import 'package:flint_dart_golden/src/status.dart';
 import 'package:test/test.dart';
 
 /// Encodes through `jsonEncode` so the result is exactly what would go over the wire.
@@ -259,6 +262,27 @@ void main() {
           key: null,
       };
       expect(wire(CoreTypes.fromJson(wire(nulls))), nulls);
+    });
+  });
+
+  group('enums from other files (spec 0005 step 5)', () {
+    test('cross-file, prefixed and un-annotated enums round-trip', () {
+      final json = {
+        'status': 'on',
+        'previous': 'inactive',
+        'history': ['on', 'inactive'],
+        'counts': {'on': 2},
+        'mood': 'calm',
+        'size': 'large',
+      };
+      final account = Account.fromJson(wire(json));
+      expect(account.status, Status.active);
+      expect(account.history, [Status.active, Status.inactive]);
+      expect(account.counts, {Status.active: 2});
+      expect(account.mood, m.Mood.calm);
+      expect(account.size, Size.large);
+      expect(wire(account), json);
+      expect(wire(Account.fromJson(wire({...json, 'previous': null}))), {...json, 'previous': null});
     });
   });
 }

@@ -1,0 +1,50 @@
+---
+source: tests/flint_json_test.rs
+assertion_line: 94
+expression: generated
+---
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// flint_build 0.1.0
+
+part of 'cross_file_model.dart';
+
+// **************************************************************************
+// flint_json
+// **************************************************************************
+
+// ignore_for_file: unnecessary_cast
+
+Account _$AccountFromJson(
+  Map<String, dynamic> json,
+) => Account(
+      status: _$StatusEnumMap.entries.firstWhere((entry) => entry.value == json['status']).key,
+      previous: json['previous'] == null ? null : _$StatusEnumMap.entries.firstWhere((entry) => entry.value == json['previous']).key,
+      history: (json['history'] as List<dynamic>).map((e) => _$StatusEnumMap.entries.firstWhere((entry) => entry.value == e).key).toList(),
+      counts: (json['counts'] as Map<String, dynamic>).map((k, v) => MapEntry(_$StatusEnumMap.entries.firstWhere((entry) => entry.value.toString() == k).key, (v as num).toInt())),
+      mood: _$m_MoodEnumMap.entries.firstWhere((entry) => entry.value == json['mood']).key,
+      size: _$SizeEnumMap.entries.firstWhere((entry) => entry.value == json['size']).key,
+    );
+
+Map<String, dynamic> _$AccountToJson(
+  Account instance,
+) => <String, dynamic>{
+      'status': _$StatusEnumMap[instance.status],
+      'previous': _$StatusEnumMap[instance.previous],
+      'history': instance.history.map((elem) => _$StatusEnumMap[elem]).toList(),
+      'counts': instance.counts.map((key, value) => MapEntry(_$StatusEnumMap[key].toString(), value)),
+      'mood': _$m_MoodEnumMap[instance.mood],
+      'size': _$SizeEnumMap[instance.size],
+    };
+
+const _$StatusEnumMap = {
+  Status.active: 'on',
+  Status.inactive: 'inactive',
+};
+const _$m_MoodEnumMap = {
+  m.Mood.happy: 'happy',
+  m.Mood.calm: 'calm',
+};
+const _$SizeEnumMap = {
+  Size.small: 'small',
+  Size.large: 'large',
+};

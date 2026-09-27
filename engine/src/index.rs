@@ -3,7 +3,7 @@
 //! Syntax only: files outside this package (`dart:`, other packages) are never resolved.
 
 use crate::parser::dart_types::{
-    Declaration, DeclarationKind, Directive, DirectiveKind, ParsedFile,
+    DartEnum, Declaration, DeclarationKind, Directive, DirectiveKind, ParsedFile,
 };
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -21,6 +21,10 @@ pub struct ResolvedType {
     /// The declaring file as a path, for the up-to-date check (not part of the template context).
     #[serde(skip)]
     pub path: Option<PathBuf>,
+    /// For enums: the declaration with its values, so a file that uses the enum can emit its own copy of
+    /// the value map (spec 0005 step 5).
+    #[serde(skip)]
+    pub enum_declaration: Option<DartEnum>,
 }
 
 impl ResolvedType {
@@ -31,6 +35,7 @@ impl ResolvedType {
             has_from_json: false,
             has_to_json: false,
             path: None,
+            enum_declaration: None,
         }
     }
 }
@@ -49,6 +54,7 @@ pub struct Ambiguity {
 #[derive(Debug, Default)]
 struct FileSymbols {
     declarations: Vec<Declaration>,
+    enums: Vec<DartEnum>,
     directives: Vec<Directive>,
     parts: Vec<PathBuf>,
     part_of: Option<PathBuf>,
@@ -74,6 +80,7 @@ impl SymbolIndex {
         let path = normalize(path);
         let symbols = FileSymbols {
             declarations: parsed.declarations.clone(),
+            enums: parsed.enums.clone(),
             directives: parsed.directives.clone(),
             parts: parsed
                 .part_directives
@@ -156,6 +163,16 @@ impl SymbolIndex {
             has_from_json: declaration.has_from_json,
             has_to_json: declaration.has_to_json,
             path: Some(file.clone()),
+            enum_declaration: match declaration.kind {
+                DeclarationKind::Enum => self.files.get(file).and_then(|symbols| {
+                    symbols
+                        .enums
+                        .iter()
+                        .find(|e| e.name == declaration.name)
+                        .cloned()
+                }),
+                _ => None,
+            },
         })
     }
 

@@ -76,7 +76,7 @@ class User {
 }
 
 @JsonEnum()
-enum Status { active, inactive }   // must be declared in the same file for now
+enum Status { active, inactive }   // could also be imported from another file
 ```
 
 The full `flint.yaml` reference and the feature support matrix are in

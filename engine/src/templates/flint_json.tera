@@ -55,10 +55,10 @@ Map<String, dynamic> _${{ class.name }}ToJson{{ type_args }}(
 {% endif %}
 {%- endfor %}
 
-{% for enum in enums -%}
-const _${{ enum.name }}EnumMap = {
-{%- for val in enum.values %}
-  {{ enum.name }}.{{ val.name }}: {% if val.literal %}{{ val.literal }}{% else %}'{{ val.name }}'{% endif %},
+{% for map in enum_maps -%}
+const {{ map.map_name }} = {
+{%- for val in map.values %}
+  {{ map.type_name }}.{{ val.name }}: {% if val.literal %}{{ val.literal }}{% else %}'{{ val.name }}'{% endif %},
 {%- endfor %}
 };
 {% endfor %}

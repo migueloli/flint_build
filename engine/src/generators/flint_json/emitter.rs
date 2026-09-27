@@ -1,11 +1,30 @@
 use crate::error::FlintError;
-use crate::generators::{Generator, TemplateEngine, retain_annotated, select_variant_values};
+use crate::generators::{
+    Generator, TemplateEngine, retain_annotated, select_enum_values, select_variant_values,
+};
 use crate::index::ResolvedTypes;
 use crate::{
     config::PluginConfig,
-    parser::dart_types::{DartClass, DartField, DartType, ParsedFile, TypeKind},
+    parser::dart_types::{DartClass, DartEnumValue, DartField, DartType, ParsedFile, TypeKind},
 };
+use serde::Serialize;
+use std::collections::BTreeSet;
 use tera::Context;
+
+/// One `const _$…EnumMap` the section defines: `type_name` is the enum as the source writes it
+/// (`Status`, `m.Mood`).
+#[derive(Serialize)]
+struct EnumMap {
+    map_name: String,
+    type_name: String,
+    values: Vec<DartEnumValue>,
+}
+
+/// The private map constant for an enum type as written: `Status` → `_$StatusEnumMap`,
+/// `m.Mood` → `_$m_MoodEnumMap`.
+fn enum_map_name(type_name: &str) -> String {
+    format!("_${}EnumMap", type_name.replace('.', "_"))
+}
 
 pub struct FlintJsonGenerator;
 
@@ -15,10 +34,9 @@ impl Generator for FlintJsonGenerator {
         filename: &str,
         parsed_file: ParsedFile,
         plugin: &PluginConfig,
-        // Not used yet: cross-file enums and class checks come in spec 0005 steps 5 and 6.
-        _types: &ResolvedTypes,
+        types: &ResolvedTypes,
     ) -> Result<String, FlintError> {
-        generate_full_file(filename, parsed_file, plugin)
+        generate_full_file(filename, parsed_file, plugin, types)
     }
 }
 
@@ -26,6 +44,7 @@ pub fn generate_full_file(
     filename: &str,
     mut parsed_file: ParsedFile,
     plugin: &PluginConfig,
+    types: &ResolvedTypes,
 ) -> Result<String, FlintError> {
     retain_annotated(&mut parsed_file, plugin);
     select_variant_values(&mut parsed_file, plugin);
@@ -37,7 +56,27 @@ pub fn generate_full_file(
         value.literal = value.literal.take().map(prefer_single_quotes);
     }
 
-    let enum_names: Vec<String> = parsed_file.enums.iter().map(|e| e.name.clone()).collect();
+    // Enum types the generated code can refer to: this file's annotated enums, plus every field type the
+    // index resolves to an enum, from this file or another, annotated or not (spec 0005 step 5).
+    let mut enum_names: BTreeSet<String> =
+        parsed_file.enums.iter().map(|e| e.name.clone()).collect();
+    enum_names.extend(
+        types
+            .iter()
+            .filter(|(_, resolved)| resolved.enum_declaration.is_some())
+            .map(|(name, _)| name.clone()),
+    );
+    // This file's annotated enums keep their maps (in declaration order); enums used by generated code get
+    // one too, in order of first use, because a private map can only be used inside its own library.
+    let mut enum_maps: Vec<EnumMap> = parsed_file
+        .enums
+        .iter()
+        .map(|e| EnumMap {
+            map_name: enum_map_name(&e.name),
+            type_name: e.name.clone(),
+            values: e.values.clone(),
+        })
+        .collect();
 
     for class in &mut parsed_file.classes {
         log::debug!(
@@ -85,6 +124,35 @@ pub fn generate_full_file(
                 });
             }
 
+            if field.converter.is_none()
+                && needs_generated_conversion(field, creates_factory, creates_to_json)
+            {
+                for name in field.dart_type.custom_names() {
+                    let Some(declaration) = types
+                        .get(name)
+                        .and_then(|resolved| resolved.enum_declaration.as_ref())
+                    else {
+                        continue;
+                    };
+                    let map_name = enum_map_name(name);
+                    if class.type_parameters.iter().any(|t| t == name)
+                        || enum_maps.iter().any(|map| map.map_name == map_name)
+                    {
+                        continue;
+                    }
+                    let mut declaration = declaration.clone();
+                    select_enum_values(&mut declaration, plugin);
+                    for value in &mut declaration.values {
+                        value.literal = value.literal.take().map(prefer_single_quotes);
+                    }
+                    enum_maps.push(EnumMap {
+                        map_name,
+                        type_name: name.to_string(),
+                        values: declaration.values,
+                    });
+                }
+            }
+
             let key = extract_field_name(field, plugin);
             let from_access = format!("json['{}']", key);
             let to_access = format!("instance.{}", field.name);
@@ -124,6 +192,7 @@ pub fn generate_full_file(
     let mut context = Context::new();
     context.insert("classes", &parsed_file.classes);
     context.insert("enums", &parsed_file.enums);
+    context.insert("enum_maps", &enum_maps);
     context.insert("filename", filename);
 
     engine
@@ -207,9 +276,15 @@ fn needs_generated_conversion(
 }
 
 /// The enum's name if a map key has an enum type generated in this file.
-fn enum_key<'a>(key: &'a DartType, enum_names: &[String]) -> Option<&'a str> {
+fn enum_key<'a>(
+    key: &'a DartType,
+    enum_names: &BTreeSet<String>,
+    type_params: &[String],
+) -> Option<&'a str> {
     match &key.kind {
-        TypeKind::Custom(name) if enum_names.contains(name) => Some(name),
+        TypeKind::Custom(name) if !type_params.contains(name) && enum_names.contains(name) => {
+            Some(name)
+        }
         _ => None,
     }
 }
@@ -217,7 +292,7 @@ fn enum_key<'a>(key: &'a DartType, enum_names: &[String]) -> Option<&'a str> {
 fn generate_from_json_expression(
     dart_type: &DartType,
     access: &str,
-    enum_names: &[String],
+    enum_names: &BTreeSet<String>,
     type_params: &[String],
 ) -> String {
     let expression = match &dart_type.kind {
@@ -260,9 +335,10 @@ fn generate_from_json_expression(
             let value = "v";
             // JSON object keys are always strings, so an enum key is matched by its value's string form
             // (`@JsonValue(1)` is the key "1").
-            let key_expr = match enum_key(k, enum_names) {
+            let key_expr = match enum_key(k, enum_names, type_params) {
                 Some(name) => format!(
-                    "_${name}EnumMap.entries.firstWhere((e) => e.value.toString() == {key}).key"
+                    "{}.entries.firstWhere((entry) => entry.value.toString() == {key}).key",
+                    enum_map_name(name)
                 ),
                 None => generate_from_json_expression(k, key, enum_names, type_params),
             };
@@ -274,14 +350,16 @@ fn generate_from_json_expression(
         }
         // Only reached when the template won't use the expression (see needs_generated_conversion).
         TypeKind::Unsupported(_) => access.to_string(),
+        // A class type parameter shadows an enum with the same name, so it's checked first.
         TypeKind::Custom(name) => {
-            if enum_names.contains(&name.to_string()) {
-                format!(
-                    "_${}EnumMap.entries.firstWhere((e) => e.value == {}).key",
-                    name, access
-                )
-            } else if type_params.contains(&name.to_string()) {
+            if type_params.contains(name) {
                 format!("fromJson{}({} as Object?)", name, access)
+            } else if enum_names.contains(name) {
+                format!(
+                    "{}.entries.firstWhere((entry) => entry.value == {}).key",
+                    enum_map_name(name),
+                    access
+                )
             } else {
                 format!("{}.fromJson({} as Map<String, dynamic>)", name, access)
             }
@@ -304,7 +382,7 @@ fn generate_to_json_expression(
     dart_type: &DartType,
     access: &str,
     explicit_to_json: bool,
-    enum_names: &[String],
+    enum_names: &BTreeSet<String>,
     type_params: &[String],
 ) -> String {
     let op = if dart_type.is_nullable { "?." } else { "." };
@@ -324,10 +402,10 @@ fn generate_to_json_expression(
             format!("{}{}map((elem) => {}).toList()", access, op, inner_expr)
         }
         TypeKind::Custom(name) => {
-            if enum_names.contains(&name.to_string()) {
-                format!("_${}EnumMap[{}]", name, access)
-            } else if type_params.contains(&name.to_string()) {
+            if type_params.contains(name) {
                 format!("toJson{}({})", name, access)
+            } else if enum_names.contains(name) {
+                format!("{}[{}]", enum_map_name(name), access)
             } else {
                 let op = if dart_type.is_nullable { "?." } else { "." };
                 if explicit_to_json {
@@ -349,8 +427,8 @@ fn generate_to_json_expression(
             format!("{}{}map((elem) => {}).toList()", access, op, inner_expr)
         }
         TypeKind::Map(k, v) => {
-            let key_expr = match enum_key(k, enum_names) {
-                Some(name) => format!("_${name}EnumMap[key].toString()"),
+            let key_expr = match enum_key(k, enum_names, type_params) {
+                Some(name) => format!("{}[key].toString()", enum_map_name(name)),
                 None => {
                     generate_to_json_expression(k, "key", explicit_to_json, enum_names, type_params)
                 }
@@ -388,6 +466,45 @@ fn extract_field_name(field: &mut DartField, plugin: &PluginConfig) -> String {
 mod tests {
     use super::*;
     use crate::parser::dart_types::{DartClass, DartType, ParsedFile};
+
+    #[test]
+    fn test_enum_lookup_does_not_shadow_the_list_element() {
+        // `(e) => _$XEnumMap.entries.firstWhere((e) => e.value == e)` compared each entry with itself.
+        let enums = BTreeSet::from(["Status".to_string()]);
+        let list = DartType {
+            kind: TypeKind::List(Box::new(DartType {
+                kind: TypeKind::Custom("Status".to_string()),
+                is_nullable: false,
+            })),
+            is_nullable: false,
+        };
+        let expression = generate_from_json_expression(&list, "json['h']", &enums, &[]);
+        assert!(
+            expression.contains("firstWhere((entry) => entry.value == e)"),
+            "{expression}"
+        );
+    }
+
+    #[test]
+    fn test_type_parameter_shadows_an_enum_with_the_same_name() {
+        // `class Box<Kind>` next to an imported `enum Kind`: inside Box, `Kind` is the type parameter.
+        let enums = BTreeSet::from(["Kind".to_string()]);
+        let params = ["Kind".to_string()];
+        let kind = DartType {
+            kind: TypeKind::Custom("Kind".to_string()),
+            is_nullable: false,
+        };
+        let map = DartType {
+            kind: TypeKind::Map(Box::new(kind.clone()), Box::new(kind.clone())),
+            is_nullable: false,
+        };
+        let from = generate_from_json_expression(&kind, "json['v']", &enums, &params);
+        let to = generate_to_json_expression(&kind, "instance.v", false, &enums, &params);
+        assert_eq!(from, "fromJsonKind(json['v'] as Object?)");
+        assert_eq!(to, "toJsonKind(instance.v)");
+        let map_from = generate_from_json_expression(&map, "json['m']", &enums, &params);
+        assert!(!map_from.contains("EnumMap"), "{map_from}");
+    }
 
     #[test]
     fn test_prefer_single_quotes() {
@@ -544,6 +661,7 @@ mod tests {
                 template_path: None,
                 ..Default::default()
             },
+            &ResolvedTypes::new(),
         )
         .unwrap();
 
@@ -597,6 +715,7 @@ mod tests {
                 template_path: None,
                 ..Default::default()
             },
+            &ResolvedTypes::new(),
         )
         .unwrap();
 
@@ -644,8 +763,13 @@ mod tests {
         };
         let address = || field("address", TypeKind::Custom("Address".to_string()), false);
 
-        let output =
-            generate_full_file("user.dart", user_file(&[], vec![address()]), &plugin).unwrap();
+        let output = generate_full_file(
+            "user.dart",
+            user_file(&[], vec![address()]),
+            &plugin,
+            &ResolvedTypes::new(),
+        )
+        .unwrap();
         assert!(output.contains("'address': instance.address.toJson(),"));
         assert!(!output.contains("_$UserFromJson"));
 
@@ -653,7 +777,8 @@ mod tests {
             &[("explicitToJson", "false"), ("createFactory", "true")],
             vec![address()],
         );
-        let output = generate_full_file("user.dart", overridden, &plugin).unwrap();
+        let output =
+            generate_full_file("user.dart", overridden, &plugin, &ResolvedTypes::new()).unwrap();
         assert!(output.contains("'address': instance.address,"));
         assert!(output.contains("_$UserFromJson"));
     }
@@ -678,14 +803,26 @@ mod tests {
         let from_class = user_file(&[("includeIfNull", "false")], fields());
 
         for output in [
-            generate_full_file("user.dart", user_file(&[], fields()), &from_plugin).unwrap(),
-            generate_full_file("user.dart", from_class, &base).unwrap(),
+            generate_full_file(
+                "user.dart",
+                user_file(&[], fields()),
+                &from_plugin,
+                &ResolvedTypes::new(),
+            )
+            .unwrap(),
+            generate_full_file("user.dart", from_class, &base, &ResolvedTypes::new()).unwrap(),
         ] {
             assert!(output.contains("if (instance.nickname != null)"));
             assert!(!output.contains("if (instance.id != null)"));
         }
 
-        let output = generate_full_file("user.dart", user_file(&[], fields()), &base).unwrap();
+        let output = generate_full_file(
+            "user.dart",
+            user_file(&[], fields()),
+            &base,
+            &ResolvedTypes::new(),
+        )
+        .unwrap();
         assert!(!output.contains("!= null)"));
     }
 
@@ -703,9 +840,14 @@ mod tests {
             )
         };
 
-        let error = generate_full_file("user.dart", user_file(&[], vec![record()]), &plugin)
-            .unwrap_err()
-            .to_string();
+        let error = generate_full_file(
+            "user.dart",
+            user_file(&[], vec![record()]),
+            &plugin,
+            &ResolvedTypes::new(),
+        )
+        .unwrap_err()
+        .to_string();
         assert!(error.contains("field 'pair' of 'User'"), "{error}");
         assert!(error.contains("'(int, String)'"), "{error}");
 
@@ -721,13 +863,26 @@ mod tests {
             .metadata
             .insert("toJson".to_string(), "_pairToJson".to_string());
         for field in [ignored, hooked] {
-            assert!(generate_full_file("user.dart", user_file(&[], vec![field]), &plugin).is_ok());
+            assert!(
+                generate_full_file(
+                    "user.dart",
+                    user_file(&[], vec![field]),
+                    &plugin,
+                    &ResolvedTypes::new()
+                )
+                .is_ok()
+            );
         }
 
         let untyped = field("guess", TypeKind::Unsupported(String::new()), false);
-        let error = generate_full_file("user.dart", user_file(&[], vec![untyped]), &plugin)
-            .unwrap_err()
-            .to_string();
+        let error = generate_full_file(
+            "user.dart",
+            user_file(&[], vec![untyped]),
+            &plugin,
+            &ResolvedTypes::new(),
+        )
+        .unwrap_err()
+        .to_string();
         assert!(error.contains("has no declared type"), "{error}");
     }
 }

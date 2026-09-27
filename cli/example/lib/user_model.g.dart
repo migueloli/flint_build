@@ -41,7 +41,7 @@ UserModel _$UserModelFromJson(
       optionalStats: json['optionalStats'] == null ? null : (json['optionalStats'] as Map<String, dynamic>).map((k, v) => MapEntry(k as String, (v as num).toInt())),
       optionalTags: json['optionalTags'] == null ? null : (json['optionalTags'] as List<dynamic>).map((e) => e as String).toList(),
       optionalSubModel: json['optionalMetadata'] == null ? null : Metadata.fromJson(json['optionalMetadata'] as Map<String, dynamic>),
-      status: _$StatusEnumMap.entries.firstWhere((e) => e.value == json['status']).key,
+      status: _$StatusEnumMap.entries.firstWhere((entry) => entry.value == json['status']).key,
     );
 
 Map<String, dynamic> _$UserModelToJson(
