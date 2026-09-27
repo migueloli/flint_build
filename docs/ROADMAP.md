@@ -16,7 +16,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
 | ✅ | `cargo fmt --check` passes | H3 |
 | ⬜ | `cargo clippy -- -D warnings` passes. Rename `from_str` to a `FromStr` impl or `parse`; collapse the two `if`s in the parser | H3 |
 | ⬜ | Add `rust-version = "1.88"` to `engine/Cargo.toml` | H4 |
-| ⬜ | CI workflow: `cargo fmt --check`, `clippy`, `cargo test`, `cargo insta test --check`, `dart analyze cli` | H2 |
+| ✅ | CI workflow (`.github/workflows/ci.yml`): `cargo fmt --check`, `clippy`, `cargo test --locked` (fails on snapshot changes), the Dart golden check, `dart analyze` on `cli/` and the example, and a check that the example's committed output is current. Clippy isn't `-D warnings` yet (H3) | H2 |
 | ⬜ | Move `engine/flint.yaml` to `engine/tests/fixtures/`. Snapshot tests should use the built-in template | H5 |
 | 🟨 | Use `tempfile` in tests instead of fixed temp paths (done for new tests and discovery) | H6 |
 | ⬜ | Fix `cli/pubspec.yaml` metadata (description, version, repository) and `CHANGELOG.md`; move the example to `dev_dependencies` | D5 |
@@ -28,7 +28,7 @@ Goal: Flint never damages a project, and generated code compiles for everything 
 
 | | Item | Refs |
 | --- | ---- | ---- |
-| ⬜ | **Dart golden harness:** generate fixtures, then `dart analyze` them in CI (needs the Dart SDK in CI) | H7 |
+| ✅ | **Dart golden harness** (`engine/tests/dart_golden/check.sh`): generate fixtures, `dart analyze --fatal-infos`, and `dart test` round-trips, in CI | H7 |
 | ✅ | **Output ownership:** a header marker; only write when a `part` directive exists; only delete owned files | R1, R2 · [Spec 0001](specs/0001-generated-output-ownership.md) |
 | ✅ | **Multiple plugins per file:** parse once, concatenate sections in config order (`IndexMap`) | R4, A1 · Spec 0001 |
 | ✅ | Watch mode ignores `.g.dart` paths and access events (one rebuild per change) | R5 · Spec 0001 |

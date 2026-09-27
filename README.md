@@ -102,7 +102,10 @@ benchmark suite is on the [roadmap](docs/ROADMAP.md#phase-3-incremental-and-fast
 ```bash
 cd engine
 cargo fmt && cargo clippy --all-targets && cargo test
+tests/dart_golden/check.sh     # generated Dart compiles and round-trips (needs a Dart SDK)
 ```
+
+CI runs all of these on every push ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
 
 Changes to generated output, `flint.yaml`, CLI flags or the template context start with a spec. See the
 [spec workflow](docs/specs/README.md). Snapshot changes are reviewed with `cargo insta review`.

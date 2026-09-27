@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  engine:
+    name: Engine (fmt, clippy, tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      - run: cargo fmt --check
+      # Not yet `-D warnings`: four known warnings remain (REVIEW H3).
+      - run: cargo clippy --all-targets
+      - run: cargo test --locked
+
+  dart:
+    name: Generated Dart compiles (golden check)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+      - name: Golden check (generate, dart analyze, dart test)
+        run: engine/tests/dart_golden/check.sh
+      - name: Example output is up to date
+        working-directory: cli/example
+        run: |
+          ../../engine/target/release/flint_build build --force
+          git diff --exit-code -- lib
+      - name: Analyze CLI and example
+        working-directory: cli
+        run: |
+          dart pub get
+          dart analyze
+          cd example
+          dart pub get
+          dart analyze

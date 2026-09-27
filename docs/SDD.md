@@ -276,12 +276,14 @@ depends on sorted paths and config order, never on which thread finishes first.
 | ----- | ---- | ------ |
 | Unit (per module) | `cargo test` | Parsing, type mapping, naming strategies, config defaults |
 | Snapshot | `insta` | The generated text is stable; any change shows up as a reviewable diff |
-| **Dart golden** (Target, H7) | `dart analyze` on generated fixtures | The output **compiles** |
-| **Differential** (Target) | Round-trip the same fixtures through json_serializable and Flint, compare JSON | The output **behaves the same** |
+| **Dart golden** (H7) | `engine/tests/dart_golden/check.sh`: `dart analyze --fatal-infos` on generated fixtures, then `dart test` round-trips against expected JSON | The output **compiles** and produces the expected JSON |
+| **Differential** (Target; the golden round-trips cover part of it by hand) | Round-trip the same fixtures through json_serializable and Flint, compare JSON | The output **behaves the same** |
 | End-to-end | Scratch project + CLI | `build`/`watch`/`clean` behaviour, file ownership |
 | Benchmarks | `hyperfine` on synthetic projects (10/100/1000 files) | Performance claims (see D3) |
 
-Rule: every bug fix in the emitter comes with a fixture that failed before the fix.
+Rule: every bug fix in the emitter comes with a fixture that failed before the fix: an insta fixture for the
+text, and a model plus round-trip expectations in the Dart golden package for behaviour. CI runs all layers
+except benchmarks on every push (`.github/workflows/ci.yml`).
 
 ## 15. Design decisions
 

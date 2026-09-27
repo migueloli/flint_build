@@ -91,8 +91,10 @@ cargo fmt --check
 - `tests/generic_generator_test.rs` covers the custom template path.
 
 When you change the emitter or a template, add a fixture that exercises the change and read the snapshot diff
-before accepting it. Snapshots prove the output is stable, not that it compiles. Dart-side checks are planned
-(REVIEW H7).
+before accepting it. Snapshots prove the output is stable, not that it compiles. The
+[Dart golden check](tests/dart_golden/README.md) proves that: it regenerates a Dart fixture package, runs
+`dart analyze --fatal-infos`, and runs JSON round-trip tests (`tests/dart_golden/check.sh`, needs a Dart
+SDK; CI runs it on every push).
 
 Coverage, if you have [`cargo-llvm-cov`](https://github.com/taiki-e/cargo-llvm-cov) installed:
 

@@ -39,6 +39,10 @@ cargo clippy --all-targets -- -D warnings
 cargo fmt
 ```
 
+Dart golden check (needs a Dart SDK): `engine/tests/dart_golden/check.sh`. It builds the engine, regenerates
+the fixtures, then runs `dart analyze --fatal-infos` and `dart test`. CI (`.github/workflows/ci.yml`) runs it
+together with the Rust checks.
+
 End-to-end check without the Dart SDK: `cd cli/example && ../../engine/target/release/flint_build build --force`,
 then `git diff lib/user_model.g.dart`. Any output change must be intentional.
 
@@ -52,7 +56,9 @@ With the Dart SDK: `cd cli/example && dart pub get && dart run flint_build build
    timestamps or absolute paths in output.
 3. **Generated Dart must compile.** When you change the emitter or a template, add or extend a fixture in
    `engine/tests/fixtures/gold/` and review the snapshot diff line by line. Never run `cargo insta accept`
-   without reading the diff.
+   without reading the diff. When a feature starts working, add it to the Dart golden package
+   (`engine/tests/dart_golden/`, see its README) and run `check.sh`; CI fails if generated code doesn't
+   analyze cleanly or round-trip.
 4. **No panics in library code.** Return `Result`. `unwrap`/`expect` are fine in tests and in provably
    infallible spots (add a comment explaining why). Use `thiserror` for typed errors and `anyhow` at the
    binary edge.

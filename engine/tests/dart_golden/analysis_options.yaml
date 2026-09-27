@@ -1,0 +1,2 @@
+# No lint package on purpose: this check proves the generated code compiles without analyzer errors,
+# warnings or hints. Style lints are the user's choice, not Flint's.
