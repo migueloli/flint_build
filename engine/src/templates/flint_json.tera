@@ -1,11 +1,4 @@
-// GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: unnecessary_cast
-
-part of '{{ filename }}';
-
-// **************************************************************************
-// JsonSerializableGenerator (Powered by Flint)
-// **************************************************************************
 {% for class in classes -%}
 {%- if class.type_parameters | length > 0 %}
   {%- set joined_types = class.type_parameters | join(sep=", ") %}

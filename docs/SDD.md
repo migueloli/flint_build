@@ -102,20 +102,22 @@ flowchart LR
 | Module | Responsibility | Notes |
 | ------ | -------------- | ----- |
 | `cli/bin/flint_build.dart` | Finds `engine/target/{release,debug}/flint_build`; runs `cargo build --release` if it's missing; runs the engine with the same arguments. | Only works inside this monorepo (D1). |
-| `main.rs` | clap CLI: `build`, `watch`, `clean`. Registers built-in generators. | |
-| `builder.rs` | For each plugin: discover → parse (in parallel) → generate → write `<name>.g.dart`. mtime-based skip. | Owns most of R2, R4, R11. |
+| `main.rs` | clap CLI: `build`, `watch`, `clean`, with `--force` (aliases `-d`, `--delete-conflicting-outputs`). Registers built-in generators. | |
+| `builder.rs` | `build(root, …) -> BuildReport`: discover once → per file in parallel: parse once, run matching plugins, apply the output rules (§9) → delete orphaned outputs. Per-file errors are collected. `clean(root)` deletes owned outputs only. | mtime-based skip (R11). |
+| `output.rs` | Header, ownership marker, `assemble`, `is_owned`, `strip_legacy_preamble` (§9). | |
 | `config/` | `Pubspec` (`name`, dependency lookup). `FlintConfig` / `PluginConfig` with a hand-written `Deserialize` that turns missing lists into empty ones, plus `flint_json` defaults. `build_yaml` reads json_serializable options. `resolve` merges `flint.yaml` > `build.yaml` > defaults and reports notes and warnings. | Pure `resolve` function; only `load_project_config` touches the disk. |
-| `discovery/` | `walkdir` over `lib/`; splits sources and `*.g.dart` outputs by file name. | Suffix-only ownership (R1). |
-| `parser/` | tree-sitter queries → `ParsedFile { classes, enums }`. Reports syntax errors with a caret. | Keeps every class, not only annotated ones (A3). One annotation per class (R3). |
+| `discovery/` | `walkdir` over `lib/`; splits sources and `*.g.dart` outputs by file name (`is_generated_file`). | Ownership is decided in `output.rs`, not here. |
+| `parser/` | tree-sitter queries → `ParsedFile { classes, enums, part_directives }`. Reports syntax errors with a caret. | Keeps every class, not only annotated ones (A3). One annotation per class (R3). |
 | `registry.rs` | `HashMap<String, Box<dyn Generator>>`. | |
 | `generators/flint_json` | Works out the `fromJson`/`toJson` expression for each field, then renders the built-in `flint_json.tera`. | |
+| `generators/mod.rs` | `Generator` trait, `TemplateEngine`, and the shared annotation filter (`matches_plugin`, `retain_annotated`). | |
 | `generators/generic.rs` | Filters by annotation, then renders the user's `template_path`. | |
-| `watcher/` | `notify` + 500 ms debounce on `lib/`, then a full rebuild. | Reacts to its own output (R5). |
+| `watcher/` | `notify` with a 500 ms debounce loop on `lib/`, then a full build. Ignores access events and `.g.dart` paths. | |
 
 ### 5.2 The `Generator` trait
 
 ```rust
-// Current
+// Current: returns this plugin's *section*; the engine adds the header and `part of` (§9)
 pub trait Generator: Send + Sync {
     fn generate(&self, filename: &str, parsed_file: ParsedFile, plugin: &PluginConfig) -> String;
 }
@@ -170,8 +172,11 @@ back into it (A4). The render model is part of the **public, versioned template 
 
 ## 7. Build pipeline
 
-**Current:** for each plugin in `HashMap` order: walk `lib/` → for each file in parallel: skip if the
-source's mtime ≤ the output's → parse → if it has *any* class or enum, generate and write `<stem>.g.dart`.
+**Current** (spec 0001): load config (plugin order = file order) → walk `lib/` once, sorted → for each file
+in parallel: skip if its output is owned and newer than the source → parse once → run each plugin whose
+annotations match → assemble the sections under one owned header → write only if the bytes changed, or
+delete a stale owned output → collect outcomes in path order → delete owned outputs whose source is gone.
+Steps 1, 2, 5, 7, 8 and 9 of the target below exist in this simpler form; fingerprints and the index don't.
 
 **Target:**
 
@@ -201,25 +206,29 @@ fills class metadata that the annotations leave unset, so the annotation always 
 Design rules:
 
 - **Unknown keys are errors** (`#[serde(deny_unknown_fields)]`, Target), so typos don't silently do nothing.
-- **Plugin order is the order in the file** (Target: `IndexMap`), because output assembly depends on it.
+- **Plugin order is the order in the file** (`IndexMap`), because output assembly depends on it.
 - **Built-in plugin defaults** live next to the generator (Target: `Generator::defaults()`), not as special
   cases in `config/flint.rs`.
 
-## 9. Output contract (Target; see [Spec 0001](specs/0001-generated-output-ownership.md))
+## 9. Output contract (Current since [spec 0001](specs/0001-generated-output-ownership.md))
 
 1. Every file Flint writes starts with the header `// GENERATED CODE - DO NOT MODIFY BY HAND` followed by
-   `// flint_build: <engine version> <fingerprint>`. **Ownership = the header is present.**
+   `// flint_build <engine version>`. **Ownership = that marker line is present** (or, for files from
+   earlier versions, the `(Powered by Flint)` banner). *Target:* add the fingerprint from §12 to the line.
 2. Flint writes `<stem>.g.dart` only if the source contains `part '<stem>.g.dart';` and at least one plugin
    produced a section for it.
 3. `clean` and stale-output removal only delete files that carry the Flint ownership header.
 4. When several plugins match the same source, their sections are concatenated in config order into a single
-   `.g.dart`, like source_gen's `SharedPartBuilder`. A plugin may declare its own `output_extension` instead.
-5. Output is byte-identical for identical inputs.
+   `.g.dart`, like source_gen's `SharedPartBuilder`. *Target:* a plugin may declare its own
+   `output_extension` instead.
+5. Output is byte-identical for identical inputs, and an unchanged file is never rewritten.
+6. An existing `.g.dart` without the marker is never overwritten unless `--force` is given.
 
 ## 10. Error handling
 
 - **Current:** `anyhow` everywhere, one typed error (`FlintError::Syntax`). Template problems panic (R12).
-  The first file error stops the whole build (`try_for_each`).
+  Per-file errors are collected into `BuildReport.errors` (as strings) and the build exits non-zero if any
+  occurred; one bad file no longer hides the others.
 - **Target:** library code returns `Result<_, FlintError>` (`thiserror`), and `anyhow` is only used in
   `main.rs`. Per-file `Diagnostic { severity, file, span, message, hint }` values are collected, not
   short-circuited, so one bad file doesn't hide the others. The exit code is non-zero if any error occurred.
@@ -234,8 +243,10 @@ depends on sorted paths and config order, never on which thread finishes first.
 
 ## 12. Incremental builds and watch mode
 
-- **Current:** skip a file when the source's mtime ≤ the output's. Watch mode rebuilds everything on any event
-  under `lib/`.
+- **Current:** skip a file when its output is owned and newer than both the source and the newest shared
+  input (`flint.yaml`, `build.yaml`, `pubspec.yaml`, templates, the engine binary). Unchanged output only gets
+  its mtime refreshed. Watch mode runs a full build once per burst of changes, ignoring access events and
+  `.g.dart` paths; only relevant events extend the debounce.
 - **Target:** keep a cache in `.dart_tool/flint/cache.json` with `{engine_version, config_hash,
   template_hashes, files: {path: {content_hash, outputs, declared_symbols}}}`.
   - A file is dirty when its content hash changes, or when the global fingerprint changes (which makes
@@ -280,9 +291,10 @@ Rule: every bug fix in the emitter comes with a fixture that failed before the f
 | DD2 | The Rust binary does the work; Dart only launches it | `dart run` stays the entry point users know | Dart VM startup dominates (D3), in which case recommend running the binary directly |
 | DD3 | Tera templates for generators | No Rust needed to extend; Jinja-like syntax is familiar | We need logic Tera can't express; then consider WASM plugins |
 | DD4 | Native emitter logic + template for `flint_json` | Type-directed expressions are much easier in Rust | — |
-| DD5 | One shared `.g.dart` per source (Target) | Matches how json_serializable users already write `part` directives | A plugin needs its own file (then use `output_extension`) |
+| DD5 | One shared `.g.dart` per source | Matches how json_serializable users already write `part` directives | A plugin needs its own file (then use `output_extension`) |
 | DD6 | Read json_serializable's `build.yaml` options instead of requiring a `flint.yaml` | Migrating then needs no new file and keeps the JSON wire format identical | Flint's options diverge from json_serializable's |
 | DD7 | `field_rename` is parsed into a `FieldRename` enum at load time; `camel` = lowerCamelCase | A typo can't silently change the wire format; names match serde and common usage | — |
+| DD8 | Ownership is a marker line in the file, not a manifest | Survives `git checkout`, copying and deleted caches; checking it only reads the first 1 KiB | Files need to be recognised without being opened |
 
 ## 16. Open questions
 

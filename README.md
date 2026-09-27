@@ -4,9 +4,9 @@ A native, parallel code generator for Dart and Flutter that works like `build_ru
 The engine is written in Rust and parses Dart with [tree-sitter](https://tree-sitter.github.io/).
 
 > **Status: experimental (engine 0.1.0).** Flint generates correct `json_serializable`-style code for the
-> common cases below, but it has known gaps that can produce code that doesn't compile. `clean` can also
-> delete other generators' `*.g.dart` files. Read [Known limitations](#known-limitations) before trying it on
-> a real project.
+> common cases below, but it has known gaps that can produce code that doesn't compile. Read
+> [Known limitations](#known-limitations) before trying it on a real project. Flint only writes, overwrites
+> or deletes `.g.dart` files it generated itself, so other generators' files are safe.
 
 ---
 
@@ -67,11 +67,11 @@ The full support matrix and the `flint.yaml` reference are in [docs/configuratio
 These are the most important ones. All of them are tracked in [docs/REVIEW.md](docs/REVIEW.md) and scheduled
 in the [roadmap](docs/ROADMAP.md).
 
-- `clean` deletes **every** `*.g.dart` under `lib/`, including build_runner output from other generators (R1).
-- Every file with any class gets a `.g.dart`, even without annotations (R2).
 - Classes with more than one annotation, such as `@immutable @JsonSerializable()`, are skipped (R3).
 - Enums declared in another file, and types like `num`, `Uri` or `Set`, generate code that doesn't compile (R7).
 - Constructors are assumed to take every field as a named parameter (R8).
+- Up-to-date checks use modification times, not content hashes, so unusual mtimes (some checkouts or
+  caches) can leave stale output; `build --force` fixes it (R11).
 
 ## Performance
 

@@ -4,8 +4,7 @@ The Dart entry point for [Flint](../README.md), a native, parallel replacement f
 `json_serializable`. This package contains only a launcher: `dart run flint_build` finds the Rust engine
 binary and runs it with your arguments.
 
-> **Experimental.** Read the [known limitations](../README.md#known-limitations) first. In particular,
-> `clean` currently deletes every `*.g.dart` under `lib/`.
+> **Experimental.** Read the [known limitations](../README.md#known-limitations) first.
 
 ## Install
 
@@ -86,10 +85,10 @@ The full `flint.yaml` reference and the feature support matrix are in
 ## Run
 
 ```bash
-dart run flint_build build       # generate changed files
-dart run flint_build build -d    # regenerate everything
-dart run flint_build watch       # rebuild on changes under lib/
-dart run flint_build clean       # delete generated *.g.dart (see warning above)
+dart run flint_build build           # generate changed files
+dart run flint_build build --force   # regenerate everything (alias: -d)
+dart run flint_build watch           # rebuild on changes under lib/
+dart run flint_build clean           # delete the .g.dart files Flint generated
 ```
 
 ## Custom generators
@@ -105,9 +104,6 @@ plugins:
 ```
 
 ```jinja
-// GENERATED CODE - DO NOT MODIFY BY HAND
-
-part of '{{ filename }}';
 {% for class in classes %}
 extension {{ class.name }}Describe on {{ class.name }} {
   List<String> get fieldNames => const [
@@ -120,8 +116,16 @@ extension {{ class.name }}Describe on {{ class.name }} {
 ```
 
 The template receives `filename`, `classes` and `enums`. See the
-[template context reference](../docs/configuration.md#template-context). Today every plugin writes to
-`<file>.g.dart`, so don't point two plugins at the same source file.
+[template context reference](../docs/configuration.md#template-context). Flint adds the file header and the
+`part of` line itself. When several plugins match the same file, each one gets its own section of the same
+`<file>.g.dart`, in `flint.yaml` order.
+
+## Which files Flint touches
+
+Flint writes `<file>.g.dart` only when `<file>.dart` has an annotated declaration **and** a
+`part '<file>.g.dart';` directive. It marks every file it writes with a `// flint_build` line, and never
+overwrites or deletes a `.g.dart` without that marker (build_runner's output, for example) unless you pass
+`--force`. See [Generated files](../docs/configuration.md#generated-files).
 
 ## License
 

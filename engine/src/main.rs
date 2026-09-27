@@ -20,15 +20,25 @@ struct Cli {
 enum Commands {
     /// Run a single build
     Build {
-        /// Delete conflicting outputs before building
-        #[arg(short, long, default_value_t = false)]
-        delete_conflicting_outputs: bool,
+        /// Regenerate every file, and overwrite .g.dart files Flint didn't generate
+        #[arg(
+            short,
+            long,
+            visible_alias = "delete-conflicting-outputs",
+            short_alias = 'd'
+        )]
+        force: bool,
     },
     /// Watch the filesystem and rebuild on changes
     Watch {
-        /// Delete conflicting outputs before building
-        #[arg(short, long, default_value_t = false)]
-        delete_conflicting_outputs: bool,
+        /// Regenerate every file, and overwrite .g.dart files Flint didn't generate
+        #[arg(
+            short,
+            long,
+            visible_alias = "delete-conflicting-outputs",
+            short_alias = 'd'
+        )]
+        force: bool,
     },
     /// Clean all generated files
     Clean,
@@ -44,12 +54,8 @@ fn main() -> Result<()> {
     registry.register("flint_json", Box::new(FlintJsonGenerator));
 
     match &cli.command {
-        Commands::Build {
-            delete_conflicting_outputs,
-        } => run_build(*delete_conflicting_outputs, &registry)?,
-        Commands::Watch {
-            delete_conflicting_outputs,
-        } => watcher::watch("lib", || run_build(*delete_conflicting_outputs, &registry))?,
+        Commands::Build { force } => run_build(*force, &registry)?,
+        Commands::Watch { force } => watcher::watch("lib", || run_build(*force, &registry))?,
         Commands::Clean => run_clean()?,
     }
 

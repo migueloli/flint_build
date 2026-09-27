@@ -1,4 +1,4 @@
-use crate::generators::{Generator, TemplateEngine};
+use crate::generators::{Generator, TemplateEngine, retain_annotated};
 use crate::{
     config::PluginConfig,
     parser::dart_types::{DartClass, DartField, DartType, ParsedFile, TypeKind},
@@ -18,20 +18,7 @@ pub fn generate_full_file(
     mut parsed_file: ParsedFile,
     plugin: &PluginConfig,
 ) -> String {
-    parsed_file.classes.retain(|class| {
-        class
-            .metadata
-            .keys()
-            .any(|k| plugin.class_annotations.contains(&format!("@{}", k)))
-    });
-
-    parsed_file.enums.retain(|e| {
-        e.annotations.iter().any(|a| {
-            plugin
-                .enum_annotations
-                .contains(&format!("@{}", a.trim_start_matches('@')))
-        })
-    });
+    retain_annotated(&mut parsed_file, plugin);
 
     let enum_names: Vec<String> = parsed_file.enums.iter().map(|e| e.name.clone()).collect();
 
@@ -379,6 +366,7 @@ mod tests {
         let parsed_file = ParsedFile {
             classes: vec![class],
             enums: vec![],
+            ..Default::default()
         };
 
         let output = generate_full_file(
@@ -429,6 +417,7 @@ mod tests {
         let parsed_file = ParsedFile {
             classes: vec![class],
             enums: vec![],
+            ..Default::default()
         };
 
         let output = generate_full_file(
@@ -475,6 +464,7 @@ mod tests {
                 type_parameters: vec![],
             }],
             enums: vec![],
+            ..Default::default()
         }
     }
 

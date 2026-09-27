@@ -2,9 +2,9 @@
 
 | | |
 | --- | --- |
-| **Status** | Draft |
-| **Resolves** | R1, R2, R4, R5 (and part of A1, A3) |
-| **Touches** | `builder.rs`, `discovery/`, `watcher/`, `generators/mod.rs`, `templates/flint_json.tera`, `config/flint.rs` |
+| **Status** | Done |
+| **Resolves** | R1, R2, R4, R5, R13 (and part of A1) |
+| **Touches** | `builder.rs`, new `output.rs`, `discovery/`, `watcher/`, `parser/`, `generators/`, `templates/flint_json.tera`, `config/flint.rs`, `main.rs` |
 
 ## Problem
 
@@ -30,11 +30,16 @@ Reproduction: see [REVIEW.md](../REVIEW.md), findings R1, R2, R4 and R5.
 
    ```dart
    // GENERATED CODE - DO NOT MODIFY BY HAND
-   // flint_build 0.2.0
+   // flint_build 0.1.0
    ```
 
    The second line is the **ownership marker**. Built-in and custom templates don't write it; the engine
-   adds it. A custom template that also emits the first line is fine, because the engine removes a duplicate.
+   adds it, together with the `part of` line. A custom template that still emits the header or `part of`
+   is fine: the engine strips them from the start of its section.
+
+   Files written by earlier Flint versions have no marker. They're recognised by the old `flint_json`
+   banner, `(Powered by Flint)`, and still count as owned. Old custom-template outputs have neither, so
+   they need one `build --force`.
 
 2. **Write rule.** For source `lib/a/b.dart`, Flint writes `lib/a/b.g.dart` only if:
    - `b.dart` contains `part 'b.g.dart';` (single or double quotes), **and**
@@ -45,6 +50,11 @@ Reproduction: see [REVIEW.md](../REVIEW.md), findings R1, R2, R4 and R5.
 
 3. **Refuse to overwrite.** If `b.g.dart` exists **without** the ownership marker, Flint reports an error for
    that file and leaves it alone. This protects files produced by build_runner. `--force` overrides it.
+   Errors are collected per file; the build still processes every other file, then exits non-zero.
+
+   `--force` (`-f`) replaces `--delete-conflicting-outputs`, which stays as an alias (`-d` too). It means
+   “regenerate everything, and overwrite unowned `.g.dart` files”, which covers both build_runner's meaning
+   of the old flag and Flint's old “ignore mtimes” meaning (R13).
 
 4. **Shared output.** When several plugins match `b.dart`, their outputs are concatenated **in the order they
    appear in `flint.yaml`**, each under a banner:
@@ -61,42 +71,56 @@ Reproduction: see [REVIEW.md](../REVIEW.md), findings R1, R2, R4 and R5.
    unowned files it skipped.
 
 6. **Stale outputs.** During `build`, an owned `b.g.dart` whose source no longer matches any plugin (or no
-   longer has the `part` directive) is deleted.
+   longer has the `part` directive) is deleted. So is an owned `b.g.dart` whose `b.dart` no longer exists.
 
-7. **Watch.** Events for files that carry the ownership marker (in practice, any `*.g.dart` path Flint just
-   wrote) are ignored.
+7. **Watch.** Events for `*.g.dart` paths are ignored, and so are *access* events (a file being opened or
+   read). The inotify backend reports every `open`, including Flint's own reads of source files. That was a
+   second cause of the rebuild loop, not listed in R5.
+
+8. **Unchanged bytes aren't rewritten.** If the assembled output equals the existing file, only its mtime is
+   refreshed, so the next build can skip it and watchers see no content change.
+
+9. **Shared inputs count for the up-to-date check.** An owned output is skipped only if it's newer than its
+   source *and* than `flint.yaml`, `build.yaml`, `pubspec.yaml`, every template and the engine binary.
+   Without this, removing a plugin from `flint.yaml` would never remove its sections (found in code review).
 
 ## Design
 
-- Use `IndexMap` for `plugins` so config order is kept (update SDD §8).
-- Restructure `run_build`:
-  1. Discover once.
-  2. For each file in parallel, parse once, and **filter by annotation in the parser step**, using the union of
-     all plugins' annotations (A3).
-  3. Run each matching plugin, which returns a section.
-  4. Assemble the sections and apply the write rule.
-- Move the templates' shared header and `part of` into the engine. Templates render only their section body.
-  Existing custom templates that still emit a header or `part of` are detected by prefix and de-duplicated
-  (one release of backwards compatibility, then a warning).
-- Ownership check: read the first 256 bytes and look for the line `// flint_build `.
-- The watcher keeps a `HashSet<PathBuf>` of paths written in the current build and drops matching events. As a
-  simpler first step, drop any event whose path ends in `.g.dart`.
+- `plugins` is an `IndexMap`, so config order is kept (SDD §8).
+- `builder::build(root, &pubspec, force, &registry) -> BuildReport`:
+  1. Discover once and sort the sources, so reports are deterministic.
+  2. For each source in parallel: skip it if the output is owned and newer (unless `force`). Otherwise parse
+     it once, including its `part` directives, and run every plugin whose annotations match
+     (`generators::matches_plugin`). Each plugin gets a clone of the parsed file.
+  3. Apply the write rule, the ownership check and stale-output deletion, then `output::assemble`.
+  4. Collect per-file outcomes in source order; errors don't stop other files.
+  5. Delete owned outputs whose source no longer exists.
+- `output.rs` holds the header, the marker, `assemble`, `is_owned` (reads the first 1 KiB) and
+  `strip_legacy_preamble`.
+- The watcher uses `notify` directly, with its own 500 ms debounce loop, instead of
+  `notify-debouncer-mini`, which can't filter events by kind.
+- Not done here: the parser still extracts every class, not only annotated ones (A3). Filtering now happens
+  once in the builder's `matches_plugin` check, and again in each generator.
 
 ## Acceptance criteria
 
-- [ ] Given `lib/other.g.dart` without the marker, `clean` leaves it in place.
-- [ ] Given a file with only un-annotated classes, `build` writes nothing for it.
-- [ ] Given an annotated class and no `part` directive, `build` writes nothing and prints a warning that names
+- [x] Given `lib/other.g.dart` without the marker, `clean` leaves it in place.
+- [x] Given a file with only un-annotated classes, `build` writes nothing for it.
+- [x] Given an annotated class and no `part` directive, `build` writes nothing and prints a warning that names
       the missing directive.
-- [ ] Given `x.g.dart` without the marker and an annotated `x.dart`, `build` reports an error and leaves
+- [x] Given `x.g.dart` without the marker and an annotated `x.dart`, `build` reports an error and leaves
       `x.g.dart` byte-identical. `build --force` overwrites it.
-- [ ] Given `flint_json` and a custom plugin both matching `m.dart`, `m.g.dart` contains both sections in
+- [x] Given `flint_json` and a custom plugin both matching `m.dart`, `m.g.dart` contains both sections in
       config order, and running the build 10 times produces byte-identical output.
-- [ ] Given an owned `y.g.dart` whose source had its annotation removed, `build` deletes `y.g.dart`.
-- [ ] Given `watch --force`, one `touch` of a source triggers exactly one rebuild.
-- [ ] The existing snapshot tests pass after updating for the header change.
+- [x] Given an owned `y.g.dart` whose source had its annotation removed, `build` deletes `y.g.dart`.
+- [x] Given `watch --force`, one `touch` of a source triggers exactly one rebuild.
+- [x] The existing snapshot tests pass after updating for the header change.
+- [x] Removing a plugin from `flint.yaml` removes its section on the next build.
+- [x] A template copied from the pre-0001 built-in template produces exactly one `part of`.
 
 ## Plan
+
+All steps shipped together; the tests are in `engine/tests/build_test.rs`.
 
 1. Add `tempfile`-based end-to-end test helpers that run `run_build` in a temporary package (also fixes H6).
 2. Ownership marker + clean rule (fixes R1, the most urgent).
@@ -105,9 +129,8 @@ Reproduction: see [REVIEW.md](../REVIEW.md), findings R1, R2, R4 and R5.
 5. `IndexMap` + section assembly (fixes R4).
 6. Stale-output deletion, docs update, move spec to `Done`.
 
-## Open questions
+## Decisions on the open questions
 
-- Should a missing `part` directive be a warning (proposed) or an error? An error is stricter, but it breaks
-  `build` for files that are in the middle of an edit while in watch mode.
-- Should `--delete-conflicting-outputs` keep meaning “force” as an alias, or match build_runner's meaning
-  (overwrite unowned `.g.dart` files)? This spec proposes the latter, together with R13.
+- **A missing `part` directive is a warning**, not an error. An error would break watch mode for files that
+  are in the middle of an edit.
+- **`--delete-conflicting-outputs` became an alias of `--force`.** See behaviour 3.

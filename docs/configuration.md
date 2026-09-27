@@ -6,6 +6,7 @@ This page describes **current behaviour** (engine `0.1.0`). Known gaps are marke
 - [Commands](#commands)
 - [`flint.yaml`](#flintyaml)
 - [Using an existing `build.yaml`](#using-an-existing-buildyaml)
+- [Generated files](#generated-files)
 - [`flint_json` support matrix](#flint_json-support-matrix)
 - [Custom templates](#custom-templates)
 - [Template context](#template-context)
@@ -18,15 +19,20 @@ Run these from the package root, where `pubspec.yaml` (and optionally `flint.yam
 
 | Command | What it does |
 | ------- | ------------ |
-| `dart run flint_build build` | Generates `<file>.g.dart` for every changed `lib/**.dart` file. A file is skipped if its output is newer than the source. |
-| `dart run flint_build build -d` | Ignores modification times and regenerates everything. The long form is `--delete-conflicting-outputs`. |
-| `dart run flint_build watch [-d]` | Builds, then rebuilds when anything under `lib/` changes (500 ms debounce). ⚠️ Don't use `-d` with `watch` ([R5](REVIEW.md)). |
-| `dart run flint_build clean` | Deletes generated files. ⚠️ It currently deletes **every** `*.g.dart` under `lib/`, including files from other generators ([R1](REVIEW.md)). |
+| `dart run flint_build build` | Generates `<file>.g.dart` for every changed `lib/**.dart` file (see [Generated files](#generated-files)). A file is skipped if its output is newer than the source. |
+| `dart run flint_build build --force` | Regenerates everything, and overwrites `.g.dart` files Flint didn't write. Aliases: `-f`, `-d`, `--delete-conflicting-outputs`. |
+| `dart run flint_build watch [--force]` | Builds, then rebuilds once per change under `lib/` (500 ms debounce). Flint's own writes don't trigger rebuilds. |
+| `dart run flint_build clean` | Deletes the `.g.dart` files Flint generated. Files from other generators are left alone. |
+
+A build reports errors per file and keeps going; if any file failed, it exits with a non-zero code.
 
 Set `RUST_LOG=debug` (or `trace`) for detailed logs from the engine.
 
-⚠️ Changing `flint.yaml`, `build.yaml` or a template doesn't trigger regeneration by itself. Run
-`build -d` afterwards ([R11](REVIEW.md)).
+A file counts as up to date when its output is newer than the source **and** than `flint.yaml`,
+`build.yaml`, `pubspec.yaml`, every template, and the engine binary. So editing the config, a template, or
+upgrading Flint regenerates everything on the next build. ⚠️ This is based on modification times, not
+content: a checkout that restores an older mtime can still leave stale output. Use `build --force` if in
+doubt ([R11](REVIEW.md)).
 
 ## `flint.yaml`
 
@@ -64,8 +70,8 @@ plugins:
   ```
 
 - **`template_path` on `flint_json`** replaces the built-in template entirely.
-- ⚠️ All plugins write to the same `<file>.g.dart`, so only one plugin can target a given file today
-  ([R4](REVIEW.md)).
+- **Plugin order:** plugins run in the order they appear in `flint.yaml`. When several match the same file,
+  their sections appear in that order in its `.g.dart`.
 - ⚠️ Unknown keys are ignored silently, so check your spelling. (Unknown `field_rename` *values* are errors.)
 
 ### Precedence
@@ -130,6 +136,33 @@ Flint prints where its configuration came from:
 ⚠️ build.yaml: json_serializable option 'any_map' is not supported by Flint and was ignored.
 ```
 
+## Generated files
+
+Rules for writing, keeping and deleting `.g.dart` files ([spec 0001](specs/0001-generated-output-ownership.md)):
+
+- **When a file is written:** `lib/a/b.g.dart` is written only when `b.dart` has at least one declaration
+  matching a plugin **and** contains `part 'b.g.dart';`. If the directive is missing, Flint prints a warning
+  saying which line to add.
+- **Ownership:** every file Flint writes starts like this:
+
+  ```dart
+  // GENERATED CODE - DO NOT MODIFY BY HAND
+  // flint_build 0.1.0
+
+  part of 'b.dart';
+  ```
+
+  The `// flint_build` line marks the file as Flint's. Files from older Flint versions are recognised by
+  their `(Powered by Flint)` banner.
+- **Other generators' files are safe:** if `b.g.dart` exists without the marker (for example, build_runner
+  wrote it), Flint reports an error for that file and leaves it untouched. Use `--force` to replace it.
+  `clean` never deletes such files.
+- **Several plugins:** each matching plugin adds a section, under a banner with the plugin's name, in
+  `flint.yaml` order. There is one header and one `part of` per file.
+- **Stale outputs:** an owned `b.g.dart` is deleted when `b.dart` no longer has matching declarations, no
+  longer has the `part` directive, or no longer exists.
+- **Unchanged output isn't rewritten,** so file timestamps (and watchers) are left alone.
+
 ## `flint_json` support matrix
 
 | Feature | Status | Notes |
@@ -158,7 +191,11 @@ Flint prints where its configuration came from:
 ## Custom templates
 
 A custom plugin renders a [Tera](https://keats.github.io/tera/docs/) template once for every source file that
-contains a matching class or enum. The output is written to `<file>.g.dart`.
+contains a matching class or enum. The result becomes that plugin's section of `<file>.g.dart`.
+
+The engine writes the file header and the `part of` line, so a template only renders declarations. Older
+templates that still start with `// GENERATED CODE…` or `part of …` keep working: those lines are removed from
+the start of the section.
 
 ```yaml
 # flint.yaml
@@ -170,9 +207,6 @@ plugins:
 
 ```jinja
 {# tool/templates/describe.tera #}
-// GENERATED CODE - DO NOT MODIFY BY HAND
-
-part of '{{ filename }}';
 {% for class in classes %}
 extension {{ class.name }}Describe on {{ class.name }} {
   List<String> get fieldNames => const [

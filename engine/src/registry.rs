@@ -61,6 +61,7 @@ mod tests {
         let dummy_file = ParsedFile {
             classes: vec![],
             enums: vec![],
+            ..Default::default()
         };
         assert_eq!(
             generator.generate("test.dart", dummy_file, &dummy_plugin),

@@ -18,7 +18,7 @@ Status: ⬜ not started · 🟨 in progress · ✅ done
 | ⬜ | Add `rust-version = "1.88"` to `engine/Cargo.toml` | H4 |
 | ⬜ | CI workflow: `cargo fmt --check`, `clippy`, `cargo test`, `cargo insta test --check`, `dart analyze cli` | H2 |
 | ⬜ | Move `engine/flint.yaml` to `engine/tests/fixtures/`. Snapshot tests should use the built-in template | H5 |
-| ⬜ | Use `tempfile` in tests instead of fixed temp paths | H6 |
+| 🟨 | Use `tempfile` in tests instead of fixed temp paths (done for new tests and discovery) | H6 |
 | ⬜ | Fix `cli/pubspec.yaml` metadata (description, version, repository) and `CHANGELOG.md`; move the example to `dev_dependencies` | D5 |
 | ✅ | Accurate READMEs, SDD, configuration reference, agent instructions | H4 |
 
@@ -29,9 +29,9 @@ Goal: Flint never damages a project, and generated code compiles for everything 
 | | Item | Refs |
 | --- | ---- | ---- |
 | ⬜ | **Dart golden harness:** generate fixtures, then `dart analyze` them in CI (needs the Dart SDK in CI) | H7 |
-| ⬜ | **Output ownership:** a header marker; only write when a `part` directive exists; only delete owned files | R1, R2 · [Spec 0001](specs/0001-generated-output-ownership.md) |
-| ⬜ | **Multiple plugins per file:** parse once, concatenate sections in config order (`IndexMap`) | R4, A1 · Spec 0001 |
-| ⬜ | Watch mode ignores Flint-owned paths | R5 |
+| ✅ | **Output ownership:** a header marker; only write when a `part` directive exists; only delete owned files | R1, R2 · [Spec 0001](specs/0001-generated-output-ownership.md) |
+| ✅ | **Multiple plugins per file:** parse once, concatenate sections in config order (`IndexMap`) | R4, A1 · Spec 0001 |
+| ✅ | Watch mode ignores `.g.dart` paths and access events (one rebuild per change) | R5 · Spec 0001 |
 | ⬜ | Read *all* annotations on classes, fields, enums and enum constants (walk the nodes instead of one optional query capture) | R3 |
 | ⬜ | Keep the literal's kind in annotation arguments; emit typed `@JsonValue` maps | R6 |
 | ⬜ | `Result`-returning generators and collected diagnostics; no panics on bad templates | R12 |
@@ -50,7 +50,7 @@ with json_serializable.
 | ⬜ | More types: `num`, `dynamic`, `Object`, `Uri`, `BigInt`, `Duration`, `Set`, `Iterable`, non-String map keys, nested generics | R7, R14 |
 | ⬜ | Escape JSON keys; drop identity conversions and `ignore_for_file: unnecessary_cast` | R15, A6 |
 | ⬜ | **Differential test suite** against json_serializable, and a **parity matrix** in `configuration.md` | H7 |
-| ⬜ | Rename `--delete-conflicting-outputs` to `--force` (keep the old name as a hidden alias) | R13 |
+| ✅ | Rename `--delete-conflicting-outputs` to `--force` (the old name stays as an alias) | R13 · Spec 0001 |
 | ✅ | Read json_serializable options from `build.yaml`; `flint.yaml` optional for json_serializable projects | [Spec 0002](specs/0002-read-build-yaml.md) |
 | ✅ | `field_rename: camel` means lowerCamelCase; unknown `field_rename` values are errors | [Spec 0003](specs/0003-field-rename-camel.md) |
 | ⬜ | `@JsonSerializable(fieldRename: …)` per class | — |
@@ -60,7 +60,7 @@ with json_serializable.
 | | Item | Refs |
 | --- | ---- | ---- |
 | ⬜ | Compile queries and templates once; discover once; parse once for all plugins | A1, A3 |
-| ⬜ | Content-hash cache in `.dart_tool/flint/` with an engine/config/template fingerprint; delete outputs that are no longer produced | R11 · SDD §12 |
+| 🟨 | Content-hash cache in `.dart_tool/flint/` with an engine/config/template fingerprint (mtime-based version of the fingerprint and stale-output deletion shipped with spec 0001) | R11 · SDD §12 |
 | ⬜ | Watch mode rebuilds only the dirty set, including files that depend on changed symbols | R5 · SDD §12 |
 | ⬜ | `build --check` for CI (non-zero exit if outputs are stale) | — |
 | ⬜ | **Benchmark rewrite:** synthetic 10/100/1000-model projects; `hyperfine`; report engine-only *and* end-to-end; define cold/warm | D3 |

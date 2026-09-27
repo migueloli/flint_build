@@ -1,10 +1,12 @@
 use serde::Serialize;
 use std::{collections::HashMap, fmt::Display};
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct ParsedFile {
     pub classes: Vec<DartClass>,
     pub enums: Vec<DartEnum>,
+    /// URIs of the file's `part '...';` directives, without quotes.
+    pub part_directives: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -26,7 +28,7 @@ pub struct DartType {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct DartField {
     pub name: String,
     pub dart_type: DartType,
@@ -37,7 +39,7 @@ pub struct DartField {
     pub converter: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct DartClass {
     pub name: String,
     pub fields: Vec<DartField>,
@@ -45,13 +47,13 @@ pub struct DartClass {
     pub type_parameters: Vec<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct DartEnumValue {
     pub name: String,
     pub value: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct DartEnum {
     pub name: String,
     pub annotations: Vec<String>,

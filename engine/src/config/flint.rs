@@ -3,13 +3,13 @@ use anyhow::bail;
 use heck::{
     ToKebabCase, ToLowerCamelCase, ToPascalCase, ToShoutyKebabCase, ToShoutySnakeCase, ToSnakeCase,
 };
+use indexmap::IndexMap;
 use serde::Deserialize;
-use std::collections::HashMap;
 use std::str::FromStr;
 
 #[derive(Debug, Deserialize, Default, Clone)]
 pub struct FlintConfig {
-    pub plugins: Option<HashMap<String, PluginConfig>>,
+    pub plugins: Option<IndexMap<String, PluginConfig>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -132,7 +132,7 @@ impl FlintConfig {
     /// `plugins: { flint_json: }`.
     pub fn implicit_flint_json() -> Self {
         let mut config = FlintConfig {
-            plugins: Some(HashMap::from([(
+            plugins: Some(IndexMap::from([(
                 "flint_json".to_string(),
                 PluginConfig::default(),
             )])),

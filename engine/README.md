@@ -12,14 +12,15 @@ For the design as a whole (current vs target), see [docs/SDD.md](../docs/SDD.md)
 main.rs (clap: build | watch | clean)
    │
    ▼
-builder::run_build ──► config      pubspec.yaml, flint.yaml (plugins), build.yaml (json_serializable options)
+builder::build ──► config      pubspec.yaml, flint.yaml (plugins, in order), build.yaml
    │
-   ├─► discovery    walk lib/, *.dart sources vs *.g.dart outputs
-   ├─► parser       tree-sitter → ParsedFile { classes, enums }        (per file, in parallel)
+   ├─► discovery    walk lib/ once: *.dart sources vs *.g.dart outputs
+   ├─► parser       tree-sitter → ParsedFile { classes, enums, part_directives }   (once per file, in parallel)
    ├─► registry     plugin name → Generator  (flint_json built in, else GenericTeraGenerator)
-   └─► generators   ParsedFile + PluginConfig → String → <file>.g.dart
+   ├─► generators   one section per matching plugin
+   └─► output       header + ownership marker + part of + sections → <file>.g.dart (owned files only)
 
-watcher::watch      notify + 500 ms debounce on lib/ → run_build
+watcher::watch      notify + 500 ms debounce on lib/, ignoring reads and .g.dart writes → run_build
 ```
 
 | Module | Purpose |
@@ -30,7 +31,8 @@ watcher::watch      notify + 500 ms debounce on lib/ → run_build
 | [`generators/`](src/generators) | `Generator` trait, `TemplateEngine` (Tera), `flint_json` emitter, `generic` template generator |
 | [`templates/`](src/templates) | Built-in `flint_json.tera`, embedded in the binary with `include_str!` |
 | [`registry.rs`](src/registry.rs) | `PluginRegistry`: name → `Box<dyn Generator>` |
-| [`builder.rs`](src/builder.rs) | `run_build` / `run_clean` orchestration and mtime-based skip |
+| [`builder.rs`](src/builder.rs) | `build` / `clean` orchestration, write and delete rules, mtime-based skip. `run_build` / `run_clean` print the reports |
+| [`output.rs`](src/output.rs) | The `.g.dart` header, ownership marker, section assembly and ownership check (spec 0001) |
 | [`watcher/`](src/watcher) | Watch mode |
 | [`error.rs`](src/error.rs) | `FlintError` (`thiserror`) |
 

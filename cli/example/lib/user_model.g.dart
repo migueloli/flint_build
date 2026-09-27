@@ -1,11 +1,13 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
-// ignore_for_file: unnecessary_cast
+// flint_build 0.1.0
 
 part of 'user_model.dart';
 
 // **************************************************************************
-// JsonSerializableGenerator (Powered by Flint)
+// flint_json
 // **************************************************************************
+
+// ignore_for_file: unnecessary_cast
 
 Metadata _$MetadataFromJson(
   Map<String, dynamic> json,
@@ -67,4 +69,3 @@ const _$StatusEnumMap = {
   Status.active: 'active',
   Status.inactive: 'inactive',
 };
-

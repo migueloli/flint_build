@@ -25,6 +25,7 @@ fn test_generic_generator_execution() {
     let parsed_file = ParsedFile {
         classes: vec![class],
         enums: vec![dart_enum],
+        ..Default::default()
     };
 
     let temp_dir = std::env::temp_dir();

@@ -12,13 +12,14 @@ Dart CLI finds the engine binary and runs it.
 ```text
 engine/   Rust crate "flint_build" (lib + bin). All the logic lives here.
   src/main.rs            clap commands: build | watch | clean
-  src/builder.rs         orchestration: discover → parse → generate → write
+  src/builder.rs         orchestration: discover → parse once → run plugins → write/delete owned outputs
+  src/output.rs          .g.dart header, ownership marker, section assembly
   src/config/            pubspec.yaml + flint.yaml + build.yaml loading; resolve() merges them
   src/discovery/         walk lib/, split sources vs *.g.dart
   src/parser/            tree-sitter → ParsedFile (dart_file.rs, dart_types.rs)
   src/generators/        Generator trait, flint_json native emitter, generic Tera generator
   src/templates/         built-in flint_json.tera (embedded with include_str!)
-  src/watcher/           notify + debounce
+  src/watcher/           notify + debounce; ignores access events and .g.dart paths
   tests/                 integration + insta snapshots (tests/snapshots/*.snap)
 cli/      Dart package "flint_build": bin/flint_build.dart only (launcher)
   example/               sample app + benchmark (tool/benchmark.dart)
@@ -38,7 +39,7 @@ cargo clippy --all-targets -- -D warnings
 cargo fmt
 ```
 
-End-to-end check without the Dart SDK: `cd cli/example && ../../engine/target/release/flint_build build -d`,
+End-to-end check without the Dart SDK: `cd cli/example && ../../engine/target/release/flint_build build --force`,
 then `git diff lib/user_model.g.dart`. Any output change must be intentional.
 
 With the Dart SDK: `cd cli/example && dart pub get && dart run flint_build build` (the repo uses `fvm dart …`).
@@ -80,8 +81,13 @@ With the Dart SDK: `cd cli/example && dart pub get && dart run flint_build build
 Read [docs/REVIEW.md](docs/REVIEW.md) before changing the parser, builder, or emitter. The ones most likely to
 catch you out:
 
-- The parser returns **every** class in a file; filtering by annotation happens later, in each generator (A3).
-  A class with several annotations only keeps one of them (R3).
+- The parser returns **every** class in a file; filtering by annotation happens later, via
+  `generators::matches_plugin` / `retain_annotated` (A3). A class with several annotations only keeps one of
+  them (R3).
+- Generators return a *section*, not a file. `output::assemble` adds the header, ownership marker and
+  `part of`; never emit them from a template.
+- On Linux, notify reports Flint's own file *reads* as events. Anything added to the watcher must keep
+  ignoring access events, or watch mode loops.
 - `DartField.from_json_expr` / `to_json_expr` / `converter` are emitter scratch state stored on the parsed
   model (A4).
 - `engine/flint.yaml` is a test fixture used by `tests/flint_json_test.rs`, not a user config (H5).

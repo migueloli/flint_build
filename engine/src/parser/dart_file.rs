@@ -52,7 +52,21 @@ pub fn parse_file(path: &Path) -> Result<ParsedFile> {
         log::debug!("Found {} enums in {:?}", enums.len(), path);
     }
 
-    Ok(ParsedFile { classes, enums })
+    Ok(ParsedFile {
+        classes,
+        enums,
+        part_directives: extract_part_directives(tree.root_node(), &content),
+    })
+}
+
+fn extract_part_directives(root: Node, content: &str) -> Vec<String> {
+    let mut cursor = root.walk();
+    root.children(&mut cursor)
+        .filter(|node| node.kind() == "part_directive")
+        .filter_map(|node| node.child_by_field_name("uri"))
+        .filter_map(|uri| uri.utf8_text(content.as_bytes()).ok())
+        .map(|uri| uri.trim_matches(|c| c == '\'' || c == '"').to_string())
+        .collect()
 }
 
 fn extract_annotation_metadata(
@@ -556,6 +570,17 @@ mod tests {
 
         assert_eq!(status.values[2].name, "suspended");
         assert_eq!(status.values[2].value, None);
+    }
+
+    #[test]
+    fn test_extract_part_directives() {
+        let code =
+            "part 'user.g.dart';\npart \"user.freezed.dart\";\npart of 'lib.dart';\nclass A {}\n";
+        let tree = parse_snippet(code);
+        assert_eq!(
+            extract_part_directives(tree.root_node(), code),
+            vec!["user.g.dart".to_string(), "user.freezed.dart".to_string()]
+        );
     }
 
     #[test]

@@ -1,5 +1,5 @@
 use crate::config::PluginConfig;
-use crate::generators::{Generator, TemplateEngine};
+use crate::generators::{Generator, TemplateEngine, retain_annotated};
 use crate::parser::dart_types::ParsedFile;
 use tera::Context;
 
@@ -14,20 +14,7 @@ impl Generator for GenericTeraGenerator {
         mut parsed_file: ParsedFile,
         plugin: &PluginConfig,
     ) -> String {
-        parsed_file.classes.retain(|class| {
-            class
-                .metadata
-                .keys()
-                .any(|k| plugin.class_annotations.contains(&format!("@{}", k)))
-        });
-
-        parsed_file.enums.retain(|e| {
-            e.annotations.iter().any(|a| {
-                plugin
-                    .enum_annotations
-                    .contains(&format!("@{}", a.trim_start_matches('@')))
-            })
-        });
+        retain_annotated(&mut parsed_file, plugin);
 
         let mut engine = TemplateEngine::new();
         if let Some(path) = &plugin.template_path {
