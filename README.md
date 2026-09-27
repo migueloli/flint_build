@@ -57,7 +57,8 @@ this repository (see the [roadmap](docs/ROADMAP.md#phase-4-installable-by-anyone
 
 `@JsonSerializable` classes with `String`/`int`/`double`/`bool`/`DateTime`, `num`/`dynamic`/`Object`,
 `Uri`/`BigInt`/`Duration`, `List`/`Set`/`Iterable`, `Map<String, V>`, nested models (also through import
-prefixes), generic classes, enums from any file in the package, custom converters, and the common `@JsonKey`
+prefixes), classes from other packages (`external_types`), generic classes, enums from any file in the
+package, custom converters, and the common `@JsonKey`
 options (`name`, `defaultValue`, `ignore`, `includeIfNull`, `fromJson`/`toJson`, …). You can also write your
 own generator as a [Tera](https://keats.github.io/tera/) template, with no Rust required.
 

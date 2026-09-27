@@ -1,8 +1,9 @@
 use crate::error::FlintError;
 use crate::generators::{
-    Generator, TemplateEngine, retain_annotated, select_enum_values, select_variant_values,
+    Generated, Generator, TemplateEngine, retain_annotated, select_enum_values,
+    select_variant_values,
 };
-use crate::index::ResolvedTypes;
+use crate::index::{ResolvedType, ResolvedTypes};
 use crate::{
     config::PluginConfig,
     parser::dart_types::{DartClass, DartEnumValue, DartField, DartType, ParsedFile, TypeKind},
@@ -35,17 +36,27 @@ impl Generator for FlintJsonGenerator {
         parsed_file: ParsedFile,
         plugin: &PluginConfig,
         types: &ResolvedTypes,
-    ) -> Result<String, FlintError> {
-        generate_full_file(filename, parsed_file, plugin, types)
+    ) -> Result<Generated, FlintError> {
+        generate_section(filename, parsed_file, plugin, types)
     }
 }
 
+/// The section's code only; see [`generate_section`].
 pub fn generate_full_file(
+    filename: &str,
+    parsed_file: ParsedFile,
+    plugin: &PluginConfig,
+    types: &ResolvedTypes,
+) -> Result<String, FlintError> {
+    generate_section(filename, parsed_file, plugin, types).map(|generated| generated.code)
+}
+
+pub fn generate_section(
     filename: &str,
     mut parsed_file: ParsedFile,
     plugin: &PluginConfig,
     types: &ResolvedTypes,
-) -> Result<String, FlintError> {
+) -> Result<Generated, FlintError> {
     retain_annotated(&mut parsed_file, plugin);
     select_variant_values(&mut parsed_file, plugin);
     for value in parsed_file
@@ -78,6 +89,7 @@ pub fn generate_full_file(
         })
         .collect();
 
+    let mut assumed_external = BTreeSet::new();
     for class in &mut parsed_file.classes {
         log::debug!(
             "Generating code for class: {} ({} fields)",
@@ -121,23 +133,45 @@ pub fn generate_full_file(
                     class: class.name.clone(),
                     field: field.name.clone(),
                     problem,
+                    fix: USE_HOOKS,
                 });
             }
 
-            if field.converter.is_none()
-                && needs_generated_conversion(field, creates_factory, creates_to_json)
-            {
+            let (from_side, to_side) = generated_sides(field, creates_factory, creates_to_json);
+            if field.converter.is_none() && (from_side || to_side) {
                 for name in field.dart_type.custom_names() {
-                    let Some(declaration) = types
-                        .get(name)
-                        .and_then(|resolved| resolved.enum_declaration.as_ref())
-                    else {
+                    if class.type_parameters.iter().any(|t| t == name) {
+                        continue;
+                    }
+                    let Some(resolved) = types.get(name) else {
+                        continue;
+                    };
+                    match check_resolved(name, resolved, plugin, from_side) {
+                        Check::Ok => {}
+                        Check::AssumedExternal => {
+                            assumed_external.insert(name.to_string());
+                        }
+                        Check::Error(reason, fix) => {
+                            let type_text = field.dart_type.to_string();
+                            let problem = if type_text.trim_end_matches('?') == name {
+                                format!("has type '{type_text}', which {reason}")
+                            } else {
+                                format!("has type '{type_text}', and `{name}` {reason}")
+                            };
+                            return Err(FlintError::UnsupportedType {
+                                line: field.line,
+                                class: class.name.clone(),
+                                field: field.name.clone(),
+                                problem,
+                                fix,
+                            });
+                        }
+                    }
+                    let Some(declaration) = resolved.enum_declaration.as_ref() else {
                         continue;
                     };
                     let map_name = enum_map_name(name);
-                    if class.type_parameters.iter().any(|t| t == name)
-                        || enum_maps.iter().any(|map| map.map_name == map_name)
-                    {
+                    if enum_maps.iter().any(|map| map.map_name == map_name) {
                         continue;
                     }
                     let mut declaration = declaration.clone();
@@ -195,9 +229,76 @@ pub fn generate_full_file(
     context.insert("enum_maps", &enum_maps);
     context.insert("filename", filename);
 
-    engine
+    let code = engine
         .render("flint_json", &context)
-        .map_err(template_error)
+        .map_err(template_error)?;
+    Ok(Generated {
+        code,
+        assumed_external,
+    })
+}
+
+const USE_HOOKS: &str = "Use @JsonKey(fromJson: …, toJson: …) or a converter.";
+
+enum Check {
+    Ok,
+    /// Not declared in this package, but the file imports another package it may come from.
+    AssumedExternal,
+    /// Why the type can't be converted (it follows "which" or "`T`"), and how to fix it.
+    Error(String, &'static str),
+}
+
+/// Whether a type the field's generated conversion uses can be converted, by what the index resolved it to
+/// (spec 0005 step 6). `needs_from_json` is false when only `toJson` is generated.
+fn check_resolved(
+    name: &str,
+    resolved: &ResolvedType,
+    plugin: &PluginConfig,
+    needs_from_json: bool,
+) -> Check {
+    match resolved.kind {
+        "enum" => Check::Ok,
+        // The generated code calls `T.fromJson(...)`, so `@JsonSerializable` alone isn't enough.
+        "class" => {
+            if resolved.has_from_json || !needs_from_json {
+                Check::Ok
+            } else {
+                Check::Error(
+                    "has no `fromJson` constructor".to_string(),
+                    "Add one, or use @JsonKey(fromJson: …, toJson: …) or a converter.",
+                )
+            }
+        }
+        "unresolved" => {
+            let simple = name.rsplit_once('.').map_or(name, |(_, simple)| simple);
+            if plugin
+                .external_types
+                .iter()
+                .any(|listed| listed == name || listed == simple)
+            {
+                Check::Ok
+            } else if resolved.possibly_external {
+                Check::AssumedExternal
+            } else {
+                Check::Error(
+                    "isn't declared in this package or anything it imports".to_string(),
+                    "Import it, list it in `external_types` if it comes from another package, or use @JsonKey(fromJson: …, toJson: …) or a converter.",
+                )
+            }
+        }
+        kind => {
+            let what = match kind {
+                "mixin" => "a mixin",
+                "type_alias" => "a typedef",
+                "extension_type" => "an extension type",
+                _ => "a kind of type",
+            };
+            Check::Error(
+                format!("is {what}, which Flint can't serialize yet"),
+                USE_HOOKS,
+            )
+        }
+    }
 }
 
 /// Fills options the class's annotations leave out with the plugin-wide defaults from `flint.yaml` or
@@ -263,16 +364,26 @@ fn needs_generated_conversion(
     creates_factory: bool,
     creates_to_json: bool,
 ) -> bool {
+    let (from, to) = generated_sides(field, creates_factory, creates_to_json);
+    from || to
+}
+
+/// Whether the template emits a generated `fromJson` and a generated `toJson` conversion for this field.
+fn generated_sides(
+    field: &DartField,
+    creates_factory: bool,
+    creates_to_json: bool,
+) -> (bool, bool) {
     let is = |key: &str, value: &str| field.metadata.get(key).map(String::as_str) == Some(value);
     if is("ignore", "true") {
-        return false;
+        return (false, false);
     }
     let from = creates_factory
         && !is("includeFromJson", "false")
         && !field.metadata.contains_key("fromJson");
     let to =
         creates_to_json && !is("includeToJson", "false") && !field.metadata.contains_key("toJson");
-    from || to
+    (from, to)
 }
 
 /// The enum's name if a map key has an enum type generated in this file.

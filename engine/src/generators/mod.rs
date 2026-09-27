@@ -2,6 +2,7 @@ use crate::config::PluginConfig;
 use crate::error::FlintError;
 use crate::index::ResolvedTypes;
 use crate::parser::dart_types::{DartClass, DartEnum, ParsedFile};
+use std::collections::BTreeSet;
 use tera::{Context, Tera};
 
 pub mod flint_json;
@@ -17,7 +18,26 @@ pub trait Generator: Send + Sync {
         parsed_file: ParsedFile,
         plugin: &PluginConfig,
         types: &ResolvedTypes,
-    ) -> Result<String, FlintError>;
+    ) -> Result<Generated, FlintError>;
+}
+
+/// A plugin's section of `<file>.g.dart`, plus what the build should tell the user about it.
+#[derive(Debug, Default, PartialEq)]
+pub struct Generated {
+    pub code: String,
+    /// Type names that aren't declared in this package or listed in `external_types`, which the generator
+    /// assumed are classes with `fromJson`/`toJson` from an imported package (spec 0005). The build warns
+    /// once per name.
+    pub assumed_external: BTreeSet<String>,
+}
+
+impl From<String> for Generated {
+    fn from(code: String) -> Self {
+        Generated {
+            code,
+            ..Default::default()
+        }
+    }
 }
 
 /// Loads the plugin's `template_path` once, so a missing file or a syntax error is reported before any

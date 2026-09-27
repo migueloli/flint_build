@@ -10,6 +10,9 @@ engine/tests/dart_golden/check.sh                      # builds the engine first
 FLINT_ENGINE=path/to/flint_build engine/tests/dart_golden/check.sh
 ```
 
+`packages/golden_money/` is a tiny path dependency standing in for a third-party package, for classes from
+other packages (`external_types` in `flint.yaml`).
+
 The generated `*.g.dart` files are not committed; the reviewed copies of generated text are the insta
 snapshots in `engine/tests/snapshots/`.
 

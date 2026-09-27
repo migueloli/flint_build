@@ -532,3 +532,198 @@ fn test_output_depends_on_the_files_its_types_come_from() {
     let report = package.build(false);
     assert_eq!(report.errors.len(), 1, "{:?}", report.errors);
 }
+
+/// `lib/model.dart` with `imports`, and a `@JsonSerializable` class `Model` with one field.
+fn model_with_field(imports: &str, field: &str) -> String {
+    format!(
+        "{imports}part 'model.g.dart';\n\n@JsonSerializable()\nclass Model {{\n  {field}\n  Model();\n  factory Model.fromJson(Map<String, dynamic> json) => _$ModelFromJson(json);\n}}\n"
+    )
+}
+
+#[test]
+fn test_class_without_from_json_is_an_error() {
+    let package = Package::json();
+    package.write(
+        "lib/address.dart",
+        "class Address {\n  final String street;\n}\n",
+    );
+    let imports = "import 'address.dart';\n";
+    package.write(
+        "lib/model.dart",
+        &model_with_field(imports, "final List<Address> addresses;"),
+    );
+
+    let report = package.build(false);
+
+    assert_eq!(report.errors.len(), 1, "{:?}", report.errors);
+    let error = &report.errors[0];
+    assert!(
+        error.contains(
+            "line 6: field 'addresses' of 'Model' has type 'List<Address>', and `Address` has no `fromJson` constructor. Add one,"
+        ),
+        "{error}"
+    );
+    assert!(!package.exists("lib/model.g.dart"));
+
+    // `@JsonSerializable` alone isn't enough: the generated code calls `Address.fromJson`.
+    package.write(
+        "lib/address.dart",
+        "@JsonSerializable()\nclass Address {}\n",
+    );
+    let report = package.build(true);
+    assert_eq!(report.errors.len(), 1, "{:?}", report.errors);
+
+    package.write(
+        "lib/address.dart",
+        "class Address {\n  Address();\n  factory Address.fromJson(Map<String, dynamic> json) => Address();\n}\n",
+    );
+    let report = package.build(true);
+    assert!(report.errors.is_empty(), "{:?}", report.errors);
+    assert!(
+        package
+            .read("lib/model.g.dart")
+            .contains("Address.fromJson(")
+    );
+}
+
+#[test]
+fn test_class_without_from_json_is_fine_when_no_conversion_needs_it() {
+    let package = Package::json();
+    package.write("lib/address.dart", "class Address {}\n");
+    let imports = "import 'address.dart';\n";
+    for field in [
+        // Only toJson is generated.
+        "final Address address;\n}\n@JsonSerializable(createFactory: false)\nclass Other {\n  final Address address;",
+        "@JsonKey(fromJson: _read, toJson: _write)\n  final Address address;",
+        "@JsonKey(includeFromJson: false)\n  final Address? address;",
+        "@JsonKey(ignore: true)\n  final Address? address;",
+    ] {
+        let source = model_with_field(imports, field);
+        let source = source.replace(
+            "final Address address;\n}\n@JsonSerializable(createFactory: false)",
+            "final int id;\n}\n@JsonSerializable(createFactory: false)",
+        );
+        package.write("lib/model.dart", &source);
+        let report = package.build(true);
+        assert!(report.errors.is_empty(), "{field}: {:?}", report.errors);
+    }
+}
+
+#[test]
+fn test_mixins_typedefs_and_extension_types_are_errors() {
+    let package = Package::json();
+    package.write(
+        "lib/kinds.dart",
+        "mixin Named {}\ntypedef Json = Map<String, dynamic>;\nextension type Id(int value) {}\n",
+    );
+    for (field, expected) in [
+        ("final Named named;", "has type 'Named', which is a mixin"),
+        ("final Json json;", "has type 'Json', which is a typedef"),
+        (
+            "final Id? id;",
+            "has type 'Id?', which is an extension type",
+        ),
+    ] {
+        package.write(
+            "lib/model.dart",
+            &model_with_field("import 'kinds.dart';\n", field),
+        );
+        let report = package.build(true);
+        assert_eq!(report.errors.len(), 1, "{field}: {:?}", report.errors);
+        let error = &report.errors[0];
+        assert!(error.contains(expected), "{error}");
+        assert!(error.contains("which Flint can't serialize yet. Use @JsonKey(fromJson: …, toJson: …) or a converter."), "{error}");
+    }
+}
+
+#[test]
+fn test_unknown_type_without_other_packages_is_an_error() {
+    let package = Package::json();
+    package.write(
+        "lib/model.dart",
+        &model_with_field(
+            "import 'dart:typed_data';\nimport 'package:app/other.dart';\n",
+            "final Money price;",
+        ),
+    );
+    package.write("lib/other.dart", "class Unrelated {}\n");
+
+    let report = package.build(false);
+
+    assert_eq!(report.errors.len(), 1, "{:?}", report.errors);
+    let error = &report.errors[0];
+    assert!(
+        error.contains("has type 'Money', which isn't declared in this package or anything it imports. Import it, list it in `external_types`"),
+        "{error}"
+    );
+
+    // A converter doesn't need a generated conversion, so the name is never looked at.
+    let package = Package::new("plugins:\n  flint_json:\n    converters: [\"@MoneyConverter\"]\n");
+    package.write(
+        "lib/model.dart",
+        &model_with_field("", "@MoneyConverter()\n  final Money price;"),
+    );
+    let report = package.build(false);
+    assert!(report.errors.is_empty(), "{:?}", report.errors);
+}
+
+#[test]
+fn test_unknown_type_from_another_package_warns_once() {
+    let package = Package::json();
+    let imports = "import 'package:money/money.dart' as m;\nimport 'package:money/money.dart';\n";
+    package.write(
+        "lib/model.dart",
+        &model_with_field(imports, "final Money price;"),
+    );
+    package.write(
+        "lib/other.dart",
+        &model_with_field(imports, "final List<Money> prices;")
+            .replace("model.g.dart", "other.g.dart")
+            .replace("Model", "Other"),
+    );
+    package.write(
+        "lib/third.dart",
+        &model_with_field(imports, "final m.Money price;")
+            .replace("model.g.dart", "third.g.dart")
+            .replace("Model", "Third"),
+    );
+
+    let report = package.build(false);
+
+    assert!(report.errors.is_empty(), "{:?}", report.errors);
+    assert_eq!(report.written.len(), 3);
+    assert!(package.read("lib/model.g.dart").contains("Money.fromJson("));
+    // One warning for `Money` and `m.Money`: the fix is the same.
+    assert_eq!(
+        report.warnings,
+        vec![format!(
+            "`Money` (used in {} and 2 other files) isn't declared in this package, so Flint assumed it's a class with `fromJson`/`toJson` from an imported package. If it is, add `Money` to `external_types` under the plugin in flint.yaml to silence this warning.",
+            package.path("lib/model.dart").display()
+        )]
+    );
+
+    // Listing the type confirms it, for prefixed uses too.
+    package.write(
+        "flint.yaml",
+        "plugins:\n  flint_json:\n    external_types: [Money]\n",
+    );
+    let report = package.build(true);
+    assert!(report.errors.is_empty(), "{:?}", report.errors);
+    assert!(report.warnings.is_empty(), "{:?}", report.warnings);
+    assert_eq!(report.unchanged, 3);
+}
+
+#[test]
+fn test_external_types_also_cover_files_without_other_packages() {
+    let package = Package::new("plugins:\n  flint_json:\n    external_types: [Money]\n");
+    package.write(
+        "lib/model.dart",
+        &model_with_field("", "final Money price;"),
+    );
+
+    let report = package.build(false);
+
+    assert!(report.errors.is_empty(), "{:?}", report.errors);
+    assert!(report.warnings.is_empty(), "{:?}", report.warnings);
+    assert!(package.read("lib/model.g.dart").contains("Money.fromJson("));
+}

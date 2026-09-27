@@ -10,6 +10,7 @@ use crate::registry::PluginRegistry;
 use anyhow::{Context, Result, bail};
 use colored::Colorize;
 use rayon::prelude::*;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
@@ -126,14 +127,37 @@ pub fn build(
         }
     }
 
-    let outcomes: Vec<Result<Outcome>> = sources
+    let outcomes: Vec<(Result<Outcome>, BTreeSet<String>)> = sources
         .par_iter()
         .zip(parsed.par_iter())
         .map(|(source, parsed)| {
-            process_source(source, parsed, &plugins, &index, force, inputs_changed_at)
+            let mut assumed_external = BTreeSet::new();
+            let outcome = process_source(
+                source,
+                parsed,
+                &plugins,
+                &index,
+                force,
+                inputs_changed_at,
+                &mut assumed_external,
+            );
+            (outcome, assumed_external)
         })
         .collect();
-    for (source, outcome) in sources.iter().zip(outcomes) {
+    // Type name without its prefix → the files that used it, for one warning per name.
+    let mut assumed_external: BTreeMap<String, BTreeSet<&Path>> = BTreeMap::new();
+    for (source, (outcome, assumed)) in sources.iter().zip(outcomes) {
+        if outcome.is_ok() {
+            for name in assumed {
+                let simple = name
+                    .rsplit_once('.')
+                    .map_or(name.as_str(), |(_, simple)| simple);
+                assumed_external
+                    .entry(simple.to_string())
+                    .or_default()
+                    .insert(source);
+            }
+        }
         match outcome {
             Ok(Outcome::UpToDate) => report.up_to_date += 1,
             Ok(Outcome::Nothing) => {}
@@ -146,6 +170,10 @@ pub fn build(
                 .errors
                 .push(format!("{}: {error:#}", source.display())),
         }
+    }
+
+    for (name, files) in &assumed_external {
+        report.warnings.push(assumed_external_warning(name, files));
     }
 
     let mut generated = discovery::find_generated_files(&lib);
@@ -233,6 +261,7 @@ fn process_source(
     index: &SymbolIndex,
     force: bool,
     inputs_changed_at: Option<SystemTime>,
+    assumed_external: &mut BTreeSet<String>,
 ) -> Result<Outcome> {
     let output = output::output_path(source);
     let exists = output.exists();
@@ -265,11 +294,12 @@ fn process_source(
         if !matches_plugin(parsed, &plugin.config) {
             continue;
         }
-        let body =
+        let generated =
             plugin
                 .generator()
                 .generate(&filename, parsed.clone(), &plugin.config, &types)?;
-        let body = output::strip_legacy_preamble(&body);
+        assumed_external.extend(generated.assumed_external);
+        let body = output::strip_legacy_preamble(&generated.code);
         if !body.is_empty() {
             sections.push((plugin.name.as_str(), body));
         }
@@ -333,7 +363,9 @@ fn resolve_field_types(
                     continue;
                 }
                 let resolved = match index.resolve(source, name) {
-                    Ok(resolved) => resolved.unwrap_or_else(ResolvedType::unresolved),
+                    Ok(resolved) => resolved.unwrap_or_else(|| {
+                        ResolvedType::unresolved(index.imports_other_packages(source))
+                    }),
                     Err(ambiguity) => bail!(
                         "line {}: field '{}' of '{}' has type '{}', which is declared in {}. Use an import prefix, or `show`/`hide`, to pick one.",
                         field.line,
@@ -348,6 +380,24 @@ fn resolve_field_types(
         }
     }
     Ok(types)
+}
+
+/// One warning for a type name the index couldn't find, which was assumed to come from another package.
+fn assumed_external_warning(name: &str, files: &BTreeSet<&Path>) -> String {
+    let files: Vec<&&Path> = files.iter().collect();
+    let used_in = match files.as_slice() {
+        [only] => only.display().to_string(),
+        [first, rest @ ..] => format!(
+            "{} and {} other file{}",
+            first.display(),
+            rest.len(),
+            if rest.len() == 1 { "" } else { "s" }
+        ),
+        [] => String::new(),
+    };
+    format!(
+        "`{name}` (used in {used_in}) isn't declared in this package, so Flint assumed it's a class with `fromJson`/`toJson` from an imported package. If it is, add `{name}` to `external_types` under the plugin in flint.yaml to silence this warning."
+    )
 }
 
 /// `a`, `a and b`, `a, b and c`.

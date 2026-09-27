@@ -52,6 +52,7 @@ plugins:
     create_factory:      bool       # @JsonSerializable(createFactory:)    default true
     create_to_json:      bool       # @JsonSerializable(createToJson:)     default true
     include_if_null:     bool       # @JsonKey(includeIfNull:), nullable fields only   default true
+    external_types:      [String]   # classes from other packages with fromJson/toJson, e.g. [Money]
 ```
 
 `flint.yaml` is **optional** for json_serializable projects. See
@@ -171,13 +172,43 @@ imports (following `export`s, `as` prefixes and `show`/`hide`). If two different
 name are visible, the file gets an error naming both files; pick one with an import prefix or `show`/`hide`
 (spec 0005).
 
+### Types Flint can't convert
+
+`flint_json` checks every type a generated conversion uses (fields with a converter, `@JsonKey(fromJson:,
+toJson:)` hooks, or `ignore` are skipped). These are errors for that file, with the line and a fix, and its
+`.g.dart` is left as it was:
+
+- a class in this package with no `fromJson` constructor, factory or static method (a class only written to
+  JSON, with `createFactory: false`, doesn't need one). `@JsonSerializable` alone isn't enough: the generated
+  code calls `Type.fromJson(...)`;
+- a mixin, typedef or extension type;
+- a name that isn't declared in this package or anything the file imports, when the file imports no other
+  package.
+
+### Classes from other packages
+
+Flint doesn't read other packages, so a type from one (say `Money` from `package:money`) is a name it can't
+find. If the file imports another package, Flint assumes the name is a class with `fromJson`/`toJson`, generates
+`Money.fromJson(...)` as json_serializable would, and prints one warning per name when it generates the
+file. List the name to confirm it and silence the warning:
+
+```yaml
+plugins:
+  flint_json:
+    external_types: [Money]   # also covers prefixed uses like m.Money
+```
+
+A listed name is used as a class even in a file that imports no other package. Names that *are* declared in
+this package ignore the list.
+
 ## `flint_json` support matrix
 
 | Feature | Status | Notes |
 | ------- | :----: | ----- |
 | `String`, `int`, `double`, `bool`, `DateTime` (and nullable) | ✅ | |
 | `List<T>`, `Map<String, V>` (nested, nullable) | ✅ | Non-`String` map keys aren't converted ⚠️ R14 |
-| Nested `@JsonSerializable` classes | ✅ | Called as `Type.fromJson(json as Map<String, dynamic>)` |
+| Nested classes, from any file in the package | ✅ | Called as `Type.fromJson(json as Map<String, dynamic>)`; the class needs a `fromJson` constructor, factory or static method, or the file gets an error |
+| Classes from other packages | ✅ | As nested classes. Warns once per name unless listed in `external_types`; see [Classes from other packages](#classes-from-other-packages) |
 | Classes through an import prefix (`m.Money`) | ✅ | Called as `m.Money.fromJson(...)` |
 | Generic classes `Foo<T>` | ✅ | Always generates `fromJsonT` / `toJsonT` parameters, as with `genericArgumentFactories: true` |
 | Enums, in the same file or another one, with or without `@JsonEnum` | ✅ | Each generated file gets its own copy of the value map (`_$StatusEnumMap`, or `_$m_MoodEnumMap` for `m.Mood`), because a private map only works inside its own library |
@@ -187,6 +218,7 @@ name are visible, the file gets an error naming both files; pick one with an imp
 | `Duration` | ✅ | Written as microseconds: `Duration(microseconds: …)` and `inMicroseconds` |
 | `Set<E>`, `Iterable<E>` | ✅ | Read from and written as JSON lists (`toSet()`, `toList()`) |
 | Records, function types, fields without a declared type | ❌ | Reported as an error for that file (with the line), unless the field has `@JsonKey(fromJson:, toJson:)`, a converter, or is ignored |
+| Mixins, typedefs, extension types | ❌ | Reported as an error for that file, with the same exceptions |
 | Positional constructors, fields not set by the constructor | ❌ | Always generates named arguments for every field (R8) |
 | Classes and enums with several annotations (`@immutable @JsonSerializable()`) | ✅ | In any order |
 | `@JsonSerializable(explicitToJson: true)` | ✅ | Package-wide default: `explicit_to_json` |

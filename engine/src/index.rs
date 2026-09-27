@@ -25,10 +25,14 @@ pub struct ResolvedType {
     /// the value map (spec 0005 step 5).
     #[serde(skip)]
     pub enum_declaration: Option<DartEnum>,
+    /// For unresolved names: the file imports another package, so the name may be declared there.
+    #[serde(skip)]
+    pub possibly_external: bool,
 }
 
 impl ResolvedType {
-    pub fn unresolved() -> Self {
+    /// A name the index can't find. `possibly_external` says whether the file imports another package.
+    pub fn unresolved(possibly_external: bool) -> Self {
         ResolvedType {
             kind: "unresolved",
             file: None,
@@ -36,6 +40,7 @@ impl ResolvedType {
             has_to_json: false,
             path: None,
             enum_declaration: None,
+            possibly_external,
         }
     }
 }
@@ -173,7 +178,22 @@ impl SymbolIndex {
                 }),
                 _ => None,
             },
+            possibly_external: false,
         })
+    }
+
+    /// Whether `from`'s library imports a package other than this one (`dart:` libraries don't count).
+    pub fn imports_other_packages(&self, from: &Path) -> bool {
+        let own = format!("package:{}/", self.package);
+        self.files
+            .get(&self.library_of(&normalize(from)))
+            .is_some_and(|symbols| {
+                symbols.directives.iter().any(|d| {
+                    d.kind == DirectiveKind::Import
+                        && d.uri.starts_with("package:")
+                        && !d.uri.starts_with(&own)
+                })
+            })
     }
 
     fn declared_in<'a>(&'a self, file: &Path, name: &str) -> Vec<(PathBuf, &'a Declaration)> {
@@ -374,6 +394,12 @@ mod tests {
             .unwrap()
             .unwrap();
         assert!(money.has_from_json && money.has_to_json);
+
+        // model.dart (and its part) imports package:other; its own `package:app/` and `dart:` don't count.
+        let path = |file: &str| dir.path().join(file);
+        assert!(index.imports_other_packages(&path("lib/model.dart")));
+        assert!(index.imports_other_packages(&path("lib/model.part.dart")));
+        assert!(!index.imports_other_packages(&path("lib/api.dart")));
     }
 
     #[test]

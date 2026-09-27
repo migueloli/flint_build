@@ -1,3 +1,4 @@
 plugins:
   flint_json:
     converters: ["@EpochConverter"]
+    external_types: [Money]   # from package:golden_money (lib/external_model.dart)

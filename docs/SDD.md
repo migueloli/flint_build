@@ -74,6 +74,12 @@ imports, types, or constants. That's where the speed comes from, and also where 
    `external_types: { Money: { kind: class, from_json: true } }`, so types from other packages don't need
    resolution.
 
+**Current** ([spec 0005](specs/0005-project-symbol-index.md)): steps 1 and 2 exist; the index records
+`name → {kind, file, has_from_json, has_to_json}` (and an enum's values). `flint_json` errors on a class
+without `fromJson`, on mixins, typedefs and extension types, and on a name nothing declares or could import.
+A name it can't find in a file that imports another package is assumed to be a class, with one warning per
+name. The escape hatch is a plain list, `external_types: [Money]`, per plugin.
+
 This keeps Flint syntax-only, with no Dart SDK needed at build time, while fixing review items R7 and R8.
 
 ## 5. Architecture
@@ -123,8 +129,10 @@ flowchart LR
 // by the file's classes through the project symbol index (spec 0005).
 pub trait Generator: Send + Sync {
     fn generate(&self, filename: &str, parsed_file: ParsedFile, plugin: &PluginConfig,
-                types: &ResolvedTypes) -> Result<String, FlintError>;
+                types: &ResolvedTypes) -> Result<Generated, FlintError>;
 }
+// Generated { code: String, assumed_external: BTreeSet<String> }: the section, plus the type names it
+// assumed come from another package, which the builder turns into one warning per name.
 ```
 
 ```rust
@@ -240,7 +248,8 @@ Design rules:
 
 - **Current:** `anyhow` in the builder and config; typed `FlintError::Syntax` and `FlintError::Template`
   ([spec 0004](specs/0004-template-errors.md)). No `unwrap`/`expect` in non-test code. A template that can't be
-  loaded is reported once per plugin, and files that plugin matches are left untouched. Per-file errors are collected into `BuildReport.errors` (as strings) and the build exits non-zero if any
+  loaded is reported once per plugin, and files that plugin matches are left untouched. `FlintError::UnsupportedType`
+  names the line, field, problem and fix for a type `flint_json` can't convert (spec 0005). Per-file errors are collected into `BuildReport.errors` (as strings) and the build exits non-zero if any
   occurred; one bad file no longer hides the others.
 - **Target:** library code returns `Result<_, FlintError>` (`thiserror`), and `anyhow` is only used in
   `main.rs`. Per-file `Diagnostic { severity, file, span, message, hint }` values are collected, not

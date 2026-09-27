@@ -82,7 +82,7 @@ naming both files.
 | Resolved kind | `fromJson` | `toJson` |
 | ------------- | ---------- | -------- |
 | Enum (any enum, with or without `@JsonEnum`) | `_$TEnumMap` lookup (as today), and the map is emitted in **this** file's section | `_$TEnumMap[…]` |
-| Class that has a `fromJson` constructor/factory, or carries one of the plugin's `class_annotations` | `T.fromJson(… as Map<String, dynamic>)` (as today) | as today (`explicitToJson` rules) |
+| Class that has a `fromJson` constructor/factory (or static method) | `T.fromJson(… as Map<String, dynamic>)` (as today) | as today (`explicitToJson` rules) |
 | Class without either | **error**: “`T` has no `fromJson` constructor; add one, or use `@JsonKey(fromJson:, toJson:)` or a converter” | |
 | `num` | `json['x'] as num` | passthrough |
 | `dynamic`, `Object?` | `json['x']` | passthrough |
@@ -222,8 +222,20 @@ Each step is mergeable on its own and keeps CI green.
      decode (snapshots and the example regenerated).
    - **Code review:** a class type parameter with the same name as an enum must win (`class Box<Kind>` next
      to an imported `enum Kind`); fixed and tested.
-6. Class checks (`fromJson`), `external_types`, unresolved-name rules. (The dependency-aware up-to-date
-   check moved to step 4.)
+6. ✅ Class checks (`fromJson`), `external_types`, unresolved-name rules. (The dependency-aware up-to-date
+   check moved to step 4.) The checks run in the `flint_json` emitter, only for types a generated conversion
+   uses (no converter, hooks or `ignore`); a class only needs `fromJson` when the `fromJson` side is
+   generated. Errors name the line, field, problem and fix. Changes from the draft:
+   - **`class_annotations` no longer excuse a missing `fromJson`:** the generated code calls `T.fromJson`, so
+     `@JsonSerializable` alone would still not compile (json_serializable rejects it too).
+   - **Warnings:** `Generator::generate` returns `Generated { code, assumed_external }`; the builder
+     prints one warning per unprefixed name (`Money` and `m.Money` share a fix), listing where it's used.
+     Warnings appear when a file is generated, not on up-to-date builds. `external_types` entries match a
+     name with or without its prefix, and also apply in files that import no other package.
+   - "Imports another package" means an `import 'package:x/…'` in the file's library (parts included) where
+     `x` isn't this package; `dart:` libraries don't count.
+   - Golden fixture: `external_model.dart` uses `Money` from a local path package
+     (`tests/dart_golden/packages/golden_money`), plain and prefixed, listed in `external_types`.
 7. Docs: support matrix, template context, SDD §4/§6/§7, roadmap, review.
 
 ## Decisions

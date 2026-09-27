@@ -16,7 +16,8 @@ fn test_user_model() {
         Box::new(generators::flint_json::emitter::FlintJsonGenerator);
     let section = generator
         .generate("user_model.dart", classes, &plugin, &Default::default())
-        .unwrap();
+        .unwrap()
+        .code;
     let generated = output::assemble("user_model.dart", &[("flint_json", section)]);
 
     insta::assert_snapshot!(generated);
@@ -34,7 +35,8 @@ fn test_generic_model() {
         Box::new(generators::flint_json::emitter::FlintJsonGenerator);
     let section = generator
         .generate("generic_model.dart", classes, &plugin, &Default::default())
-        .unwrap();
+        .unwrap()
+        .code;
     let generated = output::assemble("generic_model.dart", &[("flint_json", section)]);
 
     insta::assert_snapshot!(generated);
@@ -57,7 +59,8 @@ fn test_core_types_model() {
             &plugin,
             &Default::default(),
         )
-        .unwrap();
+        .unwrap()
+        .code;
     let generated = output::assemble("core_types_model.dart", &[("flint_json", section)]);
 
     insta::assert_snapshot!(generated);

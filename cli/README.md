@@ -51,9 +51,15 @@ plugins:
     field_rename: snake_case             # none | snake | kebab | pascal | camel | screaming_snake | …
     explicit_to_json: true               # package-wide default, like build.yaml's option
     converters: ["@EpochDateTimeConverter"]
+    external_types: [Money]              # classes from other packages that have fromJson/toJson
 ```
 
 Settings in `flint.yaml` take priority over `build.yaml`, and annotation arguments take priority over both.
+
+Flint reads your package, not its dependencies. A field whose type comes from another package works as
+long as that class has `fromJson`/`toJson`; Flint warns once about it until you list it in `external_types`.
+A type it can't convert (a class without `fromJson`, a mixin, a typedef, an unknown name) is an error that
+names the line and a fix.
 
 Your models look the same as with json_serializable:
 

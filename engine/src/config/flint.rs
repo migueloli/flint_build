@@ -26,6 +26,9 @@ pub struct PluginConfig {
     pub create_factory: Option<bool>,
     pub create_to_json: Option<bool>,
     pub include_if_null: Option<bool>,
+    /// Classes from other packages that have `fromJson`/`toJson` (spec 0005). Names the index can't find
+    /// are only assumed to be classes, with a warning, unless they're listed here.
+    pub external_types: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -41,6 +44,7 @@ struct RawPluginConfig {
     create_factory: Option<bool>,
     create_to_json: Option<bool>,
     include_if_null: Option<bool>,
+    external_types: Option<Vec<String>>,
 }
 
 impl<'de> serde::Deserialize<'de> for PluginConfig {
@@ -65,6 +69,7 @@ impl<'de> serde::Deserialize<'de> for PluginConfig {
             create_factory: raw.create_factory,
             create_to_json: raw.create_to_json,
             include_if_null: raw.include_if_null,
+            external_types: raw.external_types.unwrap_or_default(),
         })
     }
 }

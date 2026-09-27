@@ -52,6 +52,7 @@ fn test_generic_generator_execution() {
     };
     let output = generator
         .generate("mock.dart", parsed_file, &config, &Default::default())
-        .unwrap();
+        .unwrap()
+        .code;
     assert_eq!(output, "Hello MockUser and MockEnum!");
 }

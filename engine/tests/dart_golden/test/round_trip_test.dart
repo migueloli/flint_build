@@ -4,12 +4,14 @@ import 'package:flint_dart_golden/annotations_model.dart';
 import 'package:flint_dart_golden/core_types_model.dart';
 import 'package:flint_dart_golden/cross_file_model.dart';
 import 'package:flint_dart_golden/enum_values_model.dart';
+import 'package:flint_dart_golden/external_model.dart';
 import 'package:flint_dart_golden/generic_model.dart';
 import 'package:flint_dart_golden/options_model.dart';
 import 'package:flint_dart_golden/prefixed_model.dart';
 import 'package:flint_dart_golden/user_model.dart';
 import 'package:flint_dart_golden/src/mood.dart' as m;
 import 'package:flint_dart_golden/src/status.dart';
+import 'package:golden_money/golden_money.dart';
 import 'package:test/test.dart';
 
 /// Encodes through `jsonEncode` so the result is exactly what would go over the wire.
@@ -283,6 +285,22 @@ void main() {
       expect(account.size, Size.large);
       expect(wire(account), json);
       expect(wire(Account.fromJson(wire({...json, 'previous': null}))), {...json, 'previous': null});
+    });
+  });
+
+  group('classes from other packages (spec 0005 step 6)', () {
+    test('external types round-trip through their own fromJson/toJson', () {
+      final json = {
+        'balance': {'cents': 150, 'currency': 'EUR'},
+        'limit': null,
+        'history': [
+          {'cents': 1, 'currency': 'USD'},
+        ],
+      };
+      final wallet = Wallet.fromJson(wire(json));
+      expect(wallet.balance, const Money(150, 'EUR'));
+      expect(wallet.history, [const Money(1, 'USD')]);
+      expect(wire(wallet), json);
     });
   });
 }
