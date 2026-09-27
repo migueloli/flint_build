@@ -32,6 +32,22 @@ pub fn matches_plugin(parsed_file: &ParsedFile, plugin: &PluginConfig) -> bool {
         || parsed_file.enums.iter().any(|e| enum_matches(e, plugin))
 }
 
+/// Sets each enum value's `value` from the first of the plugin's `variant_annotations` on it, so other
+/// annotations on a constant (`@Deprecated('…')`, …) never become its JSON value.
+pub fn select_variant_values(parsed_file: &mut ParsedFile, plugin: &PluginConfig) {
+    for value in parsed_file
+        .enums
+        .iter_mut()
+        .flat_map(|e| e.values.iter_mut())
+    {
+        value.value = value
+            .annotations
+            .iter()
+            .find(|a| plugin.variant_annotations.contains(&format!("@{}", a.name)))
+            .and_then(|a| a.value.clone());
+    }
+}
+
 /// Drops the classes and enums that don't carry one of the plugin's annotations.
 pub fn retain_annotated(parsed_file: &mut ParsedFile, plugin: &PluginConfig) {
     parsed_file.classes.retain(|c| class_matches(c, plugin));
@@ -84,6 +100,29 @@ impl TemplateEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_enum_value_comes_only_from_variant_annotations() {
+        let code = "@JsonEnum()\nenum Level {\n  @JsonValue('lo') @Note('use high') low,\n  @Note('x') mid,\n  high,\n}\n";
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("level.dart");
+        std::fs::write(&path, code).unwrap();
+        let mut parsed = crate::parser::parse_file(&path).unwrap();
+        let plugin = PluginConfig {
+            enum_annotations: vec!["@JsonEnum".to_string()],
+            variant_annotations: vec!["@JsonValue".to_string()],
+            ..Default::default()
+        };
+
+        select_variant_values(&mut parsed, &plugin);
+
+        let values: Vec<Option<&str>> = parsed.enums[0]
+            .values
+            .iter()
+            .map(|v| v.value.as_deref())
+            .collect();
+        assert_eq!(values, vec![Some("lo"), None, None]);
+    }
 
     #[test]
     fn test_template_engine_raw() {

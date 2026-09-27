@@ -107,7 +107,7 @@ flowchart LR
 | `output.rs` | Header, ownership marker, `assemble`, `is_owned`, `strip_legacy_preamble` (§9). | |
 | `config/` | `Pubspec` (`name`, dependency lookup). `FlintConfig` / `PluginConfig` with a hand-written `Deserialize` that turns missing lists into empty ones, plus `flint_json` defaults. `build_yaml` reads json_serializable options. `resolve` merges `flint.yaml` > `build.yaml` > defaults and reports notes and warnings. | Pure `resolve` function; only `load_project_config` touches the disk. |
 | `discovery/` | `walkdir` over `lib/`; splits sources and `*.g.dart` outputs by file name (`is_generated_file`). | Ownership is decided in `output.rs`, not here. |
-| `parser/` | tree-sitter queries → `ParsedFile { classes, enums, part_directives }`. Reports syntax errors with a caret. | Keeps every class, not only annotated ones (A3). One annotation per class (R3). |
+| `parser/` | tree-sitter queries → `ParsedFile { classes, enums, part_directives }`. Reports syntax errors with a caret. | Keeps every class, not only annotated ones (A3). Annotation names are unprefixed text, so `@json.JsonSerializable()` isn't matched. |
 | `registry.rs` | `HashMap<String, Box<dyn Generator>>`. | |
 | `generators/flint_json` | Works out the `fromJson`/`toJson` expression for each field, then renders the built-in `flint_json.tera`. | |
 | `generators/mod.rs` | `Generator` trait, `TemplateEngine`, and the shared annotation filter (`matches_plugin`, `retain_annotated`). | |
@@ -148,7 +148,8 @@ DartClass  { name, type_parameters: [String], metadata: {String: String}, fields
 DartField  { name, dart_type: DartType, is_final, metadata: {String: String},
              converter?, from_json_expr?, to_json_expr? }   // last three are emitter scratch state
 DartType   { kind: String|Int|Double|Bool|DateTime|List(T)|Map(K,V)|Custom(name), is_nullable }
-DartEnum   { name, annotations: [String], values: [{ name, value? }] }
+DartEnum   { name, annotations: [String], values: [{ name, value?, annotations: [{ name, value? }] }] }
+           // value is set per plugin from its variant_annotations (generators::select_variant_values)
 ```
 
 `metadata` flattens every annotation on a node into one map. Annotation names become keys with a value of

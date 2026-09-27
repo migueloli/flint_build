@@ -88,8 +88,9 @@ Read [docs/REVIEW.md](docs/REVIEW.md) before changing the parser, builder, or em
 catch you out:
 
 - The parser returns **every** class in a file; filtering by annotation happens later, via
-  `generators::matches_plugin` / `retain_annotated` (A3). A class with several annotations only keeps one of
-  them (R3).
+  `generators::matches_plugin` / `retain_annotated` (A3). Annotations are read with
+  `parser::dart_file::read_annotations`; use tree-sitter field names (`name:`, `body:`) in queries, because
+  positional `(_)` captures can match an annotation instead of the name (that was R3).
 - Generators return a *section*, not a file. `output::assemble` adds the header, ownership marker and
   `part of`; never emit them from a template.
 - On Linux, notify reports Flint's own file *reads* as events. Anything added to the watcher must keep

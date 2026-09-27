@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flint_dart_golden/annotations_model.dart';
 import 'package:flint_dart_golden/generic_model.dart';
 import 'package:flint_dart_golden/options_model.dart';
 import 'package:flint_dart_golden/user_model.dart';
@@ -110,6 +111,30 @@ void main() {
     test('createFactory: false and createToJson: false', () {
       expect(Event('launch').toJson(), {'name': 'launch'});
       expect(Ping.fromJson({'seq': 3}).seq, 3);
+    });
+  });
+
+  group('several annotations (R3)', () {
+    test('classes and enums with extra annotations are generated', () {
+      final json = {
+        'frozen': {'id': 7},
+        'level': 'lo',
+      };
+      final tagged = Tagged.fromJson(json);
+      expect(tagged.frozen.id, 7);
+      expect(tagged.level, Level.low);
+      expect(wire(tagged), json);
+      expect(Frozen.fromJson({'id': 1}).toJson(), {'id': 1});
+    });
+
+    test('only @JsonValue sets an enum constant\'s JSON value', () {
+      Map<String, dynamic> json(String level) => {
+            'frozen': {'id': 1},
+            'level': level,
+          };
+      expect(Tagged.fromJson(json('mid')).level, Level.medium);
+      expect(Tagged.fromJson(json('high')).level, Level.high);
+      expect(wire(Tagged.fromJson(json('lo')))['level'], 'lo');
     });
   });
 }

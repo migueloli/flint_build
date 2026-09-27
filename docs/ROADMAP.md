@@ -32,7 +32,7 @@ Goal: Flint never damages a project, and generated code compiles for everything 
 | ✅ | **Output ownership:** a header marker; only write when a `part` directive exists; only delete owned files | R1, R2 · [Spec 0001](specs/0001-generated-output-ownership.md) |
 | ✅ | **Multiple plugins per file:** parse once, concatenate sections in config order (`IndexMap`) | R4, A1 · Spec 0001 |
 | ✅ | Watch mode ignores `.g.dart` paths and access events (one rebuild per change) | R5 · Spec 0001 |
-| ⬜ | Read *all* annotations on classes, fields, enums and enum constants (walk the nodes instead of one optional query capture) | R3 |
+| ✅ | Read *all* annotations on classes, fields, enums and enum constants (walk the nodes instead of one optional query capture); an enum constant's value comes only from `variant_annotations` | R3 |
 | ⬜ | Keep the literal's kind in annotation arguments; emit typed `@JsonValue` maps | R6 |
 | ⬜ | `Result`-returning generators and collected diagnostics; no panics on bad templates | R12 |
 
@@ -45,7 +45,7 @@ with json_serializable.
 | --- | ---- | ---- |
 | ⬜ | **Project symbol index:** resolve enums and classes across files; clear “unresolved type” diagnostics | R7 · SDD §4 |
 | ⬜ | **Constructor-aware emission:** positional/named/`this.` params; skip static, late and initialised fields; private-field rules | R8 |
-| ⬜ | Scope metadata to configured `field_annotations` / `variant_annotations` | R9 |
+| 🟨 | Scope metadata to configured `field_annotations` / `variant_annotations` (`variant_annotations` done with R3) | R9 |
 | ⬜ | Emit `$enumDecode` / `$enumDecodeNullable`; support `unknownEnumValue` | R10 |
 | ⬜ | More types: `num`, `dynamic`, `Object`, `Uri`, `BigInt`, `Duration`, `Set`, `Iterable`, non-String map keys, nested generics | R7, R14 |
 | ⬜ | Escape JSON keys; drop identity conversions and `ignore_for_file: unnecessary_cast` | R15, A6 |

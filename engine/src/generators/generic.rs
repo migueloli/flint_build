@@ -1,5 +1,5 @@
 use crate::config::PluginConfig;
-use crate::generators::{Generator, TemplateEngine, retain_annotated};
+use crate::generators::{Generator, TemplateEngine, retain_annotated, select_variant_values};
 use crate::parser::dart_types::ParsedFile;
 use tera::Context;
 
@@ -15,6 +15,7 @@ impl Generator for GenericTeraGenerator {
         plugin: &PluginConfig,
     ) -> String {
         retain_annotated(&mut parsed_file, plugin);
+        select_variant_values(&mut parsed_file, plugin);
 
         let mut engine = TemplateEngine::new();
         if let Some(path) = &plugin.template_path {

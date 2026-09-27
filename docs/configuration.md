@@ -42,7 +42,7 @@ plugins:
     class_annotations:   [String]   # e.g. ["@JsonSerializable"]
     enum_annotations:    [String]   # e.g. ["@JsonEnum"]
     field_annotations:   [String]   # accepted, currently unused ⚠️ R9
-    variant_annotations: [String]   # accepted, currently unused ⚠️ R9
+    variant_annotations: [String]   # enum-constant annotations that set the JSON value, e.g. ["@JsonValue"]
     converters:          [String]   # e.g. ["@EpochDateTimeConverter"]
     field_rename:        String     # see below
     template_path:       String     # relative to the package root
@@ -175,7 +175,7 @@ Rules for writing, keeping and deleting `.g.dart` files ([spec 0001](specs/0001-
 | `@JsonValue('x')` | ✅ | ⚠️ Numeric/bool values become strings (R6) |
 | `num`, `dynamic`, `Object`, `Uri`, `BigInt`, `Duration`, `Set`, records | ❌ | Generated as `Type.fromJson(...)`, which doesn't compile (R7) |
 | Positional constructors, fields not set by the constructor | ❌ | Always generates named arguments for every field (R8) |
-| Classes with several annotations (`@immutable @JsonSerializable()`) | ❌ | Silently skipped (R3) |
+| Classes and enums with several annotations (`@immutable @JsonSerializable()`) | ✅ | In any order |
 | `@JsonSerializable(explicitToJson: true)` | ✅ | Package-wide default: `explicit_to_json` |
 | `@JsonSerializable(createFactory: false / createToJson: false)` | ✅ | Package-wide defaults: `create_factory` / `create_to_json` |
 | `@JsonSerializable(includeIfNull: false)` | ✅ | Applies to nullable fields. Package-wide default: `include_if_null` |
@@ -268,9 +268,19 @@ These variables are available in every template, for both built-in and custom pl
 {
   "name": "E",
   "annotations": ["Model"],
-  "values": [ { "name": "a", "value": "1" }, { "name": "b", "value": null } ]
+  "values": [
+    {
+      "name": "a",
+      "value": "1",   // from the first of the plugin's variant_annotations, else null
+      "annotations": [ { "name": "JsonValue", "value": "1" }, { "name": "Note", "value": "legacy" } ]
+    },
+    { "name": "b", "value": null, "annotations": [] }
+  ]
 }
 ```
+
+A custom plugin only gets `value` if it sets `variant_annotations`. Every annotation on a constant is also
+listed in `annotations`, with its argument text (quotes and parentheses removed).
 
 > **Stability:** this context isn't versioned yet, and field names may change (see
 > [SDD §6.2](SDD.md#62-target-parsed-model)). Metadata values are raw Dart source, so string arguments keep

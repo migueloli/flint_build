@@ -1,5 +1,6 @@
 use crate::parser::dart_types::{
-    DartClass, DartEnum, DartEnumValue, DartField, DartType, ParsedFile, TypeKind,
+    DartClass, DartEnum, DartEnumValue, DartEnumValueAnnotation, DartField, DartType, ParsedFile,
+    TypeKind,
 };
 use anyhow::{Context, Result};
 use std::collections::HashMap;
@@ -98,6 +99,36 @@ fn extract_annotation_metadata(
     }
 }
 
+/// Reads every annotation written directly on `node`: their names (without `@`) in source order, and a
+/// metadata map with each name → `""` plus the named arguments of all of them.
+fn read_annotations(node: Node, content: &str) -> (Vec<String>, HashMap<String, String>) {
+    let mut names = Vec::new();
+    let mut metadata = HashMap::new();
+    let mut cursor = node.walk();
+    for annotation in node
+        .children(&mut cursor)
+        .filter(|child| child.kind() == "annotation")
+    {
+        let Some(name) = annotation
+            .child_by_field_name("name")
+            .and_then(|name| name.utf8_text(content.as_bytes()).ok())
+        else {
+            continue;
+        };
+        names.push(name.to_string());
+        metadata.insert(name.to_string(), String::new());
+
+        let mut args_cursor = annotation.walk();
+        for arguments in annotation
+            .children(&mut args_cursor)
+            .filter(|child| child.kind() == "annotation_arguments")
+        {
+            extract_annotation_metadata(&arguments, content, &mut metadata);
+        }
+    }
+    (names, metadata)
+}
+
 fn extract_fields_from_tree(body: Node, content: &str) -> Vec<DartField> {
     let mut fields = Vec::new();
     let mut cursor = body.walk();
@@ -122,35 +153,12 @@ fn extract_fields_from_tree(body: Node, content: &str) -> Vec<DartField> {
 }
 
 fn parse_field(field: Node<'_>, content: &str) -> Option<DartField> {
-    let check_metadata = |node: Node<'_>| -> HashMap<String, String> {
-        let mut metadata = HashMap::new();
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            if child.kind() == "annotation" {
-                let annotation_text = child
-                    .child(1)
-                    .map(|n| n.utf8_text(content.as_bytes()).unwrap_or(""))
-                    .unwrap_or("");
-
-                metadata.insert(annotation_text.to_string(), String::new());
-
-                let mut args_cursor = child.walk();
-                for arg_node in child.children(&mut args_cursor) {
-                    if arg_node.kind() == "annotation_arguments" {
-                        extract_annotation_metadata(&arg_node, content, &mut metadata);
-                    }
-                }
-            }
-        }
-
-        metadata
-    };
-
-    let mut metadata = check_metadata(field);
+    // Field annotations are usually siblings of the declaration, inside its `class_member`.
+    let (_, mut metadata) = read_annotations(field, content);
     if metadata.is_empty()
         && let Some(parent) = field.parent()
     {
-        metadata = check_metadata(parent);
+        metadata = read_annotations(parent, content).1;
     }
 
     let mut type_parts = String::new();
@@ -267,7 +275,18 @@ fn extract_enum_values(name: String, body: Node, content: &str) -> DartEnum {
     for child in body.children(&mut cursor) {
         if child.kind() == "enum_constant" {
             let mut variant_name = String::new();
-            let mut custom_value = None;
+            let mut annotations = Vec::new();
+            let mut push_annotation = |node: Node| {
+                if let Some(name) = node
+                    .child_by_field_name("name")
+                    .and_then(|name| name.utf8_text(content.as_bytes()).ok())
+                {
+                    annotations.push(DartEnumValueAnnotation {
+                        name: name.to_string(),
+                        value: process_json_value_node(node, content),
+                    });
+                }
+            };
 
             let mut inner_cursor = child.walk();
             for inner in child.children(&mut inner_cursor) {
@@ -279,16 +298,12 @@ fn extract_enum_values(name: String, body: Node, content: &str) -> DartEnum {
                 }
 
                 if inner.kind() == "annotation" {
-                    if let Some(val) = process_json_value_node(inner, content) {
-                        custom_value = Some(val);
-                    }
+                    push_annotation(inner);
                 } else if inner.kind() == "metadata" {
                     let mut meta_cursor = inner.walk();
                     for meta_child in inner.children(&mut meta_cursor) {
-                        if meta_child.kind() == "annotation"
-                            && let Some(val) = process_json_value_node(meta_child, content)
-                        {
-                            custom_value = Some(val);
+                        if meta_child.kind() == "annotation" {
+                            push_annotation(meta_child);
                         }
                     }
                 }
@@ -297,7 +312,8 @@ fn extract_enum_values(name: String, body: Node, content: &str) -> DartEnum {
             if !variant_name.is_empty() {
                 values.push(DartEnumValue {
                     name: variant_name,
-                    value: custom_value,
+                    value: None,
+                    annotations,
                 });
             }
         }
@@ -347,13 +363,9 @@ fn find_error_node<'a>(node: Node<'a>) -> Option<Node<'a>> {
 fn extract_classes(root: Node, content: &str) -> Result<Vec<DartClass>> {
     let query_str = r#"
         (class_declaration
-          (annotation
-            (_) @annotation_name
-            (annotation_arguments)? @annotation_args
-          )?
-          (_) @class_name
+          name: (_) @class_name
           (type_parameters)? @type_params
-          (class_body) @class_body
+          body: (class_body) @class_body
         ) @class_decl
     "#;
 
@@ -385,11 +397,7 @@ fn extract_classes(root: Node, content: &str) -> Result<Vec<DartClass>> {
             let text = &content[node.start_byte()..node.end_byte()];
 
             match capture_name {
-                "annotation_name" => {
-                    let text_no_at = text.trim_start_matches('@');
-                    metadata.insert(text_no_at.to_string(), String::new());
-                }
-                "annotation_args" => extract_annotation_metadata(&node, content, &mut metadata),
+                "class_decl" => metadata = read_annotations(node, content).1,
                 "class_name" => class_name = text.to_string(),
                 "type_params" => type_parameters = extract_type_parameters(node, content),
                 "class_body" => class_body_node = Some(node),
@@ -433,12 +441,8 @@ fn extract_type_parameters(node: Node, content: &str) -> Vec<String> {
 fn extract_enums(root: Node, content: &str) -> Result<Vec<DartEnum>> {
     let query_str = r#"
         (enum_declaration
-          (annotation
-            (_) @enum_annotation_name
-            (annotation_arguments)? @enum_annotation_args
-          )?
-          (_) @enum_name
-          (enum_body) @enum_body
+          name: (_) @enum_name
+          body: (enum_body) @enum_body
         ) @enum_decl
     "#;
 
@@ -472,7 +476,7 @@ fn extract_enums(root: Node, content: &str) -> Result<Vec<DartEnum>> {
             let text = &content[node.start_byte()..node.end_byte()];
 
             match capture_name {
-                "enum_annotation_name" => annotations.push(text.to_string()),
+                "enum_decl" => annotations = read_annotations(node, content).0,
                 "enum_name" => enum_name = text.to_string(),
                 "enum_body" => enum_body_node = Some(node),
                 _ => {}
@@ -563,13 +567,70 @@ mod tests {
         assert_eq!(status.values.len(), 3);
 
         assert_eq!(status.values[0].name, "pending");
-        assert_eq!(status.values[0].value, None);
+        assert!(status.values[0].annotations.is_empty());
 
+        // The parser records the annotation; generators pick the value (select_variant_values).
         assert_eq!(status.values[1].name, "active");
-        assert_eq!(status.values[1].value, Some("active_status".to_string()));
+        assert_eq!(status.values[1].value, None);
+        assert_eq!(status.values[1].annotations[0].name, "JsonValue");
+        assert_eq!(
+            status.values[1].annotations[0].value,
+            Some("active_status".to_string())
+        );
 
         assert_eq!(status.values[2].name, "suspended");
-        assert_eq!(status.values[2].value, None);
+        assert!(status.values[2].annotations.is_empty());
+    }
+
+    #[test]
+    fn test_class_keeps_every_annotation() {
+        // R3: only the first annotation used to be read, so `@immutable` hid `@JsonSerializable`.
+        let code = r#"
+            @immutable
+            @JsonSerializable(explicitToJson: true)
+            class A {
+                @Deprecated('old')
+                @JsonKey(name: 'b_')
+                final int b;
+            }
+
+            @JsonSerializable()
+            @immutable
+            class B {}
+        "#;
+        let tree = parse_snippet(code);
+        let classes = extract_classes(tree.root_node(), code).unwrap();
+
+        assert_eq!(classes.len(), 2);
+        // The positional `(_) @class_name` capture used to match the second annotation instead.
+        assert_eq!(classes[0].name, "A");
+        assert_eq!(classes[1].name, "B");
+        let a = &classes[0];
+        assert!(a.metadata.contains_key("immutable"));
+        assert!(a.metadata.contains_key("JsonSerializable"));
+        assert_eq!(a.metadata["explicitToJson"], "true");
+        assert!(a.fields[0].metadata.contains_key("Deprecated"));
+        assert_eq!(a.fields[0].metadata["name"], "'b_'");
+        assert!(classes[1].metadata.contains_key("JsonSerializable"));
+        assert!(classes[1].metadata.contains_key("immutable"));
+    }
+
+    #[test]
+    fn test_enum_keeps_every_annotation() {
+        let code = r#"
+            @Tag()
+            @JsonEnum()
+            enum Status { active }
+        "#;
+        let tree = parse_snippet(code);
+        let enums = extract_enums(tree.root_node(), code).unwrap();
+
+        assert_eq!(enums.len(), 1);
+        assert_eq!(enums[0].name, "Status");
+        assert_eq!(
+            enums[0].annotations,
+            vec!["Tag".to_string(), "JsonEnum".to_string()]
+        );
     }
 
     #[test]

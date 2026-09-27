@@ -67,7 +67,6 @@ The full support matrix and the `flint.yaml` reference are in [docs/configuratio
 These are the most important ones. All of them are tracked in [docs/REVIEW.md](docs/REVIEW.md) and scheduled
 in the [roadmap](docs/ROADMAP.md).
 
-- Classes with more than one annotation, such as `@immutable @JsonSerializable()`, are skipped (R3).
 - Enums declared in another file, and types like `num`, `Uri` or `Set`, generate code that doesn't compile (R7).
 - Constructors are assumed to take every field as a named parameter (R8).
 - Up-to-date checks use modification times, not content hashes, so unusual mtimes (some checkouts or

@@ -1,4 +1,4 @@
-use crate::generators::{Generator, TemplateEngine, retain_annotated};
+use crate::generators::{Generator, TemplateEngine, retain_annotated, select_variant_values};
 use crate::{
     config::PluginConfig,
     parser::dart_types::{DartClass, DartField, DartType, ParsedFile, TypeKind},
@@ -19,6 +19,7 @@ pub fn generate_full_file(
     plugin: &PluginConfig,
 ) -> String {
     retain_annotated(&mut parsed_file, plugin);
+    select_variant_values(&mut parsed_file, plugin);
 
     let enum_names: Vec<String> = parsed_file.enums.iter().map(|e| e.name.clone()).collect();
 
