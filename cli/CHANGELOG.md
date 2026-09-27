@@ -28,6 +28,10 @@ First version with a stable project layout. Highlights since the prototype:
   them; when `fromJson` is generated, fields it can't set (initialised `final`s) are left out of `toJson`;
   with `createFactory: false`, public getters are written. A `flint_json` `template_path` should use the new
   `class.from_json` and `class.json_members`.
+- **`dump-model`** ([spec 0007](../docs/specs/0007-generator-platform.md), in progress): prints the generator
+  model of Dart files as JSON (`--schema` for its JSON Schema), the input future Dart and YAML generators get.
+- **Fix:** a constructor default like `Mood.calm` or `const Duration(seconds: 1).inSeconds` was cut to its
+  first part, generating code that didn't compile.
 - **`--force`** replaces `--delete-conflicting-outputs` (kept as an alias, like `-d`).
 - **Watch mode** rebuilds once per change instead of looping on its own writes.
 - **Fixes:** classes and enums with several annotations (R3); typed `@JsonValue` values and quotes inside

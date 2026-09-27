@@ -92,6 +92,104 @@ pub fn run_build(force: bool, registry: &PluginRegistry) -> Result<()> {
     Ok(())
 }
 
+/// A source file read and parsed once: its text, syntax tree, and parsed model (for the index).
+type ParsedSource = (String, tree_sitter::Tree, ParsedFile);
+
+/// Prints the generator model (spec 0007) of `files`, or of every source under `lib/` when `files` is
+/// empty, as JSON on stdout. With `schema`, prints the model's JSON Schema instead. Files that can't be read
+/// or parsed are reported on stderr, and make the command fail after the others are printed.
+pub fn run_dump_model(files: &[PathBuf], schema: bool) -> Result<()> {
+    if schema {
+        println!("{}", serde_json::to_string_pretty(&crate::model::schema())?);
+        return Ok(());
+    }
+    let pubspec = Pubspec::load()?;
+    let (dump, errors) = dump_model(Path::new("."), &pubspec.name, files)?;
+    println!("{}", serde_json::to_string_pretty(&dump)?);
+    for error in &errors {
+        eprintln!("{} {error}", "❌".red());
+    }
+    if !errors.is_empty() {
+        bail!("{} file(s) couldn't be described", errors.len());
+    }
+    Ok(())
+}
+
+/// The generator model of `files` (relative to `root`, or absolute paths inside it), or of every source
+/// under `lib/` when `files` is empty, plus one message per file that couldn't be read or parsed. Types are
+/// resolved through an index of `lib/` and the requested files; each file is parsed once.
+pub fn dump_model(
+    root: &Path,
+    package: &str,
+    files: &[PathBuf],
+) -> Result<(crate::model::ModelDump, Vec<String>)> {
+    let mut sources = discovery::find_dart_files(root.join("lib"));
+    sources.sort();
+    let requested: Vec<PathBuf> = if files.is_empty() {
+        sources.clone()
+    } else {
+        let canonical_root = fs::canonicalize(root)?;
+        files
+            .iter()
+            .map(|file| {
+                if file.is_absolute() {
+                    let canonical = fs::canonicalize(file)
+                        .with_context(|| format!("Failed to read {}", file.display()))?;
+                    let relative = canonical
+                        .strip_prefix(&canonical_root)
+                        .with_context(|| format!("{} isn't inside the package", file.display()))?;
+                    Ok(root.join(relative))
+                } else {
+                    Ok(root.join(file))
+                }
+            })
+            .collect::<Result<_>>()?
+    };
+    let mut all = sources;
+    all.extend(requested.iter().cloned());
+    all.sort();
+    all.dedup();
+
+    let parsed: Vec<(PathBuf, Result<ParsedSource>)> = all
+        .into_par_iter()
+        .map(|path| {
+            let result = fs::read_to_string(&path)
+                .with_context(|| format!("Failed to read {}", path.display()))
+                .and_then(|content| {
+                    let tree = parser::dart_file::parse_tree(&content, &path)?;
+                    let parsed = parser::dart_file::parsed_file(&tree, &content, &path)?;
+                    Ok((content, tree, parsed))
+                });
+            (path, result)
+        })
+        .collect();
+    let mut index = SymbolIndex::new(root, package);
+    for (path, result) in &parsed {
+        if let Ok((_, _, file)) = result {
+            index.add(path, file);
+        }
+    }
+
+    let mut libraries = Vec::new();
+    let mut errors = Vec::new();
+    for path in &requested {
+        match parsed.iter().find(|(p, _)| p == path).map(|(_, r)| r) {
+            Some(Ok((content, tree, _))) => libraries.push(crate::model::library(
+                root, package, path, content, tree, &index,
+            )),
+            Some(Err(error)) => errors.push(format!("{}: {error:#}", path.display())),
+            None => errors.push(format!("{}: not found", path.display())),
+        }
+    }
+    Ok((
+        crate::model::ModelDump {
+            model_version: crate::model::MODEL_VERSION.to_string(),
+            libraries,
+        },
+        errors,
+    ))
+}
+
 /// Runs every configured plugin over `<root>/lib` (spec 0001).
 ///
 /// Each source is parsed once. The sections of all matching plugins are written, in config order, to one

@@ -18,6 +18,7 @@ engine/   Rust crate "flint_build" (lib + bin). All the logic lives here.
   src/builder.rs         orchestration: discover → parse once → run plugins → write/delete owned outputs
   src/output.rs          .g.dart header, ownership marker, section assembly
   src/index.rs           project symbol index: resolve type names across files (spec 0005)
+  src/model/             generator model v1 + JSON Schema, dump-model (spec 0007)
   src/config/            pubspec.yaml + flint.yaml + build.yaml loading; resolve() merges them
   src/discovery/         walk lib/, split sources vs *.g.dart
   src/parser/            tree-sitter → ParsedFile (dart_file.rs, dart_types.rs)

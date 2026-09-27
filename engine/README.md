@@ -28,6 +28,7 @@ watcher::watch      notify + 500 ms debounce on lib/, ignoring reads and .g.dart
 | [`config/`](src/config) | `Pubspec`, `FlintConfig`/`PluginConfig` with `flint_json` defaults, `build_yaml` reader, and `resolve` (flint.yaml > build.yaml > defaults) |
 | [`discovery/`](src/discovery) | `find_dart_files` / `find_generated_files` using `walkdir` |
 | [`parser/`](src/parser) | tree-sitter queries → `DartClass`, `DartField`, `DartType`, `DartEnum`. Syntax errors with a caret |
+| [`model/`](src/model) | The generator model v1 (spec 0007) and its JSON Schema; `dump-model` |
 | [`index.rs`](src/index.rs) | `SymbolIndex`: resolves a type name used in a file across the package (spec 0005) |
 | [`generators/`](src/generators) | `Generator` trait, `TemplateEngine` (Tera), `flint_json` (`members.rs`: constructor and member plan, spec 0006; `emitter.rs`), `generic` template generator |
 | [`templates/`](src/templates) | Built-in `flint_json.tera`, embedded in the binary with `include_str!` |

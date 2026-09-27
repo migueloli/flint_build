@@ -1,0 +1,1547 @@
+---
+source: tests/model_test.rs
+assertion_line: 27
+expression: "serde_json::to_string_pretty(&dump).unwrap()"
+---
+{
+  "model_version": "1.0",
+  "libraries": [
+    {
+      "uri": "package:fixture/model_fixture.dart",
+      "path": "lib/model_fixture.dart",
+      "imports": [
+        {
+          "uri": "package:riverpod_annotation/riverpod_annotation.dart",
+          "prefix": null,
+          "show": [],
+          "hide": []
+        },
+        {
+          "uri": "src/money.dart",
+          "prefix": "m",
+          "show": [],
+          "hide": []
+        },
+        {
+          "uri": "src/money.dart",
+          "prefix": null,
+          "show": [
+            "Mood",
+            "Error"
+          ],
+          "hide": []
+        }
+      ],
+      "exports": [],
+      "parts": [
+        "model_fixture.g.dart"
+      ],
+      "part_of": null,
+      "classes": [
+        {
+          "name": "Shape",
+          "line": 30,
+          "doc": "A union, freezed style.",
+          "annotations": [
+            {
+              "name": "freezed",
+              "prefix": null,
+              "constructor": null,
+              "arguments": null,
+              "line": 29
+            }
+          ],
+          "modifiers": [
+            "sealed"
+          ],
+          "type_parameters": [
+            {
+              "name": "T",
+              "bound": {
+                "source": "Object?",
+                "name": "Object",
+                "prefix": null,
+                "arguments": [],
+                "nullable": true,
+                "function": null,
+                "record": null,
+                "resolved": {
+                  "kind": "dart_core",
+                  "library": null
+                }
+              }
+            }
+          ],
+          "superclass": {
+            "source": "Base<T>",
+            "name": "Base",
+            "prefix": null,
+            "arguments": [
+              {
+                "source": "T",
+                "name": "T",
+                "prefix": null,
+                "arguments": [],
+                "nullable": false,
+                "function": null,
+                "record": null,
+                "resolved": {
+                  "kind": "type_parameter",
+                  "library": null
+                }
+              }
+            ],
+            "nullable": false,
+            "function": null,
+            "record": null,
+            "resolved": {
+              "kind": "unresolved",
+              "library": null
+            }
+          },
+          "mixins": [
+            {
+              "source": "Named",
+              "name": "Named",
+              "prefix": null,
+              "arguments": [],
+              "nullable": false,
+              "function": null,
+              "record": null,
+              "resolved": {
+                "kind": "mixin",
+                "library": "package:fixture/model_fixture.dart"
+              }
+            }
+          ],
+          "interfaces": [
+            {
+              "source": "Comparable<Shape<T>>",
+              "name": "Comparable",
+              "prefix": null,
+              "arguments": [
+                {
+                  "source": "Shape<T>",
+                  "name": "Shape",
+                  "prefix": null,
+                  "arguments": [
+                    {
+                      "source": "T",
+                      "name": "T",
+                      "prefix": null,
+                      "arguments": [],
+                      "nullable": false,
+                      "function": null,
+                      "record": null,
+                      "resolved": {
+                        "kind": "type_parameter",
+                        "library": null
+                      }
+                    }
+                  ],
+                  "nullable": false,
+                  "function": null,
+                  "record": null,
+                  "resolved": {
+                    "kind": "class",
+                    "library": "package:fixture/model_fixture.dart"
+                  }
+                }
+              ],
+              "nullable": false,
+              "function": null,
+              "record": null,
+              "resolved": {
+                "kind": "dart_core",
+                "library": null
+              }
+            }
+          ],
+          "fields": [
+            {
+              "name": "origin",
+              "line": 36,
+              "doc": null,
+              "annotations": [],
+              "type": null,
+              "is_static": true,
+              "is_final": false,
+              "is_const": true,
+              "is_late": false,
+              "initializer": {
+                "source": "0",
+                "literal": {
+                  "kind": "int",
+                  "value": 0
+                }
+              },
+              "is_private": false
+            },
+            {
+              "name": "price",
+              "line": 37,
+              "doc": null,
+              "annotations": [],
+              "type": {
+                "source": "m.Money?",
+                "name": "Money",
+                "prefix": "m",
+                "arguments": [],
+                "nullable": true,
+                "function": null,
+                "record": null,
+                "resolved": {
+                  "kind": "class",
+                  "library": "package:fixture/src/money.dart"
+                }
+              },
+              "is_static": false,
+              "is_final": true,
+              "is_const": false,
+              "is_late": false,
+              "initializer": null,
+              "is_private": false
+            },
+            {
+              "name": "error",
+              "line": 38,
+              "doc": null,
+              "annotations": [],
+              "type": {
+                "source": "Error?",
+                "name": "Error",
+                "prefix": null,
+                "arguments": [],
+                "nullable": true,
+                "function": null,
+                "record": null,
+                "resolved": {
+                  "kind": "class",
+                  "library": "package:fixture/src/money.dart"
+                }
+              },
+              "is_static": false,
+              "is_final": true,
+              "is_const": false,
+              "is_late": false,
+              "initializer": null,
+              "is_private": false
+            },
+            {
+              "name": "label",
+              "line": 39,
+              "doc": null,
+              "annotations": [],
+              "type": {
+                "source": "String",
+                "name": "String",
+                "prefix": null,
+                "arguments": [],
+                "nullable": false,
+                "function": null,
+                "record": null,
+                "resolved": {
+                  "kind": "dart_core",
+                  "library": null
+                }
+              },
+              "is_static": false,
+              "is_final": true,
+              "is_const": false,
+              "is_late": true,
+              "initializer": null,
+              "is_private": false
+            }
+          ],
+          "getters": [
+            {
+              "name": "record",
+              "line": 41,
+              "doc": null,
+              "annotations": [],
+              "type": {
+                "source": "(int, {String name})",
+                "name": "",
+                "prefix": null,
+                "arguments": [],
+                "nullable": false,
+                "function": null,
+                "record": {
+                  "positional": [
+                    {
+                      "source": "int",
+                      "name": "int",
+                      "prefix": null,
+                      "arguments": [],
+                      "nullable": false,
+                      "function": null,
+                      "record": null,
+                      "resolved": {
+                        "kind": "dart_core",
+                        "library": null
+                      }
+                    }
+                  ],
+                  "named": [
+                    {
+                      "name": "name",
+                      "type": {
+                        "source": "String",
+                        "name": "String",
+                        "prefix": null,
+                        "arguments": [],
+                        "nullable": false,
+                        "function": null,
+                        "record": null,
+                        "resolved": {
+                          "kind": "dart_core",
+                          "library": null
+                        }
+                      },
+                      "required": false
+                    }
+                  ]
+                },
+                "resolved": null
+              },
+              "is_static": false,
+              "is_abstract": false
+            }
+          ],
+          "setters": [
+            {
+              "name": "label2",
+              "line": 42,
+              "doc": null,
+              "annotations": [],
+              "type": {
+                "source": "String",
+                "name": "String",
+                "prefix": null,
+                "arguments": [],
+                "nullable": false,
+                "function": null,
+                "record": null,
+                "resolved": {
+                  "kind": "dart_core",
+                  "library": null
+                }
+              },
+              "is_static": false
+            }
+          ],
+          "methods": [
+            {
+              "name": "run",
+              "line": 45,
+              "doc": null,
+              "annotations": [
+                {
+                  "name": "override",
+                  "prefix": null,
+                  "constructor": null,
+                  "arguments": null,
+                  "line": 44
+                }
+              ],
+              "return_type": {
+                "source": "Future<void>",
+                "name": "Future",
+                "prefix": null,
+                "arguments": [
+                  {
+                    "source": "void",
+                    "name": "void",
+                    "prefix": null,
+                    "arguments": [],
+                    "nullable": false,
+                    "function": null,
+                    "record": null,
+                    "resolved": {
+                      "kind": "dart_core",
+                      "library": null
+                    }
+                  }
+                ],
+                "nullable": false,
+                "function": null,
+                "record": null,
+                "resolved": {
+                  "kind": "dart_core",
+                  "library": null
+                }
+              },
+              "type_parameters": [
+                {
+                  "name": "R",
+                  "bound": null
+                }
+              ],
+              "params": [
+                {
+                  "name": "a",
+                  "kind": "positional",
+                  "required": true,
+                  "default": null,
+                  "initializes": "plain",
+                  "type": {
+                    "source": "int",
+                    "name": "int",
+                    "prefix": null,
+                    "arguments": [],
+                    "nullable": false,
+                    "function": null,
+                    "record": null,
+                    "resolved": {
+                      "kind": "dart_core",
+                      "library": null
+                    }
+                  },
+                  "annotations": []
+                },
+                {
+                  "name": "b",
+                  "kind": "optional_positional",
+                  "required": false,
+                  "default": null,
+                  "initializes": "plain",
+                  "type": {
+                    "source": "String?",
+                    "name": "String",
+                    "prefix": null,
+                    "arguments": [],
+                    "nullable": true,
+                    "function": null,
+                    "record": null,
+                    "resolved": {
+                      "kind": "dart_core",
+                      "library": null
+                    }
+                  },
+                  "annotations": []
+                }
+              ],
+              "is_static": false,
+              "is_abstract": false,
+              "is_operator": false,
+              "body_modifier": "async"
+            },
+            {
+              "name": "+",
+              "line": 46,
+              "doc": null,
+              "annotations": [],
+              "return_type": {
+                "source": "int",
+                "name": "int",
+                "prefix": null,
+                "arguments": [],
+                "nullable": false,
+                "function": null,
+                "record": null,
+                "resolved": {
+                  "kind": "dart_core",
+                  "library": null
+                }
+              },
+              "type_parameters": [],
+              "params": [
+                {
+                  "name": "other",
+                  "kind": "positional",
+                  "required": true,
+                  "default": null,
+                  "initializes": "plain",
+                  "type": {
+                    "source": "int",
+                    "name": "int",
+                    "prefix": null,
+                    "arguments": [],
+                    "nullable": false,
+                    "function": null,
+                    "record": null,
+                    "resolved": {
+                      "kind": "dart_core",
+                      "library": null
+                    }
+                  },
+                  "annotations": []
+                }
+              ],
+              "is_static": false,
+              "is_abstract": false,
+              "is_operator": true,
+              "body_modifier": null
+            },
+            {
+              "name": "abstractMethod",
+              "line": 47,
+              "doc": null,
+              "annotations": [],
+              "return_type": {
+                "source": "void",
+                "name": "void",
+                "prefix": null,
+                "arguments": [],
+                "nullable": false,
+                "function": null,
+                "record": null,
+                "resolved": {
+                  "kind": "dart_core",
+                  "library": null
+                }
+              },
+              "type_parameters": [],
+              "params": [],
+              "is_static": false,
+              "is_abstract": true,
+              "is_operator": false,
+              "body_modifier": null
+            }
+          ],
+          "constructors": [
+            {
+              "name": "circle",
+              "line": 32,
+              "doc": "A circle.",
+              "annotations": [],
+              "kind": "redirecting_factory",
+              "is_const": true,
+              "redirects_to": {
+                "source": "Circle<T>",
+                "name": "Circle",
+                "prefix": null,
+                "arguments": [
+                  {
+                    "source": "T",
+                    "name": "T",
+                    "prefix": null,
+                    "arguments": [],
+                    "nullable": false,
+                    "function": null,
+                    "record": null,
+                    "resolved": {
+                      "kind": "type_parameter",
+                      "library": null
+                    }
+                  }
+                ],
+                "nullable": false,
+                "function": null,
+                "record": null,
+                "resolved": {
+                  "kind": "unresolved",
+                  "library": null
+                }
+              },
+              "params": [
+                {
+                  "name": "radius",
+                  "kind": "named",
+                  "required": false,
+                  "default": null,
+                  "initializes": "plain",
+                  "type": {
+                    "source": "double",
+                    "name": "double",
+                    "prefix": null,
+                    "arguments": [],
+                    "nullable": false,
+                    "function": null,
+                    "record": null,
+                    "resolved": {
+                      "kind": "dart_core",
+                      "library": null
+                    }
+                  },
+                  "annotations": [
+                    {
+                      "name": "Default",
+                      "prefix": null,
+                      "constructor": null,
+                      "arguments": {
+                        "positional": [
+                          {
+                            "source": "1",
+                            "literal": {
+                              "kind": "int",
+                              "value": 1
+                            }
+                          }
+                        ],
+                        "named": {}
+                      },
+                      "line": 32
+                    }
+                  ]
+                },
+                {
+                  "name": "color",
+                  "kind": "named",
+                  "required": true,
+                  "default": null,
+                  "initializes": "plain",
+                  "type": {
+                    "source": "T",
+                    "name": "T",
+                    "prefix": null,
+                    "arguments": [],
+                    "nullable": false,
+                    "function": null,
+                    "record": null,
+                    "resolved": {
+                      "kind": "type_parameter",
+                      "library": null
+                    }
+                  },
+                  "annotations": [
+                    {
+                      "name": "JsonKey",
+                      "prefix": null,
+                      "constructor": null,
+                      "arguments": {
+                        "positional": [],
+                        "named": {
+                          "name": {
+                            "source": "'c'",
+                            "literal": {
+                              "kind": "string",
+                              "value": "c"
+                            }
+                          }
+                        }
+                      },
+                      "line": 32
+                    }
+                  ]
+                },
+                {
+                  "name": "mood",
+                  "kind": "named",
+                  "required": false,
+                  "default": null,
+                  "initializes": "plain",
+                  "type": {
+                    "source": "Mood",
+                    "name": "Mood",
+                    "prefix": null,
+                    "arguments": [],
+                    "nullable": false,
+                    "function": null,
+                    "record": null,
+                    "resolved": {
+                      "kind": "enum",
+                      "library": "package:fixture/src/money.dart"
+                    }
+                  },
+                  "annotations": [
+                    {
+                      "name": "Default",
+                      "prefix": null,
+                      "constructor": null,
+                      "arguments": {
+                        "positional": [
+                          {
+                            "source": "Mood.calm",
+                            "literal": null
+                          }
+                        ],
+                        "named": {}
+                      },
+                      "line": 32
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "square",
+              "line": 33,
+              "doc": null,
+              "annotations": [],
+              "kind": "redirecting_factory",
+              "is_const": true,
+              "redirects_to": {
+                "source": "_Square",
+                "name": "_Square",
+                "prefix": null,
+                "arguments": [],
+                "nullable": false,
+                "function": null,
+                "record": null,
+                "resolved": {
+                  "kind": "unresolved",
+                  "library": null
+                }
+              },
+              "params": [
+                {
+                  "name": "side",
+                  "kind": "positional",
+                  "required": true,
+                  "default": null,
+                  "initializes": "plain",
+                  "type": {
+                    "source": "double",
+                    "name": "double",
+                    "prefix": null,
+                    "arguments": [],
+                    "nullable": false,
+                    "function": null,
+                    "record": null,
+                    "resolved": {
+                      "kind": "dart_core",
+                      "library": null
+                    }
+                  },
+                  "annotations": [
+                    {
+                      "name": "Default",
+                      "prefix": null,
+                      "constructor": null,
+                      "arguments": {
+                        "positional": [
+                          {
+                            "source": "2",
+                            "literal": {
+                              "kind": "int",
+                              "value": 2
+                            }
+                          }
+                        ],
+                        "named": {}
+                      },
+                      "line": 33
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "_",
+              "line": 34,
+              "doc": null,
+              "annotations": [],
+              "kind": "generative",
+              "is_const": true,
+              "redirects_to": null,
+              "params": []
+            }
+          ]
+        }
+      ],
+      "enums": [
+        {
+          "name": "Color",
+          "line": 60,
+          "doc": null,
+          "annotations": [],
+          "type_parameters": [],
+          "mixins": [
+            {
+              "source": "Named",
+              "name": "Named",
+              "prefix": null,
+              "arguments": [],
+              "nullable": false,
+              "function": null,
+              "record": null,
+              "resolved": {
+                "kind": "mixin",
+                "library": "package:fixture/model_fixture.dart"
+              }
+            }
+          ],
+          "interfaces": [],
+          "values": [
+            {
+              "name": "red",
+              "line": 63,
+              "doc": "Red.",
+              "annotations": [
+                {
+                  "name": "JsonValue",
+                  "prefix": null,
+                  "constructor": null,
+                  "arguments": {
+                    "positional": [
+                      {
+                        "source": "'r'",
+                        "literal": {
+                          "kind": "string",
+                          "value": "r"
+                        }
+                      }
+                    ],
+                    "named": {}
+                  },
+                  "line": 62
+                }
+              ],
+              "arguments": {
+                "positional": [
+                  {
+                    "source": "'R'",
+                    "literal": {
+                      "kind": "string",
+                      "value": "R"
+                    }
+                  }
+                ],
+                "named": {}
+              }
+            },
+            {
+              "name": "green",
+              "line": 66,
+              "doc": "Green.",
+              "annotations": [],
+              "arguments": {
+                "positional": [
+                  {
+                    "source": "'G'",
+                    "literal": {
+                      "kind": "string",
+                      "value": "G"
+                    }
+                  }
+                ],
+                "named": {}
+              }
+            }
+          ],
+          "fields": [
+            {
+              "name": "code",
+              "line": 68,
+              "doc": null,
+              "annotations": [],
+              "type": {
+                "source": "String",
+                "name": "String",
+                "prefix": null,
+                "arguments": [],
+                "nullable": false,
+                "function": null,
+                "record": null,
+                "resolved": {
+                  "kind": "dart_core",
+                  "library": null
+                }
+              },
+              "is_static": false,
+              "is_final": true,
+              "is_const": false,
+              "is_late": false,
+              "initializer": null,
+              "is_private": false
+            }
+          ],
+          "getters": [],
+          "setters": [],
+          "methods": [],
+          "constructors": [
+            {
+              "name": null,
+              "line": 69,
+              "doc": null,
+              "annotations": [],
+              "kind": "generative",
+              "is_const": true,
+              "redirects_to": null,
+              "params": [
+                {
+                  "name": "code",
+                  "kind": "positional",
+                  "required": true,
+                  "default": null,
+                  "initializes": "this",
+                  "type": null,
+                  "annotations": []
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "mixins": [
+        {
+          "name": "Named",
+          "line": 50,
+          "doc": null,
+          "annotations": [],
+          "modifiers": [],
+          "type_parameters": [],
+          "on": [
+            {
+              "source": "Object",
+              "name": "Object",
+              "prefix": null,
+              "arguments": [],
+              "nullable": false,
+              "function": null,
+              "record": null,
+              "resolved": {
+                "kind": "dart_core",
+                "library": null
+              }
+            }
+          ],
+          "interfaces": [],
+          "fields": [],
+          "getters": [
+            {
+              "name": "name",
+              "line": 51,
+              "doc": null,
+              "annotations": [],
+              "type": {
+                "source": "String",
+                "name": "String",
+                "prefix": null,
+                "arguments": [],
+                "nullable": false,
+                "function": null,
+                "record": null,
+                "resolved": {
+                  "kind": "dart_core",
+                  "library": null
+                }
+              },
+              "is_static": false,
+              "is_abstract": false
+            }
+          ],
+          "setters": [],
+          "methods": [],
+          "constructors": []
+        }
+      ],
+      "extensions": [
+        {
+          "name": "ShapeX",
+          "line": 54,
+          "doc": null,
+          "annotations": [],
+          "type_parameters": [
+            {
+              "name": "T",
+              "bound": null
+            }
+          ],
+          "on": {
+            "source": "Shape<T>",
+            "name": "Shape",
+            "prefix": null,
+            "arguments": [
+              {
+                "source": "T",
+                "name": "T",
+                "prefix": null,
+                "arguments": [],
+                "nullable": false,
+                "function": null,
+                "record": null,
+                "resolved": {
+                  "kind": "type_parameter",
+                  "library": null
+                }
+              }
+            ],
+            "nullable": false,
+            "function": null,
+            "record": null,
+            "resolved": {
+              "kind": "class",
+              "library": "package:fixture/model_fixture.dart"
+            }
+          },
+          "fields": [],
+          "getters": [
+            {
+              "name": "isCircle",
+              "line": 55,
+              "doc": null,
+              "annotations": [],
+              "type": {
+                "source": "bool",
+                "name": "bool",
+                "prefix": null,
+                "arguments": [],
+                "nullable": false,
+                "function": null,
+                "record": null,
+                "resolved": {
+                  "kind": "dart_core",
+                  "library": null
+                }
+              },
+              "is_static": false,
+              "is_abstract": false
+            }
+          ],
+          "setters": [],
+          "methods": [],
+          "constructors": []
+        }
+      ],
+      "extension_types": [
+        {
+          "name": "Id",
+          "line": 58,
+          "doc": null,
+          "annotations": [],
+          "type_parameters": [],
+          "representation_name": "value",
+          "representation_type": {
+            "source": "int",
+            "name": "int",
+            "prefix": null,
+            "arguments": [],
+            "nullable": false,
+            "function": null,
+            "record": null,
+            "resolved": {
+              "kind": "dart_core",
+              "library": null
+            }
+          },
+          "interfaces": [
+            {
+              "source": "Object",
+              "name": "Object",
+              "prefix": null,
+              "arguments": [],
+              "nullable": false,
+              "function": null,
+              "record": null,
+              "resolved": {
+                "kind": "dart_core",
+                "library": null
+              }
+            }
+          ],
+          "fields": [],
+          "getters": [],
+          "setters": [],
+          "methods": [],
+          "constructors": []
+        }
+      ],
+      "typedefs": [
+        {
+          "name": "Json",
+          "line": 23,
+          "doc": null,
+          "annotations": [
+            {
+              "name": "deprecated",
+              "prefix": null,
+              "constructor": null,
+              "arguments": null,
+              "line": 23
+            }
+          ],
+          "type_parameters": [],
+          "aliased": {
+            "source": "Map<String, dynamic>",
+            "name": "Map",
+            "prefix": null,
+            "arguments": [
+              {
+                "source": "String",
+                "name": "String",
+                "prefix": null,
+                "arguments": [],
+                "nullable": false,
+                "function": null,
+                "record": null,
+                "resolved": {
+                  "kind": "dart_core",
+                  "library": null
+                }
+              },
+              {
+                "source": "dynamic",
+                "name": "dynamic",
+                "prefix": null,
+                "arguments": [],
+                "nullable": false,
+                "function": null,
+                "record": null,
+                "resolved": {
+                  "kind": "dart_core",
+                  "library": null
+                }
+              }
+            ],
+            "nullable": false,
+            "function": null,
+            "record": null,
+            "resolved": {
+              "kind": "dart_core",
+              "library": null
+            }
+          }
+        },
+        {
+          "name": "Callback",
+          "line": 25,
+          "doc": null,
+          "annotations": [],
+          "type_parameters": [],
+          "aliased": {
+            "source": "void Function(int x)",
+            "name": "Function",
+            "prefix": null,
+            "arguments": [],
+            "nullable": false,
+            "function": {
+              "return_type": {
+                "source": "void",
+                "name": "void",
+                "prefix": null,
+                "arguments": [],
+                "nullable": false,
+                "function": null,
+                "record": null,
+                "resolved": {
+                  "kind": "dart_core",
+                  "library": null
+                }
+              },
+              "type_parameters": [],
+              "positional": [
+                {
+                  "source": "int",
+                  "name": "int",
+                  "prefix": null,
+                  "arguments": [],
+                  "nullable": false,
+                  "function": null,
+                  "record": null,
+                  "resolved": {
+                    "kind": "dart_core",
+                    "library": null
+                  }
+                }
+              ],
+              "named": []
+            },
+            "record": null,
+            "resolved": null
+          }
+        },
+        {
+          "name": "Mapper",
+          "line": 26,
+          "doc": null,
+          "annotations": [],
+          "type_parameters": [
+            {
+              "name": "T",
+              "bound": null
+            }
+          ],
+          "aliased": {
+            "source": "T Function(Object?)",
+            "name": "Function",
+            "prefix": null,
+            "arguments": [],
+            "nullable": false,
+            "function": {
+              "return_type": {
+                "source": "T",
+                "name": "T",
+                "prefix": null,
+                "arguments": [],
+                "nullable": false,
+                "function": null,
+                "record": null,
+                "resolved": {
+                  "kind": "type_parameter",
+                  "library": null
+                }
+              },
+              "type_parameters": [],
+              "positional": [
+                {
+                  "source": "Object?",
+                  "name": "Object",
+                  "prefix": null,
+                  "arguments": [],
+                  "nullable": true,
+                  "function": null,
+                  "record": null,
+                  "resolved": {
+                    "kind": "dart_core",
+                    "library": null
+                  }
+                }
+              ],
+              "named": []
+            },
+            "record": null,
+            "resolved": null
+          }
+        }
+      ],
+      "functions": [
+        {
+          "name": "fetchPrices",
+          "line": 10,
+          "doc": "A functional provider, riverpod_generator style.",
+          "annotations": [
+            {
+              "name": "riverpod",
+              "prefix": null,
+              "constructor": null,
+              "arguments": null,
+              "line": 9
+            }
+          ],
+          "return_type": {
+            "source": "Future<List<m.Money>>",
+            "name": "Future",
+            "prefix": null,
+            "arguments": [
+              {
+                "source": "List<m.Money>",
+                "name": "List",
+                "prefix": null,
+                "arguments": [
+                  {
+                    "source": "m.Money",
+                    "name": "Money",
+                    "prefix": "m",
+                    "arguments": [],
+                    "nullable": false,
+                    "function": null,
+                    "record": null,
+                    "resolved": {
+                      "kind": "class",
+                      "library": "package:fixture/src/money.dart"
+                    }
+                  }
+                ],
+                "nullable": false,
+                "function": null,
+                "record": null,
+                "resolved": {
+                  "kind": "dart_core",
+                  "library": null
+                }
+              }
+            ],
+            "nullable": false,
+            "function": null,
+            "record": null,
+            "resolved": {
+              "kind": "dart_core",
+              "library": null
+            }
+          },
+          "type_parameters": [],
+          "params": [
+            {
+              "name": "ref",
+              "kind": "positional",
+              "required": true,
+              "default": null,
+              "initializes": "plain",
+              "type": {
+                "source": "Ref",
+                "name": "Ref",
+                "prefix": null,
+                "arguments": [],
+                "nullable": false,
+                "function": null,
+                "record": null,
+                "resolved": {
+                  "kind": "unresolved",
+                  "library": null
+                }
+              },
+              "annotations": []
+            },
+            {
+              "name": "page",
+              "kind": "named",
+              "required": true,
+              "default": null,
+              "initializes": "plain",
+              "type": {
+                "source": "int",
+                "name": "int",
+                "prefix": null,
+                "arguments": [],
+                "nullable": false,
+                "function": null,
+                "record": null,
+                "resolved": {
+                  "kind": "dart_core",
+                  "library": null
+                }
+              },
+              "annotations": []
+            },
+            {
+              "name": "mood",
+              "kind": "named",
+              "required": false,
+              "default": {
+                "source": "Mood.calm",
+                "literal": null
+              },
+              "initializes": "plain",
+              "type": {
+                "source": "Mood",
+                "name": "Mood",
+                "prefix": null,
+                "arguments": [],
+                "nullable": false,
+                "function": null,
+                "record": null,
+                "resolved": {
+                  "kind": "enum",
+                  "library": "package:fixture/src/money.dart"
+                }
+              },
+              "annotations": []
+            }
+          ],
+          "body_modifier": "async",
+          "is_external": false
+        }
+      ],
+      "getters": [
+        {
+          "name": "answer",
+          "line": 14,
+          "doc": null,
+          "annotations": [
+            {
+              "name": "Anno",
+              "prefix": null,
+              "constructor": null,
+              "arguments": {
+                "positional": [
+                  {
+                    "source": "1",
+                    "literal": {
+                      "kind": "int",
+                      "value": 1
+                    }
+                  },
+                  {
+                    "source": "2.5",
+                    "literal": {
+                      "kind": "double",
+                      "value": 2.5
+                    }
+                  },
+                  {
+                    "source": "true",
+                    "literal": {
+                      "kind": "bool",
+                      "value": true
+                    }
+                  },
+                  {
+                    "source": "null",
+                    "literal": {
+                      "kind": "null"
+                    }
+                  },
+                  {
+                    "source": "'a'",
+                    "literal": {
+                      "kind": "string",
+                      "value": "a"
+                    }
+                  },
+                  {
+                    "source": "[1, 'x']",
+                    "literal": {
+                      "kind": "list",
+                      "value": [
+                        {
+                          "kind": "int",
+                          "value": 1
+                        },
+                        {
+                          "kind": "string",
+                          "value": "x"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "source": "{'k': 1}",
+                    "literal": {
+                      "kind": "map",
+                      "value": [
+                        {
+                          "key": {
+                            "kind": "string",
+                            "value": "k"
+                          },
+                          "value": {
+                            "kind": "int",
+                            "value": 1
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "named": {
+                  "key": {
+                    "source": "#sym",
+                    "literal": null
+                  },
+                  "neg": {
+                    "source": "-1",
+                    "literal": {
+                      "kind": "int",
+                      "value": -1
+                    }
+                  },
+                  "other": {
+                    "source": "Foo.bar",
+                    "literal": null
+                  }
+                }
+              },
+              "line": 12
+            },
+            {
+              "name": "Anno",
+              "prefix": null,
+              "constructor": "named",
+              "arguments": {
+                "positional": [
+                  {
+                    "source": "Mood.calm",
+                    "literal": null
+                  }
+                ],
+                "named": {}
+              },
+              "line": 13
+            }
+          ],
+          "type": {
+            "source": "int",
+            "name": "int",
+            "prefix": null,
+            "arguments": [],
+            "nullable": false,
+            "function": null,
+            "record": null,
+            "resolved": {
+              "kind": "dart_core",
+              "library": null
+            }
+          },
+          "is_static": false,
+          "is_abstract": false
+        }
+      ],
+      "variables": [
+        {
+          "name": "kMax",
+          "line": 18,
+          "doc": null,
+          "annotations": [],
+          "type": {
+            "source": "int",
+            "name": "int",
+            "prefix": null,
+            "arguments": [],
+            "nullable": false,
+            "function": null,
+            "record": null,
+            "resolved": {
+              "kind": "dart_core",
+              "library": null
+            }
+          },
+          "is_final": false,
+          "is_const": true,
+          "is_late": false,
+          "initializer": {
+            "source": "3",
+            "literal": {
+              "kind": "int",
+              "value": 3
+            }
+          }
+        },
+        {
+          "name": "list",
+          "line": 19,
+          "doc": null,
+          "annotations": [],
+          "type": null,
+          "is_final": true,
+          "is_const": false,
+          "is_late": false,
+          "initializer": {
+            "source": "[1, 2]",
+            "literal": {
+              "kind": "list",
+              "value": [
+                {
+                  "kind": "int",
+                  "value": 1
+                },
+                {
+                  "kind": "int",
+                  "value": 2
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "lateVar",
+          "line": 20,
+          "doc": null,
+          "annotations": [],
+          "type": {
+            "source": "String",
+            "name": "String",
+            "prefix": null,
+            "arguments": [],
+            "nullable": false,
+            "function": null,
+            "record": null,
+            "resolved": {
+              "kind": "dart_core",
+              "library": null
+            }
+          },
+          "is_final": false,
+          "is_const": false,
+          "is_late": true,
+          "initializer": null
+        },
+        {
+          "name": "zero",
+          "line": 21,
+          "doc": null,
+          "annotations": [],
+          "type": null,
+          "is_final": false,
+          "is_const": true,
+          "is_late": false,
+          "initializer": {
+            "source": "Duration.zero",
+            "literal": null
+          }
+        }
+      ]
+    }
+  ]
+}

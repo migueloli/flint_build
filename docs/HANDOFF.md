@@ -1,7 +1,6 @@
 # Handoff — state of the project and what comes next
 
-**Last updated:** 2026-09-27, on branch `claude/nice-turing-eu8mvu` (code at `660eead`; later commits are
-docs only). CI green.
+**Last updated:** 2026-09-27, on branch `claude/nice-turing-eu8mvu`, after spec 0007 step 1. CI green.
 Read this first, then [AGENTS.md](../AGENTS.md) for the rules and [ROADMAP.md](ROADMAP.md) for the full plan.
 Update this file whenever you finish a step, change priorities, or leave work half done.
 
@@ -26,7 +25,7 @@ flutter_gen, mockito, go_router_builder, envied. **Later:** auto_route, retrofit
 | Branch / PR | All work is on `claude/nice-turing-eu8mvu`; PR [migueloli/flint_build#1](https://github.com/migueloli/flint_build/pull/1) is open, not merged |
 | Version | Engine and CLI both `0.1.0` (unreleased). A bump to `0.2.0` has been suggested, not decided (§5) |
 | CI | `.github/workflows/ci.yml`: fmt, clippy `-D warnings`, `cargo test --locked`, MSRV 1.88, Dart golden check, `dart analyze` on `cli/` and the example, example output current. Runs on PRs, pushes to `main`, manual dispatch |
-| Tests | 96 Rust tests (unit, build pipeline, insta snapshots), 31 Dart golden round-trip tests. All pass |
+| Tests | 104 Rust tests (unit, build pipeline, insta snapshots, model schema), 32 Dart golden round-trip tests. All pass |
 | Performance | `engine/bench/run.sh 1000 5`, 4 cores, engine only: `--force` ~0.27 s, no-op ~86–91 ms (budget 100 ms, tight, see §4) |
 | Roadmap | Phase 0 done except the LICENSE placeholders · Phase 1 done · Phase 2 (json_serializable) in progress, spec 0006 · Phase 3 (generator platform) drafted as spec 0007 · Phases 4–7 not started, apart from the parts noted in the roadmap |
 
@@ -40,7 +39,7 @@ flutter_gen, mockito, go_router_builder, envied. **Later:** auto_route, retrofit
 | [0004](specs/0004-template-errors.md) | Done | Template problems are errors, not panics |
 | [0005](specs/0005-project-symbol-index.md) | Done | Project symbol index: enums and classes from any file, `dart:core` types, type checks with clear errors, `external_types` |
 | [0006](specs/0006-constructor-aware-emission.md) | **In progress: steps 1–2 done, 3–4 open** | `fromJson` calls the real constructor; json_serializable's member rules |
-| [0007](specs/0007-generator-platform.md) | **Draft, waiting for review** | Generator platform: model v1, one contract for built-in and custom generators (Rust, Dart, YAML, Tera), output kinds, non-Dart inputs, coexistence with build_runner |
+| [0007](specs/0007-generator-platform.md) | **In progress: step 1 done (model v1, `dump-model`, schema), steps 2–7 open** | Generator platform: model v1, one contract for built-in and custom generators (Rust, Dart, YAML, Tera), output kinds, non-Dart inputs, coexistence with build_runner |
 
 ### Review findings ([REVIEW.md](REVIEW.md))
 
@@ -57,9 +56,21 @@ flutter_gen, mockito, go_router_builder, envied. **Later:** auto_route, retrofit
 
 ---
 
-## 2. The next task: spec 0006 step 3 (superclass members)
+## 2. The next tasks: spec 0007 step 2, then spec 0006 step 3
 
-Everything below is agreed in the spec; this is the working checklist.
+**Recommended order (changed after spec 0007 step 1):** the model builder (`engine/src/model/build.rs`)
+already reads `extends`, `with`, `implements`, getters, setters and every constructor, but `flint_json` still
+reads the older `ParsedFile`. Doing **spec 0007 step 2 first** (the `Generator` trait v1: `flint_json` and the
+Tera generator move onto the model with byte-identical output, plus the `part`/`library` output kinds and the
+`generators:` key) means superclass support (spec 0006 step 3) is then written once, on the model, instead of
+on `ParsedFile` and again during the move. The spec 0007 Plan lists step 2's scope; its acceptance criteria
+say what must hold (existing snapshots, golden fixtures and the example byte-identical).
+
+### Spec 0006 step 3 (superclass members): the working checklist
+
+Everything below is agreed in the spec. If spec 0007 step 2 is done first, read “parser” and “index” below as
+“model” (the model already has `Class.superclass`, `mixins`, and each class's members); the resolution,
+dependency and member rules are the same.
 
 **Goal:** `class Child extends Base { Child(super.id, this.name); }` and `Kid(int id, this.name) : super(id)`
 generate `Child(id, name)` / `Kid(id, name)..tag = …`, with the superclass's members first in `toJson`.
@@ -103,13 +114,13 @@ compare with a run of the previous commit in the same session; the machine's noi
 
 Each item links to where it's tracked.
 
-1. **Owner review of [spec 0007](specs/0007-generator-platform.md)** (the generator platform). It has seven
-   open questions with proposed answers. Nothing in it should be implemented before it's accepted.
-2. **Finish spec 0006** (step 3 above, then step 4, docs). Superclass members matter to freezed and most other
-   generators too, not only json_serializable.
-3. **Implement spec 0007**, step by step (its Plan): model v1 and `dump-model` → trait v1 and output kinds →
-   YAML generators and project scope → non-Dart inputs → Dart generators and the `flint_generator` package →
-   coexistence. `flint_json` must move onto the public API with byte-identical output (AGENTS.md rule 6).
+1. ~~Owner review of spec 0007~~: accepted with the proposed answers (see its Decisions).
+2. **Finish spec 0006** (step 3 in §2, then step 4, docs). Superclass members matter to freezed and most
+   other generators too, not only json_serializable.
+3. **Continue spec 0007**, step by step (its Plan): ~~model v1 and `dump-model`~~ (done) → trait v1 and output
+   kinds (§2) → YAML generators and project scope → non-Dart inputs → Dart generators and the
+   `flint_generator` package → coexistence. `flint_json` must move onto the public API with byte-identical
+   output (AGENTS.md rule 6).
 4. **The next built-in generators**, one spec each, written against spec 0007, in the owner's order:
    **riverpod_generator**, then **freezed**, then drift, flutter_gen, mockito, go_router_builder, envied.
    Before each spec, record the original package's real output (§6), as spec 0006 did for json_serializable.
@@ -164,7 +175,6 @@ Owner decisions that don't block engineering are in §5.
 | LICENSE holder and year | — | `LICENSE` has `[YEAR]` and `[COPYRIGHT HOLDER]` |
 | Version | stay `0.1.0` until release, or `0.2.0` now | Output changed in breaking ways since the first `0.1.0` notes (constructors, private fields, getters, enum lookup parameter) |
 | PR #1 | merge now, or after spec 0006 | The branch head is green; each spec step was pushed and checked separately |
-| Spec 0007 open questions | accept the proposed answers, or change them | Config key rename, who declares selection, Dart transport, coexistence default, built-ins in Rust or Dart, model size, where resolution data lives |
 | Scope of the R10 spec | R10 alone, or R10 + R14 (enum/int map keys) | Both touch the enum conversion code |
 | Order after freezed | drift, flutter_gen, mockito, go_router_builder, envied (as given) | flutter_gen and envied are small and exercise non-Dart inputs early; drift and mockito need the dependency index first. Reordering by effort is an option |
 

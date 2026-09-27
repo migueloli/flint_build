@@ -235,3 +235,22 @@ Map<String, dynamic> _$LimitsToJson(
       'limit': instance.limit,
       'level': instance.level,
     };
+
+Defaults _$DefaultsFromJson(
+  Map<String, dynamic> json,
+) => Defaults(
+      speed: json['speed'] == null ? Speed.fast : _$SpeedEnumMap.entries.firstWhere((entry) => entry.value == json['speed']).key,
+      gap: json['gap'] == null ? const Duration(seconds: 2) : Duration(microseconds: (json['gap'] as num).toInt()),
+    );
+
+Map<String, dynamic> _$DefaultsToJson(
+  Defaults instance,
+) => <String, dynamic>{
+      'speed': _$SpeedEnumMap[instance.speed],
+      'gap': instance.gap.inMicroseconds,
+    };
+
+const _$SpeedEnumMap = {
+  Speed.slow: 'slow',
+  Speed.fast: 'fast',
+};

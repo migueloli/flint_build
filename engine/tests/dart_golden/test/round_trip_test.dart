@@ -396,6 +396,10 @@ void main() {
       expect(wire(limits), {'limit': 20, 'level': 3});
     });
 
+    test('defaults made of several syntax nodes', () {
+      expect(wire(Defaults.fromJson(wire({}))), {'speed': 'fast', 'gap': 2000000});
+    });
+
     test("Dart's implicit constructor, every field by cascade", () {
       expect(wire(Implicit.fromJson(wire({'a': 'q', 'b': 2}))), {'a': 'q', 'b': 2});
     });

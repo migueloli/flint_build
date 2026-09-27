@@ -3,7 +3,7 @@ use std::time::Instant;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use colored::Colorize;
-use flint_build::builder::{run_build, run_clean};
+use flint_build::builder::{run_build, run_clean, run_dump_model};
 use flint_build::generators::flint_json::emitter::FlintJsonGenerator;
 use flint_build::registry::PluginRegistry;
 use flint_build::watcher;
@@ -42,6 +42,14 @@ enum Commands {
     },
     /// Clean all generated files
     Clean,
+    /// Print the generator model (spec 0007) of Dart files as JSON: what generators and templates see
+    DumpModel {
+        /// Files to describe, relative to the package root (default: every file under lib/)
+        files: Vec<std::path::PathBuf>,
+        /// Print the model's JSON Schema instead
+        #[arg(long)]
+        schema: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -57,6 +65,8 @@ fn main() -> Result<()> {
         Commands::Build { force } => run_build(*force, &registry)?,
         Commands::Watch { force } => watcher::watch("lib", || run_build(*force, &registry))?,
         Commands::Clean => run_clean()?,
+        // JSON on stdout: no timing footer.
+        Commands::DumpModel { files, schema } => return run_dump_model(files, *schema),
     }
 
     let duration = start.elapsed();

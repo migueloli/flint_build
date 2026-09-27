@@ -223,3 +223,18 @@ class Limits {
   factory Limits.fromJson(Map<String, dynamic> json) => _$LimitsFromJson(json);
   Map<String, dynamic> toJson() => _$LimitsToJson(this);
 }
+
+// A default made of several syntax nodes (`Speed.fast`, `const Duration(…)`) is copied whole.
+@JsonEnum()
+enum Speed { slow, fast }
+
+@JsonSerializable()
+class Defaults {
+  final Speed speed;
+  final Duration gap;
+
+  Defaults({this.speed = Speed.fast, this.gap = const Duration(seconds: 2)});
+
+  factory Defaults.fromJson(Map<String, dynamic> json) => _$DefaultsFromJson(json);
+  Map<String, dynamic> toJson() => _$DefaultsToJson(this);
+}

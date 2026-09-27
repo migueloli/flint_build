@@ -23,6 +23,7 @@ Run these from the package root, where `pubspec.yaml` (and optionally `flint.yam
 | `dart run flint_build build --force` | Regenerates everything, and overwrites `.g.dart` files Flint didn't write. Aliases: `-f`, `-d`, `--delete-conflicting-outputs`. |
 | `dart run flint_build watch [--force]` | Builds, then rebuilds once per change under `lib/` (500 ms debounce). Flint's own writes don't trigger rebuilds. |
 | `dart run flint_build clean` | Deletes the `.g.dart` files Flint generated. Files from other generators are left alone. |
+| `dart run flint_build dump-model [files…]` | Prints the generator model ([spec 0007](specs/0007-generator-platform.md)) of the given files, or of every file under `lib/`, as JSON: every declaration with its annotations (arguments kept apart), types taken apart and resolved across the package, constructors, parameters and doc comments. `--schema` prints its [JSON Schema](model/v1.schema.json). Generators don't receive it yet; it's for exploring what they will. |
 
 A build reports errors per file and keeps going; if any file failed, it exits with a non-zero code.
 

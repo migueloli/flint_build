@@ -72,12 +72,12 @@ later generator.
 
 Goal: generators, built-in or custom, are written against one versioned API, in Rust, Dart, YAML or Tera, and
 Flint can run next to `build_runner` during a migration.
-→ [Spec 0007](specs/0007-generator-platform.md) (draft)
+→ [Spec 0007](specs/0007-generator-platform.md) (accepted)
 
 | | Item | Refs |
 | --- | ---- | ---- |
-| ⬜ | **Generator model v1:** a versioned, documented model of each library (classes, enums, mixins, extensions, typedefs, top-level functions and variables, constructors, supertypes, generics, annotations with structured arguments, doc comments, resolved types) | Spec 0007 · A4, A5, R9 |
-| ⬜ | `flint_build dump-model <file>`: print the model as JSON (debugging, and a way to write generators in any language) | Spec 0007 |
+| 🟨 | **Generator model v1:** a versioned, documented model of each library (classes, enums, mixins, extensions, typedefs, top-level functions and variables, constructors, supertypes, generics, annotations with structured arguments, doc comments, resolved types). Built (step 1); generators move onto it in step 2 | Spec 0007 · A4, A5, R9 |
+| ✅ | `flint_build dump-model <file>`: print the model as JSON (debugging, and a way to write generators in any language); `--schema` for the JSON Schema | Spec 0007 step 1 |
 | ⬜ | **Output kinds:** a section of the shared part (today), a generator's own part file (`.freezed.dart`), a standalone library (`lib/gen/assets.gen.dart`), all with the ownership marker | Spec 0007 · DD5 |
 | ⬜ | **Dart generators:** a `flint_generator` package with typed model classes; Flint compiles the generator once (AOT, cached) and runs it once per build, not per file | Spec 0007 |
 | ⬜ | **YAML generators:** declarative selection (annotations on classes, functions, fields…) plus inline or file templates; Tera helpers for casing and types; `context_version` | Spec 0007 |

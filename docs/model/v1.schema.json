@@ -1,0 +1,1681 @@
+{
+  "$defs": {
+    "Annotation": {
+      "description": "An annotation with its arguments kept apart: `@JsonKey(name: 'id')` →\n`{ name: \"JsonKey\", arguments: { named: { name: { source: \"'id'\", literal: \"id\" } } } }`.",
+      "properties": {
+        "arguments": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Arguments"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "`None` for an annotation without parentheses (`@immutable`)."
+        },
+        "constructor": {
+          "description": "`named` in `@Foo.named()`, a named constructor. `@a.B` is read as a prefix and a name when `a` is\nlower case (Dart's convention), and as a name and a constructor otherwise.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "line": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "description": "Without `@` or prefix.",
+          "type": "string"
+        },
+        "prefix": {
+          "description": "`json` in `@json.JsonSerializable()`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "line"
+      ],
+      "type": "object"
+    },
+    "Arguments": {
+      "properties": {
+        "named": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Expr"
+          },
+          "description": "Sorted by name, so the output is deterministic.",
+          "type": "object"
+        },
+        "positional": {
+          "items": {
+            "$ref": "#/$defs/Expr"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "positional",
+        "named"
+      ],
+      "type": "object"
+    },
+    "Class": {
+      "properties": {
+        "annotations": {
+          "items": {
+            "$ref": "#/$defs/Annotation"
+          },
+          "type": "array"
+        },
+        "constructors": {
+          "items": {
+            "$ref": "#/$defs/Constructor"
+          },
+          "type": "array"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fields": {
+          "items": {
+            "$ref": "#/$defs/Field"
+          },
+          "type": "array"
+        },
+        "getters": {
+          "items": {
+            "$ref": "#/$defs/Getter"
+          },
+          "type": "array"
+        },
+        "interfaces": {
+          "items": {
+            "$ref": "#/$defs/Type"
+          },
+          "type": "array"
+        },
+        "line": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "methods": {
+          "items": {
+            "$ref": "#/$defs/Method"
+          },
+          "type": "array"
+        },
+        "mixins": {
+          "items": {
+            "$ref": "#/$defs/Type"
+          },
+          "type": "array"
+        },
+        "modifiers": {
+          "description": "`abstract`, `sealed`, `final`, `base`, `interface`, `mixin`, in source order.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "setters": {
+          "items": {
+            "$ref": "#/$defs/Setter"
+          },
+          "type": "array"
+        },
+        "superclass": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Type"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "type_parameters": {
+          "items": {
+            "$ref": "#/$defs/TypeParameter"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "line",
+        "annotations",
+        "modifiers",
+        "type_parameters",
+        "mixins",
+        "interfaces",
+        "fields",
+        "getters",
+        "setters",
+        "methods",
+        "constructors"
+      ],
+      "type": "object"
+    },
+    "Constructor": {
+      "properties": {
+        "annotations": {
+          "items": {
+            "$ref": "#/$defs/Annotation"
+          },
+          "type": "array"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "is_const": {
+          "type": "boolean"
+        },
+        "kind": {
+          "$ref": "#/$defs/ConstructorKind"
+        },
+        "line": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "description": "`None` for the unnamed constructor.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "params": {
+          "items": {
+            "$ref": "#/$defs/Parameter"
+          },
+          "type": "array"
+        },
+        "redirects_to": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Type"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The target of a redirecting factory (`_Circle<T>`)."
+        }
+      },
+      "required": [
+        "line",
+        "annotations",
+        "kind",
+        "is_const",
+        "params"
+      ],
+      "type": "object"
+    },
+    "ConstructorKind": {
+      "oneOf": [
+        {
+          "enum": [
+            "generative",
+            "factory"
+          ],
+          "type": "string"
+        },
+        {
+          "const": "redirecting_factory",
+          "description": "`factory X(…) = Y;`, as freezed uses.",
+          "type": "string"
+        }
+      ]
+    },
+    "Directive": {
+      "properties": {
+        "hide": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "prefix": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "show": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "uri": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "uri",
+        "show",
+        "hide"
+      ],
+      "type": "object"
+    },
+    "Enum": {
+      "properties": {
+        "annotations": {
+          "items": {
+            "$ref": "#/$defs/Annotation"
+          },
+          "type": "array"
+        },
+        "constructors": {
+          "items": {
+            "$ref": "#/$defs/Constructor"
+          },
+          "type": "array"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fields": {
+          "items": {
+            "$ref": "#/$defs/Field"
+          },
+          "type": "array"
+        },
+        "getters": {
+          "items": {
+            "$ref": "#/$defs/Getter"
+          },
+          "type": "array"
+        },
+        "interfaces": {
+          "items": {
+            "$ref": "#/$defs/Type"
+          },
+          "type": "array"
+        },
+        "line": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "methods": {
+          "items": {
+            "$ref": "#/$defs/Method"
+          },
+          "type": "array"
+        },
+        "mixins": {
+          "items": {
+            "$ref": "#/$defs/Type"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "setters": {
+          "items": {
+            "$ref": "#/$defs/Setter"
+          },
+          "type": "array"
+        },
+        "type_parameters": {
+          "items": {
+            "$ref": "#/$defs/TypeParameter"
+          },
+          "type": "array"
+        },
+        "values": {
+          "items": {
+            "$ref": "#/$defs/EnumValue"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "line",
+        "annotations",
+        "type_parameters",
+        "mixins",
+        "interfaces",
+        "values",
+        "fields",
+        "getters",
+        "setters",
+        "methods",
+        "constructors"
+      ],
+      "type": "object"
+    },
+    "EnumValue": {
+      "properties": {
+        "annotations": {
+          "items": {
+            "$ref": "#/$defs/Annotation"
+          },
+          "type": "array"
+        },
+        "arguments": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Arguments"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Constructor arguments of an enhanced enum's value (`red('R', 1)`)."
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "line": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "line",
+        "annotations"
+      ],
+      "type": "object"
+    },
+    "Expr": {
+      "description": "An expression as written, plus its value when it's a literal.",
+      "properties": {
+        "literal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Literal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source"
+      ],
+      "type": "object"
+    },
+    "Extension": {
+      "properties": {
+        "annotations": {
+          "items": {
+            "$ref": "#/$defs/Annotation"
+          },
+          "type": "array"
+        },
+        "constructors": {
+          "items": {
+            "$ref": "#/$defs/Constructor"
+          },
+          "type": "array"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fields": {
+          "items": {
+            "$ref": "#/$defs/Field"
+          },
+          "type": "array"
+        },
+        "getters": {
+          "items": {
+            "$ref": "#/$defs/Getter"
+          },
+          "type": "array"
+        },
+        "line": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "methods": {
+          "items": {
+            "$ref": "#/$defs/Method"
+          },
+          "type": "array"
+        },
+        "name": {
+          "description": "`None` for an unnamed extension.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "on": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Type"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "setters": {
+          "items": {
+            "$ref": "#/$defs/Setter"
+          },
+          "type": "array"
+        },
+        "type_parameters": {
+          "items": {
+            "$ref": "#/$defs/TypeParameter"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "line",
+        "annotations",
+        "type_parameters",
+        "fields",
+        "getters",
+        "setters",
+        "methods",
+        "constructors"
+      ],
+      "type": "object"
+    },
+    "ExtensionType": {
+      "properties": {
+        "annotations": {
+          "items": {
+            "$ref": "#/$defs/Annotation"
+          },
+          "type": "array"
+        },
+        "constructors": {
+          "items": {
+            "$ref": "#/$defs/Constructor"
+          },
+          "type": "array"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fields": {
+          "items": {
+            "$ref": "#/$defs/Field"
+          },
+          "type": "array"
+        },
+        "getters": {
+          "items": {
+            "$ref": "#/$defs/Getter"
+          },
+          "type": "array"
+        },
+        "interfaces": {
+          "items": {
+            "$ref": "#/$defs/Type"
+          },
+          "type": "array"
+        },
+        "line": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "methods": {
+          "items": {
+            "$ref": "#/$defs/Method"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "representation_name": {
+          "description": "The representation field: `value` and `int` in `extension type Id(int value)`.",
+          "type": "string"
+        },
+        "representation_type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Type"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "setters": {
+          "items": {
+            "$ref": "#/$defs/Setter"
+          },
+          "type": "array"
+        },
+        "type_parameters": {
+          "items": {
+            "$ref": "#/$defs/TypeParameter"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "line",
+        "annotations",
+        "type_parameters",
+        "representation_name",
+        "interfaces",
+        "fields",
+        "getters",
+        "setters",
+        "methods",
+        "constructors"
+      ],
+      "type": "object"
+    },
+    "Field": {
+      "properties": {
+        "annotations": {
+          "items": {
+            "$ref": "#/$defs/Annotation"
+          },
+          "type": "array"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "initializer": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Expr"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "is_const": {
+          "type": "boolean"
+        },
+        "is_final": {
+          "type": "boolean"
+        },
+        "is_late": {
+          "type": "boolean"
+        },
+        "is_private": {
+          "type": "boolean"
+        },
+        "is_static": {
+          "type": "boolean"
+        },
+        "line": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Type"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "`None` for `var x;` or `final x = 1;`."
+        }
+      },
+      "required": [
+        "name",
+        "line",
+        "annotations",
+        "is_static",
+        "is_final",
+        "is_const",
+        "is_late",
+        "is_private"
+      ],
+      "type": "object"
+    },
+    "Function": {
+      "properties": {
+        "annotations": {
+          "items": {
+            "$ref": "#/$defs/Annotation"
+          },
+          "type": "array"
+        },
+        "body_modifier": {
+          "description": "The body's modifier: `async`, `async*` or `sync*`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "is_external": {
+          "type": "boolean"
+        },
+        "line": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "params": {
+          "items": {
+            "$ref": "#/$defs/Parameter"
+          },
+          "type": "array"
+        },
+        "return_type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Type"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "type_parameters": {
+          "items": {
+            "$ref": "#/$defs/TypeParameter"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "line",
+        "annotations",
+        "type_parameters",
+        "params",
+        "is_external"
+      ],
+      "type": "object"
+    },
+    "FunctionType": {
+      "properties": {
+        "named": {
+          "items": {
+            "$ref": "#/$defs/NamedType"
+          },
+          "type": "array"
+        },
+        "positional": {
+          "description": "Positional parameters, required and optional (`[…]`) alike.",
+          "items": {
+            "$ref": "#/$defs/Type"
+          },
+          "type": "array"
+        },
+        "return_type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Type"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "type_parameters": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "type_parameters",
+        "positional",
+        "named"
+      ],
+      "type": "object"
+    },
+    "Getter": {
+      "properties": {
+        "annotations": {
+          "items": {
+            "$ref": "#/$defs/Annotation"
+          },
+          "type": "array"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "is_abstract": {
+          "type": "boolean"
+        },
+        "is_static": {
+          "type": "boolean"
+        },
+        "line": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Type"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "line",
+        "annotations",
+        "is_static",
+        "is_abstract"
+      ],
+      "type": "object"
+    },
+    "Initializes": {
+      "oneOf": [
+        {
+          "const": "this",
+          "description": "`this.x`",
+          "type": "string"
+        },
+        {
+          "const": "super",
+          "description": "`super.x`",
+          "type": "string"
+        },
+        {
+          "const": "plain",
+          "description": "`int x`",
+          "type": "string"
+        }
+      ]
+    },
+    "Library": {
+      "description": "One Dart file. A part file has its own entry with `part_of` set; its declarations belong to that\nlibrary.",
+      "properties": {
+        "classes": {
+          "items": {
+            "$ref": "#/$defs/Class"
+          },
+          "type": "array"
+        },
+        "enums": {
+          "items": {
+            "$ref": "#/$defs/Enum"
+          },
+          "type": "array"
+        },
+        "exports": {
+          "items": {
+            "$ref": "#/$defs/Directive"
+          },
+          "type": "array"
+        },
+        "extension_types": {
+          "items": {
+            "$ref": "#/$defs/ExtensionType"
+          },
+          "type": "array"
+        },
+        "extensions": {
+          "items": {
+            "$ref": "#/$defs/Extension"
+          },
+          "type": "array"
+        },
+        "functions": {
+          "items": {
+            "$ref": "#/$defs/Function"
+          },
+          "type": "array"
+        },
+        "getters": {
+          "description": "Top-level getters (`int get answer => 42;`).",
+          "items": {
+            "$ref": "#/$defs/Getter"
+          },
+          "type": "array"
+        },
+        "imports": {
+          "items": {
+            "$ref": "#/$defs/Directive"
+          },
+          "type": "array"
+        },
+        "mixins": {
+          "items": {
+            "$ref": "#/$defs/Mixin"
+          },
+          "type": "array"
+        },
+        "part_of": {
+          "description": "The URI of `part of '…';`, as written.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "parts": {
+          "description": "URIs of `part '…';` directives, as written.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "path": {
+          "description": "Relative to the package root.",
+          "type": "string"
+        },
+        "typedefs": {
+          "items": {
+            "$ref": "#/$defs/Typedef"
+          },
+          "type": "array"
+        },
+        "uri": {
+          "description": "`package:app/models/user.dart` for files under `lib/`; otherwise the path (`test/user_test.dart`).",
+          "type": "string"
+        },
+        "variables": {
+          "items": {
+            "$ref": "#/$defs/Variable"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "uri",
+        "path",
+        "imports",
+        "exports",
+        "parts",
+        "classes",
+        "enums",
+        "mixins",
+        "extensions",
+        "extension_types",
+        "typedefs",
+        "functions",
+        "getters",
+        "variables"
+      ],
+      "type": "object"
+    },
+    "Literal": {
+      "oneOf": [
+        {
+          "properties": {
+            "kind": {
+              "const": "string",
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "int",
+              "type": "string"
+            },
+            "value": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "double",
+              "type": "string"
+            },
+            "value": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "bool",
+              "type": "string"
+            },
+            "value": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "null",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "list",
+              "type": "string"
+            },
+            "value": {
+              "items": {
+                "$ref": "#/$defs/Literal"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "map",
+              "type": "string"
+            },
+            "value": {
+              "items": {
+                "$ref": "#/$defs/MapEntry"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "MapEntry": {
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/Literal"
+        },
+        "value": {
+          "$ref": "#/$defs/Literal"
+        }
+      },
+      "required": [
+        "key",
+        "value"
+      ],
+      "type": "object"
+    },
+    "Method": {
+      "properties": {
+        "annotations": {
+          "items": {
+            "$ref": "#/$defs/Annotation"
+          },
+          "type": "array"
+        },
+        "body_modifier": {
+          "description": "The body's modifier: `async`, `async*` or `sync*`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "is_abstract": {
+          "description": "Declared without a body.",
+          "type": "boolean"
+        },
+        "is_operator": {
+          "type": "boolean"
+        },
+        "is_static": {
+          "type": "boolean"
+        },
+        "line": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "description": "For operators, the operator (`+`, `==`, `[]`).",
+          "type": "string"
+        },
+        "params": {
+          "items": {
+            "$ref": "#/$defs/Parameter"
+          },
+          "type": "array"
+        },
+        "return_type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Type"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "type_parameters": {
+          "items": {
+            "$ref": "#/$defs/TypeParameter"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "line",
+        "annotations",
+        "type_parameters",
+        "params",
+        "is_static",
+        "is_abstract",
+        "is_operator"
+      ],
+      "type": "object"
+    },
+    "Mixin": {
+      "properties": {
+        "annotations": {
+          "items": {
+            "$ref": "#/$defs/Annotation"
+          },
+          "type": "array"
+        },
+        "constructors": {
+          "items": {
+            "$ref": "#/$defs/Constructor"
+          },
+          "type": "array"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fields": {
+          "items": {
+            "$ref": "#/$defs/Field"
+          },
+          "type": "array"
+        },
+        "getters": {
+          "items": {
+            "$ref": "#/$defs/Getter"
+          },
+          "type": "array"
+        },
+        "interfaces": {
+          "items": {
+            "$ref": "#/$defs/Type"
+          },
+          "type": "array"
+        },
+        "line": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "methods": {
+          "items": {
+            "$ref": "#/$defs/Method"
+          },
+          "type": "array"
+        },
+        "modifiers": {
+          "description": "`base` for `base mixin`.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        },
+        "on": {
+          "description": "The `on` clause.",
+          "items": {
+            "$ref": "#/$defs/Type"
+          },
+          "type": "array"
+        },
+        "setters": {
+          "items": {
+            "$ref": "#/$defs/Setter"
+          },
+          "type": "array"
+        },
+        "type_parameters": {
+          "items": {
+            "$ref": "#/$defs/TypeParameter"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "line",
+        "annotations",
+        "modifiers",
+        "type_parameters",
+        "on",
+        "interfaces",
+        "fields",
+        "getters",
+        "setters",
+        "methods",
+        "constructors"
+      ],
+      "type": "object"
+    },
+    "NamedType": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "type": {
+          "$ref": "#/$defs/Type"
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "required"
+      ],
+      "type": "object"
+    },
+    "Parameter": {
+      "properties": {
+        "annotations": {
+          "description": "Annotations on the parameter (`@Default(0)`, `@JsonKey(…)`).",
+          "items": {
+            "$ref": "#/$defs/Annotation"
+          },
+          "type": "array"
+        },
+        "default": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Expr"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "initializes": {
+          "$ref": "#/$defs/Initializes"
+        },
+        "kind": {
+          "$ref": "#/$defs/ParameterKind"
+        },
+        "name": {
+          "type": "string"
+        },
+        "required": {
+          "description": "Positional parameters, and named ones marked `required`.",
+          "type": "boolean"
+        },
+        "type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Type"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The declared type; `None` for `this.x`/`super.x` without one (the field's type applies)."
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "required",
+        "initializes",
+        "annotations"
+      ],
+      "type": "object"
+    },
+    "ParameterKind": {
+      "enum": [
+        "positional",
+        "optional_positional",
+        "named"
+      ],
+      "type": "string"
+    },
+    "RecordType": {
+      "properties": {
+        "named": {
+          "items": {
+            "$ref": "#/$defs/NamedType"
+          },
+          "type": "array"
+        },
+        "positional": {
+          "items": {
+            "$ref": "#/$defs/Type"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "positional",
+        "named"
+      ],
+      "type": "object"
+    },
+    "Resolved": {
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/ResolvedKind"
+        },
+        "library": {
+          "description": "The declaring library's URI, for declarations in this package.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "ResolvedKind": {
+      "oneOf": [
+        {
+          "enum": [
+            "class",
+            "enum",
+            "mixin",
+            "typedef",
+            "extension_type"
+          ],
+          "type": "string"
+        },
+        {
+          "const": "type_parameter",
+          "description": "A type parameter of the enclosing declaration.",
+          "type": "string"
+        },
+        {
+          "const": "dart_core",
+          "description": "A `dart:core` type (`int`, `List`, `Future`, …).",
+          "type": "string"
+        },
+        {
+          "const": "unresolved",
+          "description": "Not declared in this package, as far as the file can see (another package, or a missing import).",
+          "type": "string"
+        }
+      ]
+    },
+    "Setter": {
+      "properties": {
+        "annotations": {
+          "items": {
+            "$ref": "#/$defs/Annotation"
+          },
+          "type": "array"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "is_static": {
+          "type": "boolean"
+        },
+        "line": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Type"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The parameter's type."
+        }
+      },
+      "required": [
+        "name",
+        "line",
+        "annotations",
+        "is_static"
+      ],
+      "type": "object"
+    },
+    "Type": {
+      "description": "A type as written, taken apart: `Map<String, m.Money>?` →\n`{ name: \"Map\", arguments: [String, { name: \"Money\", prefix: \"m\" }], nullable: true }`.",
+      "properties": {
+        "arguments": {
+          "items": {
+            "$ref": "#/$defs/Type"
+          },
+          "type": "array"
+        },
+        "function": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FunctionType"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "description": "The type's name without prefix or arguments; `Function` for function types, empty for records.",
+          "type": "string"
+        },
+        "nullable": {
+          "type": "boolean"
+        },
+        "prefix": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "record": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RecordType"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resolved": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Resolved"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "What the project index says the name refers to. `None` for records and function types."
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "name",
+        "arguments",
+        "nullable"
+      ],
+      "type": "object"
+    },
+    "TypeParameter": {
+      "properties": {
+        "bound": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Type"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "Typedef": {
+      "properties": {
+        "aliased": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Type"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The aliased type. For the old form `typedef void F(int x);` it's the equivalent function type."
+        },
+        "annotations": {
+          "items": {
+            "$ref": "#/$defs/Annotation"
+          },
+          "type": "array"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "line": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "type_parameters": {
+          "items": {
+            "$ref": "#/$defs/TypeParameter"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "line",
+        "annotations",
+        "type_parameters"
+      ],
+      "type": "object"
+    },
+    "Variable": {
+      "properties": {
+        "annotations": {
+          "items": {
+            "$ref": "#/$defs/Annotation"
+          },
+          "type": "array"
+        },
+        "doc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "initializer": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Expr"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "is_const": {
+          "type": "boolean"
+        },
+        "is_final": {
+          "type": "boolean"
+        },
+        "is_late": {
+          "type": "boolean"
+        },
+        "line": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Type"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "line",
+        "annotations",
+        "is_final",
+        "is_const",
+        "is_late"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "`dump-model` output: the model version and one entry per requested file.",
+  "properties": {
+    "libraries": {
+      "items": {
+        "$ref": "#/$defs/Library"
+      },
+      "type": "array"
+    },
+    "model_version": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "model_version",
+    "libraries"
+  ],
+  "title": "ModelDump",
+  "type": "object"
+}

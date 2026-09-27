@@ -26,7 +26,9 @@ serde_json = "1.0"
 heck = "0.5"
 thiserror = "2.0"
 indexmap = { version = "2.14.2", features = ["serde"] }
+schemars = "1"
 
 [dev-dependencies]
 insta = "1.47"
+jsonschema = { version = "0.58.1", default-features = false }
 tempfile = "3.27.0"

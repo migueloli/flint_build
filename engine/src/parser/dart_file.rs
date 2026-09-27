@@ -51,7 +51,9 @@ pub fn parse_file(path: &Path) -> Result<ParsedFile> {
 }
 
 /// Parses Dart source; `path` is only used in messages.
-pub fn parse_source(content: &str, path: &Path) -> Result<ParsedFile> {
+/// Parses Dart source into a syntax tree, or a `FlintError::Syntax` pointing at the first error. `path` is
+/// only used in messages.
+pub(crate) fn parse_tree(content: &str, path: &Path) -> Result<tree_sitter::Tree> {
     let mut parser = Parser::new();
     parser
         .set_language(&tree_sitter_dart::LANGUAGE.into())
@@ -78,6 +80,20 @@ pub fn parse_source(content: &str, path: &Path) -> Result<ParsedFile> {
         .into());
     }
 
+    Ok(tree)
+}
+
+pub fn parse_source(content: &str, path: &Path) -> Result<ParsedFile> {
+    let tree = parse_tree(content, path)?;
+    parsed_file(&tree, content, path)
+}
+
+/// The parsed model of an already parsed tree (see [`parse_tree`]).
+pub(crate) fn parsed_file(
+    tree: &tree_sitter::Tree,
+    content: &str,
+    path: &Path,
+) -> Result<ParsedFile> {
     let classes = extract_classes(tree.root_node(), content)?;
     let enums = extract_enums(tree.root_node(), content)?;
 
@@ -103,12 +119,12 @@ pub fn parse_source(content: &str, path: &Path) -> Result<ParsedFile> {
     })
 }
 
-fn text<'a>(node: Node, content: &'a str) -> &'a str {
+pub(crate) fn text<'a>(node: Node, content: &'a str) -> &'a str {
     node.utf8_text(content.as_bytes()).unwrap_or("")
 }
 
 /// The target of `part of 'lib.dart';` (or of the legacy `part of my.library;`).
-fn extract_part_of(root: Node, content: &str) -> Option<String> {
+pub(crate) fn extract_part_of(root: Node, content: &str) -> Option<String> {
     let mut cursor = root.walk();
     let directive = root
         .children(&mut cursor)
@@ -118,7 +134,7 @@ fn extract_part_of(root: Node, content: &str) -> Option<String> {
     Some(unquote(text(target, content)).to_string())
 }
 
-fn extract_directives(root: Node, content: &str) -> Vec<Directive> {
+pub(crate) fn extract_directives(root: Node, content: &str) -> Vec<Directive> {
     let mut directives = Vec::new();
     let mut cursor = root.walk();
     for node in root
@@ -280,7 +296,7 @@ fn json_members(body: Node, content: &str) -> (bool, bool) {
     found
 }
 
-fn extract_part_directives(root: Node, content: &str) -> Vec<String> {
+pub(crate) fn extract_part_directives(root: Node, content: &str) -> Vec<String> {
     let mut cursor = root.walk();
     root.children(&mut cursor)
         .filter(|node| node.kind() == "part_directive")
@@ -449,7 +465,7 @@ fn static_names(node: Node, signature: Option<Node>, content: &str) -> Vec<Strin
     names
 }
 
-fn has_child(node: Node, kind: &str) -> bool {
+pub(crate) fn has_child(node: Node, kind: &str) -> bool {
     let mut cursor = node.walk();
     node.children(&mut cursor).any(|child| child.kind() == kind)
 }
@@ -457,7 +473,7 @@ fn has_child(node: Node, kind: &str) -> bool {
 /// The type written among `node`'s children, as source text from its first to its last type node (so
 /// prefixes like `m.Money` keep their dot and records or function types aren't lost), and whether it ends
 /// in `?`. `required`, which the grammar sometimes parses as a type name, isn't part of it.
-fn declared_type(node: Node, content: &str) -> (String, bool) {
+pub(crate) fn declared_type(node: Node, content: &str) -> (String, bool) {
     let mut span: Option<(usize, usize)> = None;
     let mut is_nullable = false;
     let mut cursor = node.walk();
@@ -572,38 +588,76 @@ fn parse_constructor(signature: Node, content: &str) -> DartConstructor {
     }
 }
 
-/// `[int z = 0]` or `{required this.x, this.y = 2}`. A `required` keyword and a `= default` are siblings of
-/// the parameter they belong to, before and after it.
-fn parse_optional_parameters(node: Node, content: &str) -> Vec<DartParameter> {
-    let named = node.child(0).is_some_and(|open| open.kind() == "{");
-    let kind = if named {
-        ParameterKind::Named
-    } else {
-        ParameterKind::OptionalPositional
-    };
-    let mut params: Vec<DartParameter> = Vec::new();
+/// One parameter of a `[…]` or `{…}` group, with the pieces the grammar puts next to it rather than inside
+/// it: a preceding `required` keyword and annotations, and a following `= default`, which can be several
+/// sibling nodes (`Mood.calm` is `Mood` then `.calm`).
+pub(crate) struct OptionalParameterParts<'t> {
+    pub formal: Node<'t>,
+    pub required: bool,
+    pub annotations: Vec<Node<'t>>,
+    /// The first and last node of the default value.
+    pub default: Option<(Node<'t>, Node<'t>)>,
+}
+
+/// Whether an `optional_formal_parameters` node is the named (`{…}`) kind.
+pub(crate) fn is_named_group(node: Node) -> bool {
+    node.child(0).is_some_and(|open| open.kind() == "{")
+}
+
+/// The parameters of an `optional_formal_parameters` node, each with its sibling pieces.
+pub(crate) fn optional_parameter_parts(node: Node) -> Vec<OptionalParameterParts> {
+    let mut parts: Vec<OptionalParameterParts> = Vec::new();
     let mut required = false;
+    let mut annotations = Vec::new();
     let mut after_equals = false;
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         match child.kind() {
-            "required" => required = true,
-            "formal_parameter" => {
-                params.extend(parse_parameter(child, kind, required, content));
-                required = false;
-            }
             "=" => after_equals = true,
-            "," | "[" | "]" | "{" | "}" | "annotation" | "comment" => {}
+            "," | "]" | "}" => after_equals = false,
+            "comment" => {}
             _ if after_equals => {
-                if let Some(last) = params.last_mut() {
-                    last.default = Some(text(child, content).to_string());
+                if let Some(last) = parts.last_mut() {
+                    last.default = Some(match last.default {
+                        Some((first, _)) => (first, child),
+                        None => (child, child),
+                    });
                 }
-                after_equals = false;
+            }
+            "required" => required = true,
+            "annotation" => annotations.push(child),
+            "formal_parameter" => {
+                parts.push(OptionalParameterParts {
+                    formal: child,
+                    required,
+                    annotations: std::mem::take(&mut annotations),
+                    default: None,
+                });
+                required = false;
             }
             _ => {}
         }
     }
-    params
+    parts
+}
+
+/// `[int z = 0]` or `{required this.x, this.y = 2}`.
+fn parse_optional_parameters(node: Node, content: &str) -> Vec<DartParameter> {
+    let kind = if is_named_group(node) {
+        ParameterKind::Named
+    } else {
+        ParameterKind::OptionalPositional
+    };
+    optional_parameter_parts(node)
+        .into_iter()
+        .filter_map(|part| {
+            let mut parameter = parse_parameter(part.formal, kind, part.required, content)?;
+            parameter.default = part
+                .default
+                .map(|(first, last)| content[first.start_byte()..last.end_byte()].to_string());
+            Some(parameter)
+        })
+        .collect()
 }
 
 fn parse_parameter(
@@ -1515,6 +1569,27 @@ class P {
                     false,
                     vec!["Named This t = const [1, 2]".to_string()]
                 ),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_defaults_spanning_several_nodes() {
+        // `Mood.calm` is two sibling nodes after `=`; so is `const Duration(…).inSeconds`.
+        let code = "class A { A({this.mood = Mood.calm, int n = const Duration(seconds: 1).inSeconds, int k = 1}); }";
+        let tree = parse_snippet(code);
+        let class = &extract_classes(tree.root_node(), code).unwrap()[0];
+        let defaults: Vec<Option<&str>> = class.constructors[0]
+            .params
+            .iter()
+            .map(|p| p.default.as_deref())
+            .collect();
+        assert_eq!(
+            defaults,
+            vec![
+                Some("Mood.calm"),
+                Some("const Duration(seconds: 1).inSeconds"),
+                Some("1")
             ]
         );
     }

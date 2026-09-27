@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| **Status** | Draft |
+| **Status** | In progress (accepted with the proposed answers to the open questions) |
 | **Resolves** | SDD goals 1, 3 and 4 (replace `build_runner`, custom generators, coexistence); SDD open questions 3 and 4; A4, A5 and R9 as side effects of the new model |
 | **Touches** | new `model/` module, `parser/`, `index.rs`, `builder.rs`, `output.rs`, `config/`, `generators/` (`Generator` trait, `flint_json`, `generic`), `main.rs` (new command), a new Dart package `flint_generator`, docs |
 
@@ -285,8 +285,37 @@ the context carries `context_version`. Existing template variables (`classes`, `
 
 Each step is mergeable on its own and keeps CI green.
 
-1. **Model v1 and `dump-model`:** structs, conversion from the parser and index, JSON Schema, snapshots.
-   Structured annotations are added alongside the old `metadata` map. No output changes.
+1. ✅ **Model v1 and `dump-model`:** structs, conversion from the parser and index, JSON Schema, snapshots.
+   Structured annotations are added alongside the old `metadata` map. No output changes. Notes:
+   - `engine/src/model/`: the v1 structs (`mod.rs`), a type-text parser (`types.rs`: prefixes, generics,
+     `?`, function types, records), and a builder (`build.rs`) that walks the syntax tree directly. The
+     top level is read as a sequence, because the grammar puts doc comments, annotations and a
+     declaration's tokens side by side (a variable is loose tokens ending in `;`). The build pipeline doesn't
+     use the model yet (step 2), so builds are unaffected; the benchmark is unchanged.
+   - `flint_build dump-model [files…]` prints the model as JSON; `--schema` prints the JSON Schema, which is
+     committed as `docs/model/v1.schema.json`. A test fails when the committed schema is stale.
+   - **Tests:** a snapshot of a fixture with every kind of declaration
+     (`engine/tests/fixtures/model/`), reviewed; every golden fixture's model validated against the schema
+     and round-tripped through JSON. Per-fixture snapshots of the golden package would be thousands of lines
+     nobody reviews, so validation stands in for them.
+   - **Refinements to the shape above:** top-level getters are in `Library.getters`; static members are
+     included with `is_static`; setters are in `setters`; operators are methods with `is_operator`;
+     `Resolved` has no declaration line yet; an ambiguous name resolves to `unresolved` (the build reports
+     the ambiguity).
+   - **Bug found and fixed (spec 0006 code):** a constructor default made of several syntax nodes
+     (`this.mood = Mood.calm`, `const Duration(seconds: 1).inSeconds`) was cut to its first node (`Mood`), so
+     `flint_json` generated code that didn't compile. Both parsers now take everything up to the next `,` or
+     closing bracket; covered by a parser test and a golden round trip (`Defaults`).
+   - **Code review** (`/code-review`) found ten issues, all fixed and covered by the model fixture or
+     `tests/model_test.rs`: positional annotation arguments cut to their first node (`@Default(Mood.calm)`);
+     enum-constant doc comments leaking onto the first member; `dart:core` names checked before the
+     package's own declarations (a local `Error` was reported as core; the index is now asked first, and the
+     core list is longer); a top-level setter read as a function; typedef annotations dropped; `@Foo.named()`
+     read as prefix `Foo` (annotations gained `constructor`, decided by Dart's naming convention); files
+     outside `lib/` and absolute paths not resolved; one syntax error aborting the whole dump (now reported
+     per file); the golden schema test using the wrong package name, so cross-file resolution was never
+     exercised; and every file parsed twice, with the optional-parameter walk duplicated (now one shared
+     `optional_parameter_parts`, used by both parsers).
 2. **`Generator` trait v1 and output kinds:** move `flint_json` and the Tera generator onto it (byte-identical);
    `part` and `library` output kinds with ownership; `generators:` key with the `plugins:` alias.
 3. **YAML generators and project scope:** `select:`, inline templates, Tera helpers, `context_version`;
@@ -298,7 +327,21 @@ Each step is mergeable on its own and keeps CI green.
 7. **Docs:** configuration reference (generators, output kinds, YAML and Dart generators), a “write a generator”
    guide, SDD sections, roadmap; spec Done.
 
-## Open questions
+## Decisions
+
+The open questions were accepted with the proposed answers:
+
+1. **Config key:** `generators:`, with `plugins:` kept as an alias.
+2. **Selection** is declared by the generator (defaults reported at start-up) and can be overridden in
+   `flint.yaml`.
+3. **Dart transport:** one AOT-compiled process per build over stdin/stdout, kept alive in watch mode; a
+   daemon only if measurements call for it.
+4. **Coexistence:** an explicit `shared_part_extension`; no automatic switching.
+5. **Built-in generators** in the priority list are written in Rust, using only the public model.
+6. **Model size:** doc comments and every declaration always; source text on request.
+7. **Resolution data** is carried on each `Type` (`resolved`).
+
+## Open questions (resolved)
 
 1. **Config key:** rename `plugins:` to `generators:` with `plugins:` as an alias? *Proposed: yes; the docs
    and messages use “generator”.*
