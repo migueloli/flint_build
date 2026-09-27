@@ -82,8 +82,19 @@ in the [roadmap](docs/ROADMAP.md).
 
 Most of the 330 ms is Dart VM startup for the launcher, not code generation. The first two rows come from
 [`cli/example/benchmark_results.txt`](cli/example/benchmark_results.txt), a single run. The last row is the
-engine's own timer on a release build. We haven't yet measured projects with hundreds of files. A proper
-benchmark suite is on the [roadmap](docs/ROADMAP.md#phase-3-incremental-and-fast-at-scale).
+engine's own timer on a release build.
+
+**Larger projects:** [`engine/bench/run.sh`](engine/bench/run.sh) generates a synthetic project (default 1,000
+files, each with one model and one enum) and times the engine alone. On a 4-core machine:
+
+| Engine-only, 1,000 files | Time |
+| ------------------------ | ---: |
+| `build --force` (parse and generate everything) | ~0.28 s |
+| `build` with everything up to date | ~10 ms |
+| Parsing only | ~64 ms |
+
+These are typical of three runs after a warm-up. A comparison with build_runner at this size isn't measured
+yet; it's on the [roadmap](docs/ROADMAP.md#phase-3-incremental-and-fast-at-scale).
 
 ## Documentation
 

@@ -43,7 +43,7 @@ with json_serializable.
 
 | | Item | Refs |
 | --- | ---- | ---- |
-| ⬜ | **Project symbol index:** resolve enums and classes across files; clear “unresolved type” diagnostics | R7 · SDD §4 · [Spec 0005](specs/0005-project-symbol-index.md) (draft) |
+| ⬜ | **Project symbol index:** resolve enums and classes across files; clear “unresolved type” diagnostics | R7 · SDD §4 · [Spec 0005](specs/0005-project-symbol-index.md) |
 | ⬜ | **Constructor-aware emission:** positional/named/`this.` params; skip static, late and initialised fields; private-field rules | R8 |
 | 🟨 | Scope metadata to configured `field_annotations` / `variant_annotations` (`variant_annotations` done with R3) | R9 |
 | ⬜ | Emit `$enumDecode` / `$enumDecodeNullable`; support `unknownEnumValue` | R10 |
@@ -59,7 +59,7 @@ with json_serializable.
 
 | | Item | Refs |
 | --- | ---- | ---- |
-| ⬜ | Compile queries and templates once; discover once; parse once for all plugins | A1, A3 |
+| 🟨 | Compile queries and templates once; discover once; parse once for all plugins (queries, discovery and parsing done; templates still per file) | A1, A3 |
 | 🟨 | Content-hash cache in `.dart_tool/flint/` with an engine/config/template fingerprint (mtime-based version of the fingerprint and stale-output deletion shipped with spec 0001) | R11 · SDD §12 |
 | ⬜ | Watch mode rebuilds only the dirty set, including files that depend on changed symbols | R5 · SDD §12 |
 | ⬜ | `build --check` for CI (non-zero exit if outputs are stale) | — |

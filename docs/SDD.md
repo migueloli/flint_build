@@ -242,8 +242,9 @@ Design rules:
 ## 11. Concurrency
 
 `rayon`'s global pool handles per-file work. Parsers are created per task (tree-sitter `Parser` isn't `Sync`).
-The **Target** also compiles the tree-sitter `Query` objects and Tera templates once and shares them
-(`LazyLock` / `prepare`) (A1). Output assembly and writing stay deterministic because the final output order
+The tree-sitter `Query` objects are compiled once per process (`LazyLock` statics) and shared by every thread,
+because compiling one costs ~3 ms against ~86 µs to parse a file (spec 0005, step 1). **Target:** compile
+Tera templates once as well (`prepare`), which is most of the remaining `--force` time (A1). Output assembly and writing stay deterministic because the final output order
 depends on sorted paths and config order, never on which thread finishes first.
 
 ## 12. Incremental builds and watch mode

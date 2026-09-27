@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| **Status** | Draft |
+| **Status** | In progress (accepted with the proposed answers to the open questions) |
 | **Resolves** | R7 (and two related bugs found while writing this spec), A1 as a prerequisite |
 | **Touches** | `parser/` (declarations, imports, type names), new `index` module, `builder.rs`, `generators/` (`Generator` trait, `flint_json` emitter and template), `config/flint.rs`, docs |
 
@@ -184,7 +184,9 @@ its source, the shared inputs (spec 0001), **and every file its resolved types c
 
 Each step is mergeable on its own and keeps CI green.
 
-1. A1: compile queries once, plus the benchmark script. No output changes.
+1. ✅ A1: compile queries once, plus the benchmark script (`engine/bench/run.sh`). No output changes.
+   Measured on 1,000 files, 4 cores: `--force` 1.95 s → ~0.28 s, parse-only 1.67 s → ~64 ms, no-op
+   unchanged at ~10 ms. The index pass costs about as much as parse-only, which is within the 100 ms budget.
 2. Parser: keep type prefixes (fixes `mMoney`), `Unsupported` for records and function types with a
    diagnostic, declarations and directives in `ParsedFile`.
 3. `dart:core` table (`num`, `dynamic`, `Object`, `Uri`, `BigInt`, `Duration`, `Set`, `Iterable`). This needs
@@ -194,17 +196,14 @@ Each step is mergeable on its own and keeps CI green.
 6. Class checks (`fromJson`), `external_types`, unresolved-name rules, dependency-aware up-to-date check.
 7. Docs: support matrix, template context, SDD §4/§6/§7, roadmap, review.
 
-## Open questions
+## Decisions
 
-1. **Unresolved names in files that import other packages:** warn and assume a class (proposed; nothing that
-   works today breaks), or make it an error unless listed in `external_types` (stricter, but breaks projects
-   that use models from a shared package)?
-2. **`@JsonEnum` enums not used in their own file:** today their map is emitted in their own `.g.dart` (an unused
-   private constant, so the analyzer warns). json_serializable only emits it there with
-   `@JsonEnum(alwaysCreate: true)`. Proposed: keep today's behaviour for now, because dropping it would leave
-   enum-only files with a `part` directive and no generated file, which doesn't compile. Support
-   `alwaysCreate` later.
-3. **`external_types` location:** per plugin (proposed, since only `flint_json` uses it) or top-level in
-   `flint.yaml`?
-4. **Budget:** is “no-op build of 1,000 files under 100 ms” the right bar? If A1 alone doesn't reach it, the
-   fallback is an index cache in `.dart_tool/flint/` (pulling part of Phase 3 forward).
+The open questions were accepted with the proposed answers:
+
+1. **Unresolved names in files that import other packages:** warn once per type name and assume a class
+   (today's behaviour); `external_types` silences the warning. Names that can't come from anywhere are errors.
+2. **`@JsonEnum` enums not used in their own file:** keep emitting their map there, as today. `alwaysCreate`
+   can come later.
+3. **`external_types`:** per plugin, under `plugins.flint_json`.
+4. **Budget:** a no-op build of the 1,000-file benchmark stays under 100 ms (engine-only). If A1 alone doesn't
+   get there, add an index cache in `.dart_tool/flint/`.

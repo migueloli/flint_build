@@ -6,7 +6,42 @@ use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use tree_sitter::{Node, Parser, Query, QueryCursor, StreamingIterator};
+use std::sync::LazyLock;
+use tree_sitter::{Node, Parser, Query, QueryCursor, QueryError, StreamingIterator};
+
+// Compiling a query costs ~3 ms, about 35 times more than parsing a typical model file, so each query is
+// compiled once per process and shared by every file and thread (A1). A compile error is kept rather than
+// unwrapped, so a bad query is reported as an error instead of a panic.
+static CLASS_QUERY: LazyLock<Result<Query, QueryError>> = LazyLock::new(|| {
+    Query::new(
+        &tree_sitter_dart::LANGUAGE.into(),
+        r#"
+        (class_declaration
+          name: (_) @class_name
+          (type_parameters)? @type_params
+          body: (class_body) @class_body
+        ) @class_decl
+        "#,
+    )
+});
+
+static ENUM_QUERY: LazyLock<Result<Query, QueryError>> = LazyLock::new(|| {
+    Query::new(
+        &tree_sitter_dart::LANGUAGE.into(),
+        r#"
+        (enum_declaration
+          name: (_) @enum_name
+          body: (enum_body) @enum_body
+        ) @enum_decl
+        "#,
+    )
+});
+
+fn compiled(query: &'static LazyLock<Result<Query, QueryError>>) -> Result<&'static Query> {
+    query
+        .as_ref()
+        .map_err(|e| anyhow::anyhow!("Invalid built-in tree-sitter query: {e}"))
+}
 
 pub fn parse_file(path: &Path) -> Result<ParsedFile> {
     log::debug!("Tree-Sitter: Parsing file {:?}", path);
@@ -372,17 +407,9 @@ fn find_error_node<'a>(node: Node<'a>) -> Option<Node<'a>> {
 }
 
 fn extract_classes(root: Node, content: &str) -> Result<Vec<DartClass>> {
-    let query_str = r#"
-        (class_declaration
-          name: (_) @class_name
-          (type_parameters)? @type_params
-          body: (class_body) @class_body
-        ) @class_decl
-    "#;
-
-    let query = Query::new(&tree_sitter_dart::LANGUAGE.into(), query_str)?;
+    let query = compiled(&CLASS_QUERY)?;
     let mut cursor = QueryCursor::new();
-    let mut matches = cursor.matches(&query, root, content.as_bytes());
+    let mut matches = cursor.matches(query, root, content.as_bytes());
     let mut classes = Vec::new();
     let mut processed_nodes = std::collections::HashSet::new();
     while let Some(m) = matches.next() {
@@ -450,16 +477,9 @@ fn extract_type_parameters(node: Node, content: &str) -> Vec<String> {
 }
 
 fn extract_enums(root: Node, content: &str) -> Result<Vec<DartEnum>> {
-    let query_str = r#"
-        (enum_declaration
-          name: (_) @enum_name
-          body: (enum_body) @enum_body
-        ) @enum_decl
-    "#;
-
-    let query = Query::new(&tree_sitter_dart::LANGUAGE.into(), query_str)?;
+    let query = compiled(&ENUM_QUERY)?;
     let mut cursor = QueryCursor::new();
-    let mut matches = cursor.matches(&query, root, content.as_bytes());
+    let mut matches = cursor.matches(query, root, content.as_bytes());
 
     let mut enums = Vec::new();
     let mut processed_nodes = std::collections::HashSet::new();

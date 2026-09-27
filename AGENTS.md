@@ -43,6 +43,8 @@ Dart golden check (needs a Dart SDK): `engine/tests/dart_golden/check.sh`. It bu
 the fixtures, then runs `dart analyze --fatal-infos` and `dart test`. CI (`.github/workflows/ci.yml`) runs it
 together with the Rust checks.
 
+Benchmark: `engine/bench/run.sh [files] [runs]` times the engine alone on a synthetic project (rule 8).
+
 End-to-end check without the Dart SDK: `cd cli/example && ../../engine/target/release/flint_build build --force`,
 then `git diff lib/user_model.g.dart`. Any output change must be intentional.
 
