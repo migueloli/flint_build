@@ -1,5 +1,6 @@
 use crate::error::FlintError;
 use crate::generators::{Generator, TemplateEngine, retain_annotated, select_variant_values};
+use crate::index::ResolvedTypes;
 use crate::{
     config::PluginConfig,
     parser::dart_types::{DartClass, DartField, DartType, ParsedFile, TypeKind},
@@ -14,6 +15,8 @@ impl Generator for FlintJsonGenerator {
         filename: &str,
         parsed_file: ParsedFile,
         plugin: &PluginConfig,
+        // Not used yet: cross-file enums and class checks come in spec 0005 steps 5 and 6.
+        _types: &ResolvedTypes,
     ) -> Result<String, FlintError> {
         generate_full_file(filename, parsed_file, plugin)
     }

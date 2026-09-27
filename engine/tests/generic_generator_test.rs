@@ -51,7 +51,7 @@ fn test_generic_generator_execution() {
         plugin_name: "mock_plugin".to_string(),
     };
     let output = generator
-        .generate("mock.dart", parsed_file, &config)
+        .generate("mock.dart", parsed_file, &config, &Default::default())
         .unwrap();
     assert_eq!(output, "Hello MockUser and MockEnum!");
 }

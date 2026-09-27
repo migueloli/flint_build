@@ -1,5 +1,6 @@
 use crate::config::PluginConfig;
 use crate::error::FlintError;
+use crate::index::ResolvedTypes;
 use crate::parser::dart_types::{DartClass, DartEnum, ParsedFile};
 use tera::{Context, Tera};
 
@@ -9,11 +10,13 @@ pub mod generic;
 pub trait Generator: Send + Sync {
     /// Renders this plugin's section of `<file>.g.dart`. The engine adds the file header and the
     /// `part of` directive (spec 0001), so the section contains only generated declarations.
+    /// `types` says what each type name used by the file's classes refers to (spec 0005).
     fn generate(
         &self,
         filename: &str,
         parsed_file: ParsedFile,
         plugin: &PluginConfig,
+        types: &ResolvedTypes,
     ) -> Result<String, FlintError>;
 }
 
@@ -28,7 +31,7 @@ pub fn check_template(plugin_name: &str, plugin: &PluginConfig) -> Result<(), Fl
     }
 }
 
-fn class_matches(class: &DartClass, plugin: &PluginConfig) -> bool {
+pub fn class_matches(class: &DartClass, plugin: &PluginConfig) -> bool {
     class
         .metadata
         .keys()

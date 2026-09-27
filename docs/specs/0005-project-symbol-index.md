@@ -143,8 +143,11 @@ its source, the shared inputs (spec 0001), **and every file its resolved types c
 
 ### Template context (additive)
 
-- Each `dart_type` gains `resolved`: `{ "kind": "enum" | "class" | "core" | "type_parameter" | "external" |
-  "unresolved" | "unsupported", "file": "lib/src/color.dart" | null }`, and `prefix` for prefixed names.
+- Templates get `resolved_types`: a map from each type name used by the file's generated classes (as written,
+  `Money` or `m.Money`) to `{ "kind": "class" | "enum" | "mixin" | "type_alias" | "extension_type" |
+  "unresolved", "file": "lib/src/money.dart" | null, "has_from_json", "has_to_json" }`. *(Changed during
+  step 4: the draft put a `resolved` field on every `dart_type`; a single sorted map gives templates the same
+  information without changing the parsed model's shape.)*
 - `enums` keeps its meaning for custom templates (annotated enums declared in this file). The `flint_json`
   template gets `enum_maps`, the enums whose maps this file needs.
 
@@ -196,9 +199,21 @@ Each step is mergeable on its own and keeps CI green.
 3. ✅ `dart:core` table (`num`, `dynamic`, `Object`, `Uri`, `BigInt`, `Duration`, `Set`, `Iterable`). This needs
    no index. Golden fixtures (`core_types_model.dart`: every type, nullable variants and nesting, round-tripped)
    and a gold snapshot. `Map<String, dynamic>` fields now pass values through instead of `dynamic.fromJson`.
-4. `SymbolIndex`, resolution order, ambiguity errors, `Generator` trait change.
+4. ✅ `SymbolIndex`, resolution order, ambiguity errors, `Generator` trait change (`generate` receives
+   `&ResolvedTypes`; templates get `resolved_types`). Output is unchanged; the emitter starts using the
+   resolutions in steps 5 and 6.
+   - Code review found two gaps, both fixed and tested. Type arguments of generic custom types
+     (`Page<User>`) were never resolved. And the up-to-date check ran before resolution, so a change in another
+     file went unnoticed. The **dependency-aware up-to-date check was pulled forward from step 6**: types are
+     resolved on every build before the check, and an output is also stale when a file one of its types is
+     declared in is newer. Limitation: a change that only rewires re-exports (a file in the middle of an
+     `export` chain) isn't a dependency; `--force` covers it until the Phase 3 cache.
+   - Measured (`engine/bench/run.sh 1000 5`, 4 cores): a no-op build now parses every file, **~83 ms typical,
+     97 ms worst of 5** (was ~10 ms), inside the 100 ms budget but with little margin; `--force` unchanged at
+     ~0.27 s. The index cache from decision 4 is likely needed for larger projects.
 5. Enum maps per using library; un-annotated and cross-file enums.
-6. Class checks (`fromJson`), `external_types`, unresolved-name rules, dependency-aware up-to-date check.
+6. Class checks (`fromJson`), `external_types`, unresolved-name rules. (The dependency-aware up-to-date
+   check moved to step 4.)
 7. Docs: support matrix, template context, SDD §4/§6/§7, roadmap, review.
 
 ## Decisions

@@ -3,6 +3,7 @@ pub mod config;
 pub mod discovery;
 pub mod error;
 pub mod generators;
+pub mod index;
 pub mod output;
 pub mod parser;
 pub mod registry;

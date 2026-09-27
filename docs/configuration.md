@@ -28,8 +28,9 @@ A build reports errors per file and keeps going; if any file failed, it exits wi
 
 Set `RUST_LOG=debug` (or `trace`) for detailed logs from the engine.
 
-A file counts as up to date when its output is newer than the source **and** than `flint.yaml`,
-`build.yaml`, `pubspec.yaml`, every template, and the engine binary. So editing the config, a template, or
+A file counts as up to date when its output is newer than the source, than every project file its field
+types are declared in, **and** than `flint.yaml`, `build.yaml`, `pubspec.yaml`, every template, and the engine
+binary. So editing the config, a template, or
 upgrading Flint regenerates everything on the next build. ⚠️ This is based on modification times, not
 content: a checkout that restores an older mtime can still leave stale output. Use `build --force` if in
 doubt ([R11](REVIEW.md)).
@@ -163,6 +164,13 @@ Rules for writing, keeping and deleting `.g.dart` files ([spec 0001](specs/0001-
   longer has the `part` directive, or no longer exists.
 - **Unchanged output isn't rewritten,** so file timestamps (and watchers) are left alone.
 
+### Type names that could mean two things
+
+Flint looks up each field's type the way Dart does: declarations in the same library first, then the files it
+imports (following `export`s, `as` prefixes and `show`/`hide`). If two different declarations with the same
+name are visible, the file gets an error naming both files; pick one with an import prefix or `show`/`hide`
+(spec 0005).
+
 ## `flint_json` support matrix
 
 | Feature | Status | Notes |
@@ -241,6 +249,7 @@ These variables are available in every template, for both built-in and custom pl
 | -------- | ---- | ----------- |
 | `filename` | string | The source file's name, e.g. `user_model.dart` (for `part of`) |
 | `classes` | array | Classes carrying one of the plugin's `class_annotations` |
+| `resolved_types` | map | For each type name used in those classes' fields (as written, e.g. `Money` or `m.Money`): `{ kind, file, has_from_json, has_to_json }`, where `kind` is `class`, `enum`, `mixin`, `type_alias`, `extension_type` or `unresolved`, and `file` is the declaring file (`lib/src/money.dart`) or null |
 | `enums` | array | Enums carrying one of the plugin's `enum_annotations` |
 
 **Class**

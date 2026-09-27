@@ -91,10 +91,11 @@ files, each with one model and one enum) and times the engine alone. On a 4-core
 | Engine-only, 1,000 files | Time |
 | ------------------------ | ---: |
 | `build --force` (parse and generate everything) | ~0.28 s |
-| `build` with everything up to date | ~10 ms |
-| Parsing only | ~64 ms |
+| `build` with everything up to date | ~83 ms |
+| Parsing only | ~72 ms |
 
-These are typical of three runs after a warm-up. A comparison with build_runner at this size isn't measured
+These are typical of five runs after a warm-up. A no-op build parses every file on every build, because
+Flint resolves types across files (spec 0005). A comparison with build_runner at this size isn't measured
 yet; it's on the [roadmap](docs/ROADMAP.md#phase-3-incremental-and-fast-at-scale).
 
 ## Documentation

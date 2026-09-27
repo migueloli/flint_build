@@ -15,7 +15,7 @@ fn test_user_model() {
     let generator: Box<dyn generators::Generator> =
         Box::new(generators::flint_json::emitter::FlintJsonGenerator);
     let section = generator
-        .generate("user_model.dart", classes, &plugin)
+        .generate("user_model.dart", classes, &plugin, &Default::default())
         .unwrap();
     let generated = output::assemble("user_model.dart", &[("flint_json", section)]);
 
@@ -33,7 +33,7 @@ fn test_generic_model() {
     let generator: Box<dyn generators::Generator> =
         Box::new(generators::flint_json::emitter::FlintJsonGenerator);
     let section = generator
-        .generate("generic_model.dart", classes, &plugin)
+        .generate("generic_model.dart", classes, &plugin, &Default::default())
         .unwrap();
     let generated = output::assemble("generic_model.dart", &[("flint_json", section)]);
 
@@ -51,7 +51,12 @@ fn test_core_types_model() {
     let generator: Box<dyn generators::Generator> =
         Box::new(generators::flint_json::emitter::FlintJsonGenerator);
     let section = generator
-        .generate("core_types_model.dart", classes, &plugin)
+        .generate(
+            "core_types_model.dart",
+            classes,
+            &plugin,
+            &Default::default(),
+        )
         .unwrap();
     let generated = output::assemble("core_types_model.dart", &[("flint_json", section)]);
 

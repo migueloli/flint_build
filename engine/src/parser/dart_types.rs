@@ -133,6 +133,76 @@ pub struct DartEnum {
     pub values: Vec<DartEnumValue>,
 }
 
+impl DartType {
+    /// Every non-core type name in this type, including type arguments, in order of appearance:
+    /// `Map<String, List<m.Money>>` → `m.Money`, and `Page<User?>` (a `Custom` with arguments) → `Page`, `User`.
+    pub fn custom_names(&self) -> Vec<&str> {
+        match &self.kind {
+            TypeKind::Custom(name) => {
+                let mut names = Vec::new();
+                names_in_type_text(name, &mut names);
+                names
+            }
+            TypeKind::List(inner) | TypeKind::Set(inner) | TypeKind::Iterable(inner) => {
+                inner.custom_names()
+            }
+            TypeKind::Map(key, value) => {
+                let mut names = key.custom_names();
+                names.extend(value.custom_names());
+                names
+            }
+            _ => Vec::new(),
+        }
+    }
+}
+
+/// Names that are always `dart:core` types, so they never need resolving inside type arguments.
+const CORE_TYPE_NAMES: [&str; 18] = [
+    "String", "int", "double", "bool", "num", "dynamic", "Object", "DateTime", "Uri", "BigInt",
+    "Duration", "List", "Map", "Set", "Iterable", "void", "Null", "Never",
+];
+
+/// Collects the type names in type text such as `Page<Map<String, User?>>` (→ `Page`, `User`).
+fn names_in_type_text<'a>(text: &'a str, names: &mut Vec<&'a str>) {
+    let text = text.trim().trim_end_matches('?').trim_end();
+    let (base, arguments) = match text.find('<') {
+        Some(open) if text.ends_with('>') => (&text[..open], Some(&text[open + 1..text.len() - 1])),
+        _ => (text, None),
+    };
+    let base = base.trim();
+    let is_type_name = !base.is_empty()
+        && !base.starts_with('(')
+        && !base.contains("Function")
+        && !CORE_TYPE_NAMES.contains(&base);
+    if is_type_name {
+        names.push(base);
+    }
+    if let Some(arguments) = arguments {
+        for argument in split_top_level_commas(arguments) {
+            names_in_type_text(argument, names);
+        }
+    }
+}
+
+/// Splits `A, B<C, D>, E` at the commas that aren't nested in `<>`, `()` or `{}`.
+fn split_top_level_commas(text: &str) -> Vec<&str> {
+    let mut parts = Vec::new();
+    let (mut depth, mut start) = (0i32, 0);
+    for (i, c) in text.char_indices() {
+        match c {
+            '<' | '(' | '{' => depth += 1,
+            '>' | ')' | '}' => depth -= 1,
+            ',' if depth == 0 => {
+                parts.push(&text[start..i]);
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    parts.push(&text[start..]);
+    parts
+}
+
 impl Display for DartType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.kind {

@@ -1,9 +1,11 @@
 use crate::config::{self, FlintConfig, PluginConfig, Pubspec};
 use crate::discovery;
 use crate::generators::generic::GenericTeraGenerator;
-use crate::generators::{Generator, check_template, matches_plugin};
+use crate::generators::{Generator, check_template, class_matches, matches_plugin};
+use crate::index::{ResolvedType, ResolvedTypes, SymbolIndex};
 use crate::output;
 use crate::parser;
+use crate::parser::dart_types::ParsedFile;
 use crate::registry::PluginRegistry;
 use anyhow::{Context, Result, bail};
 use colored::Colorize;
@@ -114,9 +116,22 @@ pub fn build(
     sources.sort();
     report.sources = sources.len();
 
+    // Index pass (spec 0005): every file is parsed once, up front, so types can be resolved across files.
+    let parsed: Vec<Result<ParsedFile>> =
+        sources.par_iter().map(|s| parser::parse_file(s)).collect();
+    let mut index = SymbolIndex::new(root, &pubspec.name);
+    for (source, file) in sources.iter().zip(&parsed) {
+        if let Ok(file) = file {
+            index.add(source, file);
+        }
+    }
+
     let outcomes: Vec<Result<Outcome>> = sources
         .par_iter()
-        .map(|source| process_source(source, &plugins, force, inputs_changed_at))
+        .zip(parsed.par_iter())
+        .map(|(source, parsed)| {
+            process_source(source, parsed, &plugins, &index, force, inputs_changed_at)
+        })
         .collect();
     for (source, outcome) in sources.iter().zip(outcomes) {
         match outcome {
@@ -213,36 +228,47 @@ fn newest_shared_input(root: &Path, plugins: &[ActivePlugin]) -> Option<SystemTi
 
 fn process_source(
     source: &Path,
+    parsed: &Result<ParsedFile>,
     plugins: &[ActivePlugin],
+    index: &SymbolIndex,
     force: bool,
     inputs_changed_at: Option<SystemTime>,
 ) -> Result<Outcome> {
     let output = output::output_path(source);
     let exists = output.exists();
     let owned = exists && output::is_owned(&output)?;
-    if owned && !force && is_up_to_date(source, &output, inputs_changed_at)? {
+
+    let parsed = match parsed {
+        Ok(parsed) => parsed,
+        Err(error) => bail!("{error:#}"),
+    };
+    // Resolved on every build, before the up-to-date check: the output depends on the files its types are
+    // declared in, and a new ambiguity must be reported even if this file didn't change (spec 0005).
+    let types = resolve_field_types(source, parsed, plugins, index)?;
+    let dependencies: Vec<&Path> = types.values().filter_map(|t| t.path.as_deref()).collect();
+    if owned && !force && is_up_to_date(source, &output, &dependencies, inputs_changed_at)? {
         return Ok(Outcome::UpToDate);
     }
 
-    let parsed = parser::parse_file(source)?;
     let filename = file_name(source);
     let output_name = file_name(&output);
 
     if plugins
         .iter()
-        .any(|plugin| plugin.broken && matches_plugin(&parsed, &plugin.config))
+        .any(|plugin| plugin.broken && matches_plugin(parsed, &plugin.config))
     {
         return Ok(Outcome::Blocked);
     }
 
     let mut sections = Vec::new();
     for plugin in plugins {
-        if !matches_plugin(&parsed, &plugin.config) {
+        if !matches_plugin(parsed, &plugin.config) {
             continue;
         }
-        let body = plugin
-            .generator()
-            .generate(&filename, parsed.clone(), &plugin.config)?;
+        let body =
+            plugin
+                .generator()
+                .generate(&filename, parsed.clone(), &plugin.config, &types)?;
         let body = output::strip_legacy_preamble(&body);
         if !body.is_empty() {
             sections.push((plugin.name.as_str(), body));
@@ -287,14 +313,69 @@ fn process_source(
     Ok(Outcome::Written(output))
 }
 
+/// Resolves every type name used by the fields of classes a plugin will generate (spec 0005). A name
+/// with two visible declarations is an error for this file; one the index can't find is `unresolved`.
+fn resolve_field_types(
+    source: &Path,
+    parsed: &ParsedFile,
+    plugins: &[ActivePlugin],
+    index: &SymbolIndex,
+) -> Result<ResolvedTypes> {
+    let mut types = ResolvedTypes::new();
+    for class in parsed
+        .classes
+        .iter()
+        .filter(|class| plugins.iter().any(|p| class_matches(class, &p.config)))
+    {
+        for field in &class.fields {
+            for name in field.dart_type.custom_names() {
+                if class.type_parameters.iter().any(|t| t == name) || types.contains_key(name) {
+                    continue;
+                }
+                let resolved = match index.resolve(source, name) {
+                    Ok(resolved) => resolved.unwrap_or_else(ResolvedType::unresolved),
+                    Err(ambiguity) => bail!(
+                        "line {}: field '{}' of '{}' has type '{}', which is declared in {}. Use an import prefix, or `show`/`hide`, to pick one.",
+                        field.line,
+                        field.name,
+                        class.name,
+                        field.dart_type,
+                        join_and(&ambiguity.files)
+                    ),
+                };
+                types.insert(name.to_string(), resolved);
+            }
+        }
+    }
+    Ok(types)
+}
+
+/// `a`, `a and b`, `a, b and c`.
+fn join_and(items: &[String]) -> String {
+    match items {
+        [] => String::new(),
+        [only] => only.clone(),
+        [init @ .., last] => format!("{} and {last}", init.join(", ")),
+    }
+}
+
+/// The output is up to date if it's newer than its source, the files its types are declared in, and the
+/// shared inputs (config files, templates, the engine).
 fn is_up_to_date(
     source: &Path,
     output: &Path,
+    dependencies: &[&Path],
     inputs_changed_at: Option<SystemTime>,
 ) -> Result<bool> {
     let output_modified = fs::metadata(output)?.modified()?;
-    Ok(fs::metadata(source)?.modified()? <= output_modified
-        && inputs_changed_at.is_none_or(|changed| changed <= output_modified))
+    for input in std::iter::once(source).chain(dependencies.iter().copied()) {
+        // A dependency that disappeared would have changed the resolution; treat it as newer.
+        match fs::metadata(input).and_then(|m| m.modified()) {
+            Ok(modified) if modified <= output_modified => {}
+            _ => return Ok(false),
+        }
+    }
+    Ok(inputs_changed_at.is_none_or(|changed| changed <= output_modified))
 }
 
 fn file_name(path: &Path) -> String {

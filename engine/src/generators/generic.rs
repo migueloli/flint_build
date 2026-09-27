@@ -1,6 +1,7 @@
 use crate::config::PluginConfig;
 use crate::error::FlintError;
 use crate::generators::{Generator, TemplateEngine, retain_annotated, select_variant_values};
+use crate::index::ResolvedTypes;
 use crate::parser::dart_types::ParsedFile;
 use tera::Context;
 
@@ -14,6 +15,7 @@ impl Generator for GenericTeraGenerator {
         filename: &str,
         mut parsed_file: ParsedFile,
         plugin: &PluginConfig,
+        types: &ResolvedTypes,
     ) -> Result<String, FlintError> {
         retain_annotated(&mut parsed_file, plugin);
         select_variant_values(&mut parsed_file, plugin);
@@ -30,6 +32,7 @@ impl Generator for GenericTeraGenerator {
         context.insert("classes", &parsed_file.classes);
         context.insert("enums", &parsed_file.enums);
         context.insert("filename", filename);
+        context.insert("resolved_types", types);
 
         engine
             .render(&self.plugin_name, &context)

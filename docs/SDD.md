@@ -105,6 +105,7 @@ flowchart LR
 | `main.rs` | clap CLI: `build`, `watch`, `clean`, with `--force` (aliases `-d`, `--delete-conflicting-outputs`). Registers built-in generators. | |
 | `builder.rs` | `build(root, …) -> BuildReport`: discover once → per file in parallel: parse once, run matching plugins, apply the output rules (§9) → delete orphaned outputs. Per-file errors are collected. `clean(root)` deletes owned outputs only. | mtime-based skip (R11). |
 | `output.rs` | Header, ownership marker, `assemble`, `is_owned`, `strip_legacy_preamble` (§9). | |
+| `index.rs` | `SymbolIndex`: every file's declarations, parts and imports/exports; resolves a type name used in a file through the library, imports (prefixes, `show`/`hide`) and transitive exports, or reports an ambiguity (spec 0005). | Built from a parse of every file on every build. |
 | `config/` | `Pubspec` (`name`, dependency lookup). `FlintConfig` / `PluginConfig` with a hand-written `Deserialize` that turns missing lists into empty ones, plus `flint_json` defaults. `build_yaml` reads json_serializable options. `resolve` merges `flint.yaml` > `build.yaml` > defaults and reports notes and warnings. | Pure `resolve` function; only `load_project_config` touches the disk. |
 | `discovery/` | `walkdir` over `lib/`; splits sources and `*.g.dart` outputs by file name (`is_generated_file`). | Ownership is decided in `output.rs`, not here. |
 | `parser/` | tree-sitter queries → `ParsedFile { classes, enums, part_directives }`. Reports syntax errors with a caret. | Keeps every class, not only annotated ones (A3). Annotation names are unprefixed text, so `@json.JsonSerializable()` isn't matched. |
@@ -118,10 +119,11 @@ flowchart LR
 
 ```rust
 // Current: returns this plugin's *section*; the engine adds the header and `part of` (§9).
-// Template problems come back as FlintError::Template (spec 0004).
+// Template problems come back as FlintError::Template (spec 0004). `types` resolves the type names used
+// by the file's classes through the project symbol index (spec 0005).
 pub trait Generator: Send + Sync {
-    fn generate(&self, filename: &str, parsed_file: ParsedFile, plugin: &PluginConfig)
-        -> Result<String, FlintError>;
+    fn generate(&self, filename: &str, parsed_file: ParsedFile, plugin: &PluginConfig,
+                types: &ResolvedTypes) -> Result<String, FlintError>;
 }
 ```
 
@@ -180,11 +182,13 @@ back into it (A4). The render model is part of the **public, versioned template 
 
 ## 7. Build pipeline
 
-**Current** (spec 0001): load config (plugin order = file order) → walk `lib/` once, sorted → for each file
-in parallel: skip if its output is owned and newer than the source → parse once → run each plugin whose
-annotations match → assemble the sections under one owned header → write only if the bytes changed, or
+**Current** (specs 0001, 0005): load config (plugin order = file order) → walk `lib/` once, sorted → parse
+**every** file in parallel and build the symbol index → for each file in parallel: resolve the field types of
+its generated classes (ambiguity = error for the file) → skip if its output is owned and newer than the
+source, the files its types come from, and the shared inputs → run each plugin whose annotations match → assemble the sections under one owned header → write only if the bytes changed, or
 delete a stale owned output → collect outcomes in path order → delete owned outputs whose source is gone.
-Steps 1, 2, 5, 7, 8 and 9 of the target below exist in this simpler form; fingerprints and the index don't.
+Steps 1, 2, 4, 5, 7, 8 and 9 of the target below exist in this simpler form (the index is rebuilt each
+build rather than cached); fingerprints don't.
 
 **Target:**
 
@@ -253,8 +257,9 @@ depends on sorted paths and config order, never on which thread finishes first.
 
 ## 12. Incremental builds and watch mode
 
-- **Current:** skip a file when its output is owned and newer than both the source and the newest shared
-  input (`flint.yaml`, `build.yaml`, `pubspec.yaml`, templates, the engine binary). Unchanged output only gets
+- **Current:** skip a file when its output is owned and newer than the source, the files its resolved types
+  are declared in (spec 0005), and the newest shared input (`flint.yaml`, `build.yaml`, `pubspec.yaml`,
+  templates, the engine binary). Types are resolved before this check on every build. Unchanged output only gets
   its mtime refreshed. Watch mode runs a full build once per burst of changes, ignoring access events and
   `.g.dart` paths; only relevant events extend the debounce.
 - **Target:** keep a cache in `.dart_tool/flint/cache.json` with `{engine_version, config_hash,

@@ -14,6 +14,7 @@ engine/   Rust crate "flint_build" (lib + bin). All the logic lives here.
   src/main.rs            clap commands: build | watch | clean
   src/builder.rs         orchestration: discover → parse once → run plugins → write/delete owned outputs
   src/output.rs          .g.dart header, ownership marker, section assembly
+  src/index.rs           project symbol index: resolve type names across files (spec 0005)
   src/config/            pubspec.yaml + flint.yaml + build.yaml loading; resolve() merges them
   src/discovery/         walk lib/, split sources vs *.g.dart
   src/parser/            tree-sitter → ParsedFile (dart_file.rs, dart_types.rs)
@@ -94,6 +95,8 @@ catch you out:
   `generators::matches_plugin` / `retain_annotated` (A3). Annotations are read with
   `parser::dart_file::read_annotations`; use tree-sitter field names (`name:`, `body:`) in queries, because
   positional `(_)` captures can match an annotation instead of the name (that was R3).
+- Every build parses **every** file to build the symbol index, and resolves field types *before* the
+  up-to-date check. Keep that pass cheap (compile queries once; see `engine/bench/run.sh`).
 - Generators return a *section*, not a file. `output::assemble` adds the header, ownership marker and
   `part of`; never emit them from a template.
 - On Linux, notify reports Flint's own file *reads* as events. Anything added to the watcher must keep

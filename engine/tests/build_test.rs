@@ -406,3 +406,129 @@ fn test_unsupported_field_type_is_reported_with_its_line() {
     );
     assert!(!package.exists("lib/user.g.dart"));
 }
+
+#[test]
+fn test_ambiguous_type_is_an_error_naming_both_files() {
+    let package = Package::json();
+    package.write("lib/a.dart", "class Shared {}\n");
+    package.write("lib/b.dart", "class Shared {}\n");
+    package.write(
+        "lib/user.dart",
+        &format!(
+            "import 'a.dart';\nimport 'b.dart';\n{}",
+            USER.replace(
+                "  final int id;\n",
+                "  final int id;\n  final Shared shared;\n"
+            )
+        ),
+    );
+
+    let report = package.build(false);
+
+    assert_eq!(report.errors.len(), 1, "{:?}", report.errors);
+    let error = &report.errors[0];
+    assert!(
+        error.contains("line 8: field 'shared' of 'User'"),
+        "{error}"
+    );
+    assert!(
+        error.contains("declared in lib/a.dart and lib/b.dart"),
+        "{error}"
+    );
+    assert!(!package.exists("lib/user.g.dart"));
+}
+
+#[test]
+fn test_templates_see_resolved_types() {
+    let package = Package::new(
+        "plugins:\n  describe:\n    class_annotations: [\"@Describe\"]\n    template_path: describe.tera\n",
+    );
+    package.write(
+        "describe.tera",
+        "{% for name, type in resolved_types %}// {{ name }}: {{ type.kind }} {{ type.file | default(value=\"-\") }}\n{% endfor %}",
+    );
+    std::fs::create_dir_all(package.path("lib/src")).unwrap();
+    package.write("lib/src/color.dart", "enum Color { red }\n");
+    package.write(
+        "lib/model.dart",
+        "import 'src/color.dart' as c;\nimport 'package:other/other.dart';\npart 'model.g.dart';\n\n@Describe()\nclass Model<T> {\n  final c.Color color;\n  final List<Money> money;\n  final T value;\n}\n",
+    );
+
+    package.build(false);
+
+    let generated = package.read("lib/model.g.dart");
+    assert!(generated.contains("// Money: unresolved -"), "{generated}");
+    assert!(
+        generated.contains("// c.Color: enum lib/src/color.dart"),
+        "{generated}"
+    );
+    // Type parameters aren't looked up.
+    assert!(!generated.contains("// T:"), "{generated}");
+}
+
+#[test]
+fn test_type_arguments_of_generic_types_are_resolved() {
+    let package = Package::new(
+        "plugins:\n  describe:\n    class_annotations: [\"@Describe\"]\n    template_path: describe.tera\n",
+    );
+    package.write(
+        "describe.tera",
+        "{% for name, type in resolved_types %}// {{ name }}: {{ type.kind }}\n{% endfor %}",
+    );
+    package.write(
+        "lib/a.dart",
+        "class Shared {}\nclass Page<T> {}\nclass User {}\n",
+    );
+    package.write("lib/b.dart", "class Shared {}\n");
+    let model = "import 'a.dart';\npart 'model.g.dart';\n\n@Describe()\nclass Model {\n  final Page<User?> page;\n  final Map<String, Page<List<User>>> pages;\n}\n";
+    package.write("lib/model.dart", model);
+
+    package.build(false);
+    let generated = package.read("lib/model.g.dart");
+    assert!(generated.contains("// Page: class"), "{generated}");
+    assert!(generated.contains("// User: class"), "{generated}");
+    assert!(!generated.contains("Page<"), "{generated}");
+
+    // An ambiguous name inside type arguments is still an error.
+    package.write(
+        "lib/model.dart",
+        &model
+            .replace("import 'a.dart';\n", "import 'a.dart';\nimport 'b.dart';\n")
+            .replace("Page<User?> page", "Page<Shared> page"),
+    );
+    let report = package.build(false);
+    assert_eq!(report.errors.len(), 1, "{:?}", report.errors);
+    assert!(report.errors[0].contains("declared in lib/a.dart and lib/b.dart"));
+}
+
+#[test]
+fn test_output_depends_on_the_files_its_types_come_from() {
+    let package = Package::new(
+        "plugins:\n  describe:\n    class_annotations: [\"@Describe\"]\n    template_path: describe.tera\n",
+    );
+    package.write(
+        "describe.tera",
+        "{% for name, type in resolved_types %}// {{ name }}: {{ type.kind }}\n{% endfor %}",
+    );
+    package.write("lib/color.dart", "enum Color { red }\n");
+    package.write("lib/other.dart", "class Unrelated {}\n");
+    package.write(
+        "lib/model.dart",
+        "import 'color.dart';\nimport 'other.dart';\npart 'model.g.dart';\n\n@Describe()\nclass Model {\n  final Color color;\n}\n",
+    );
+    package.build(false);
+    assert!(package.read("lib/model.g.dart").contains("// Color: enum"));
+
+    // Only color.dart changes; model.dart and its output are older.
+    package.set_mtime("lib/model.dart", 1);
+    package.set_mtime("lib/model.g.dart", 2);
+    package.write("lib/color.dart", "class Color {}\n");
+    let report = package.build(false);
+    assert_eq!(report.written, vec![package.path("lib/model.g.dart")]);
+    assert!(package.read("lib/model.g.dart").contains("// Color: class"));
+
+    // A new ambiguity is reported even though model.dart itself didn't change.
+    package.write("lib/other.dart", "class Color {}\n");
+    let report = package.build(false);
+    assert_eq!(report.errors.len(), 1, "{:?}", report.errors);
+}
