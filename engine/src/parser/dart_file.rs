@@ -1,6 +1,6 @@
 use crate::parser::dart_types::{
-    DartClass, DartEnum, DartEnumValue, DartEnumValueAnnotation, DartField, DartType, ParsedFile,
-    TypeKind,
+    DartClass, DartEnum, DartEnumValue, DartEnumValueAnnotation, DartField, DartType, Declaration,
+    DeclarationKind, Directive, DirectiveKind, ParsedFile, TypeKind,
 };
 use anyhow::{Context, Result};
 use std::collections::HashMap;
@@ -92,7 +92,187 @@ pub fn parse_file(path: &Path) -> Result<ParsedFile> {
         classes,
         enums,
         part_directives: extract_part_directives(tree.root_node(), &content),
+        part_of: extract_part_of(tree.root_node(), &content),
+        directives: extract_directives(tree.root_node(), &content),
+        declarations: extract_declarations(tree.root_node(), &content),
     })
+}
+
+fn text<'a>(node: Node, content: &'a str) -> &'a str {
+    node.utf8_text(content.as_bytes()).unwrap_or("")
+}
+
+/// The target of `part of 'lib.dart';` (or of the legacy `part of my.library;`).
+fn extract_part_of(root: Node, content: &str) -> Option<String> {
+    let mut cursor = root.walk();
+    let directive = root
+        .children(&mut cursor)
+        .find(|node| node.kind() == "part_of_directive")?;
+    let mut inner = directive.walk();
+    let target = directive.named_children(&mut inner).next()?;
+    Some(unquote(text(target, content)).to_string())
+}
+
+fn extract_directives(root: Node, content: &str) -> Vec<Directive> {
+    let mut directives = Vec::new();
+    let mut cursor = root.walk();
+    for node in root
+        .children(&mut cursor)
+        .filter(|node| node.kind() == "import_or_export")
+    {
+        let mut inner = node.walk();
+        for child in node.named_children(&mut inner) {
+            let (kind, spec) = match child.kind() {
+                "library_import" => {
+                    let mut c = child.walk();
+                    let spec = child
+                        .named_children(&mut c)
+                        .find(|n| n.kind() == "import_specification");
+                    (DirectiveKind::Import, spec)
+                }
+                "library_export" => (DirectiveKind::Export, Some(child)),
+                _ => continue,
+            };
+            let Some(spec) = spec else { continue };
+            // `uri:` is a configurable_uri; its first `uri` child is the default target.
+            let Some(uri) = spec.child_by_field_name("uri").and_then(|configurable| {
+                let mut c = configurable.walk();
+                configurable
+                    .named_children(&mut c)
+                    .find(|n| n.kind() == "uri")
+            }) else {
+                continue;
+            };
+            let mut directive = Directive {
+                kind,
+                uri: unquote(text(uri, content)).to_string(),
+                prefix: spec
+                    .child_by_field_name("alias")
+                    .map(|alias| text(alias, content).to_string()),
+                show: Vec::new(),
+                hide: Vec::new(),
+            };
+            let mut c = spec.walk();
+            for combinator in spec
+                .named_children(&mut c)
+                .filter(|n| n.kind() == "combinator")
+            {
+                let keyword = combinator.child(0).map(|k| text(k, content)).unwrap_or("");
+                let mut names_cursor = combinator.walk();
+                let names = combinator
+                    .named_children(&mut names_cursor)
+                    .map(|name| text(name, content).to_string());
+                match keyword {
+                    "show" => directive.show.extend(names),
+                    "hide" => directive.hide.extend(names),
+                    _ => {}
+                }
+            }
+            directives.push(directive);
+        }
+    }
+    directives
+}
+
+/// Every top-level type declaration, annotated or not, for the project index (spec 0005).
+fn extract_declarations(root: Node, content: &str) -> Vec<Declaration> {
+    let mut declarations = Vec::new();
+    let mut cursor = root.walk();
+    for node in root.children(&mut cursor) {
+        let (kind, name) = match node.kind() {
+            // `class M = Object with Mx;` keeps its name inside `mixin_application_class`.
+            "class_declaration" => (
+                DeclarationKind::Class,
+                node.child_by_field_name("name").or_else(|| {
+                    let mut c = node.walk();
+                    let application = node
+                        .named_children(&mut c)
+                        .find(|n| n.kind() == "mixin_application_class")?;
+                    let mut inner = application.walk();
+                    application
+                        .named_children(&mut inner)
+                        .find(|n| n.kind() == "identifier")
+                }),
+            ),
+            "enum_declaration" => (DeclarationKind::Enum, node.child_by_field_name("name")),
+            "mixin_declaration" => (DeclarationKind::Mixin, node.child_by_field_name("name")),
+            "extension_type_declaration" => (
+                DeclarationKind::ExtensionType,
+                node.child_by_field_name("name").and_then(|name| {
+                    let mut c = name.walk();
+                    name.named_children(&mut c)
+                        .find(|n| n.kind() == "identifier")
+                }),
+            ),
+            "type_alias" => {
+                let mut c = node.walk();
+                let name = node
+                    .named_children(&mut c)
+                    .find(|n| n.kind() == "type_identifier");
+                (DeclarationKind::TypeAlias, name)
+            }
+            _ => continue,
+        };
+        let Some(name) = name else { continue };
+        let (has_from_json, has_to_json) = match (kind, node.child_by_field_name("body")) {
+            (DeclarationKind::Class, Some(body)) => json_members(body, content),
+            _ => (false, false),
+        };
+        declarations.push(Declaration {
+            name: text(name, content).to_string(),
+            kind,
+            has_from_json,
+            has_to_json,
+        });
+    }
+    declarations
+}
+
+/// Whether a class body declares a `fromJson` constructor or factory and a `toJson` method.
+fn json_members(body: Node, content: &str) -> (bool, bool) {
+    fn visit(node: Node, content: &str, depth: usize, found: &mut (bool, bool)) {
+        if depth > 3 || node.kind() == "function_body" {
+            return;
+        }
+        match node.kind() {
+            "constructor_signature"
+            | "constant_constructor_signature"
+            | "factory_constructor_signature"
+            | "redirecting_factory_constructor_signature" => {
+                let mut c = node.walk();
+                let last_name = node.children_by_field_name("name", &mut c).last();
+                if last_name.is_some_and(|name| text(name, content) == "fromJson") {
+                    found.0 = true;
+                }
+            }
+            "function_signature" => {
+                let name = node
+                    .child_by_field_name("name")
+                    .map(|name| text(name, content));
+                // `static T fromJson(...)` is called like a factory, so it counts; an instance method doesn't.
+                let is_static = node.parent().is_some_and(|signature| {
+                    let mut c = signature.walk();
+                    signature
+                        .children(&mut c)
+                        .any(|child| child.kind() == "static")
+                });
+                match name {
+                    Some("toJson") => found.1 = true,
+                    Some("fromJson") if is_static => found.0 = true,
+                    _ => {}
+                }
+            }
+            _ => {
+                let mut c = node.walk();
+                for child in node.named_children(&mut c) {
+                    visit(child, content, depth + 1, found);
+                }
+            }
+        }
+    }
+    let mut found = (false, false);
+    visit(body, content, 0, &mut found);
+    found
 }
 
 fn extract_part_directives(root: Node, content: &str) -> Vec<String> {
@@ -196,7 +376,9 @@ fn parse_field(field: Node<'_>, content: &str) -> Option<DartField> {
         metadata = read_annotations(parent, content).1;
     }
 
-    let mut type_parts = String::new();
+    // The type is the source text from its first to its last type node, so prefixes (`m.Money`) keep
+    // their dot and records or function types aren't lost.
+    let mut type_span: Option<(usize, usize)> = None;
     let mut name_str = String::new();
     let mut is_final = false;
     let mut is_nullable = false;
@@ -204,11 +386,12 @@ fn parse_field(field: Node<'_>, content: &str) -> Option<DartField> {
     let mut decl_cursor = field.walk();
     for decl_child in field.children(&mut decl_cursor) {
         let kind = decl_child.kind();
-        let text = &content[decl_child.start_byte()..decl_child.end_byte()];
         match kind {
             "final" => is_final = true,
-            "type_identifier" | "type_arguments" => {
-                type_parts.push_str(text);
+            "type_identifier" | "type_arguments" | "record_type" | "function_type"
+            | "void_type" => {
+                let start = type_span.map_or(decl_child.start_byte(), |(start, _)| start);
+                type_span = Some((start, decl_child.end_byte()));
             }
             "?" => is_nullable = true,
             "initialized_identifier_list" => {
@@ -222,12 +405,14 @@ fn parse_field(field: Node<'_>, content: &str) -> Option<DartField> {
         }
     }
 
-    log::trace!("Resolved type for field {}: {}", name_str, type_parts);
+    let type_text = type_span.map_or("", |(start, end)| &content[start..end]);
+    log::trace!("Resolved type for field {}: {}", name_str, type_text);
 
     if !name_str.is_empty() {
         return Some(DartField {
             name: name_str,
-            dart_type: parse_dart_type(&type_parts, is_nullable),
+            line: field.start_position().row + 1,
+            dart_type: parse_dart_type(type_text, is_nullable),
             is_final,
             from_json_expr: None,
             to_json_expr: None,
@@ -239,8 +424,30 @@ fn parse_field(field: Node<'_>, content: &str) -> Option<DartField> {
     None
 }
 
+/// Splits `K, V` at the first comma that isn't nested in `<>`, `()` or `{}`.
+fn split_type_arguments(arguments: &str) -> Option<(&str, &str)> {
+    let mut depth = 0i32;
+    for (i, c) in arguments.char_indices() {
+        match c {
+            '<' | '(' | '{' => depth += 1,
+            '>' | ')' | '}' => depth -= 1,
+            ',' if depth == 0 => return Some((&arguments[..i], &arguments[i + 1..])),
+            _ => {}
+        }
+    }
+    None
+}
+
 fn parse_dart_type(type_str: &str, is_nullable: bool) -> DartType {
     let type_str = type_str.trim();
+
+    // Records and fields without a declared type (function types are checked after List/Map are unwrapped).
+    if type_str.is_empty() || type_str.starts_with('(') {
+        return DartType {
+            kind: TypeKind::Unsupported(type_str.to_string()),
+            is_nullable,
+        };
+    }
 
     if type_str.starts_with("List<") && type_str.ends_with('>') {
         let inner_type = &type_str[5..type_str.len() - 1];
@@ -256,7 +463,8 @@ fn parse_dart_type(type_str: &str, is_nullable: bool) -> DartType {
 
     if type_str.starts_with("Map<") && type_str.ends_with('>') {
         let inner_content = &type_str[4..type_str.len() - 1];
-        if let Some((k, v)) = inner_content.split_once(',') {
+        if let Some((k, v)) = split_type_arguments(inner_content) {
+            let (k, v) = (k.trim(), v.trim());
             let is_key_nullable = k.ends_with('?');
             let is_value_nullable = v.ends_with('?');
             return DartType {
@@ -273,6 +481,14 @@ fn parse_dart_type(type_str: &str, is_nullable: bool) -> DartType {
                 is_nullable,
             };
         }
+    }
+
+    // Function types, plain (`Function(`) or generic (`Function<`).
+    if type_str.contains("Function(") || type_str.contains("Function<") {
+        return DartType {
+            kind: TypeKind::Unsupported(type_str.to_string()),
+            is_nullable,
+        };
     }
 
     match type_str {
@@ -711,6 +927,135 @@ mod tests {
         assert_eq!(unquote("12"), "12");
         assert_eq!(unquote("red"), "red");
         assert_eq!(unquote("'"), "'");
+    }
+
+    #[test]
+    fn test_field_types_keep_prefixes_and_flag_unsupported() {
+        let code = "class C {\n  final m.Money price;\n  final List<m.Money>? prices;\n  final Map<String, m.Money> byName;\n  final (int, String) pair;\n  final void Function(int) callback;\n  final Map<String, (int, int)> nested;\n  final Map<Map<String, int>, int> keyed;\n  final void Function<T>(T) generic;\n  final List<void Function<T>(T)> generics;\n}\n";
+        let tree = parse_snippet(code);
+        let classes = extract_classes(tree.root_node(), code).unwrap();
+        let fields: Vec<(&str, String, usize)> = classes[0]
+            .fields
+            .iter()
+            .map(|f| (f.name.as_str(), format!("{:?}", f.dart_type.kind), f.line))
+            .collect();
+
+        let custom = |name: &str| format!("{:?}", TypeKind::Custom(name.to_string()));
+        assert_eq!(fields[0], ("price", custom("m.Money"), 2));
+        assert!(fields[1].1.starts_with("List(") && fields[1].1.contains("m.Money"));
+        assert!(classes[0].fields[1].dart_type.is_nullable);
+        assert!(fields[2].1.starts_with("Map(") && fields[2].1.contains("m.Money"));
+        assert_eq!(
+            fields[3],
+            (
+                "pair",
+                format!("{:?}", TypeKind::Unsupported("(int, String)".into())),
+                5
+            )
+        );
+        assert_eq!(
+            fields[4].1,
+            format!("{:?}", TypeKind::Unsupported("void Function(int)".into()))
+        );
+        // The comma inside the record doesn't split the map's type arguments.
+        assert_eq!(
+            classes[0].fields[5].dart_type.to_string(),
+            "Map<String, (int, int)>"
+        );
+        assert_eq!(
+            classes[0].fields[6].dart_type.to_string(),
+            "Map<Map<String, int>, int>"
+        );
+        // Generic function types read `Function<`, not `Function(`.
+        assert_eq!(
+            fields[7].1,
+            format!("{:?}", TypeKind::Unsupported("void Function<T>(T)".into()))
+        );
+        let TypeKind::List(inner) = &classes[0].fields[8].dart_type.kind else {
+            panic!("expected a List");
+        };
+        assert!(matches!(inner.kind, TypeKind::Unsupported(_)));
+    }
+
+    #[test]
+    fn test_extract_directives_and_declarations() {
+        let code = r#"
+import 'dart:convert';
+import 'src/money.dart' as m;
+import 'package:app/a.dart' show A, B hide C;
+export 'src/color.dart';
+part 'x.g.dart';
+typedef Json = Map<String, dynamic>;
+mixin Mx {}
+extension type Id(int value) {}
+enum Color { red }
+class Model {
+  Model.fromJson(Map<String, dynamic> json);
+  Map<String, dynamic> toJson() => {};
+}
+class Plain {
+  factory Plain.other() => Plain();
+  Plain();
+}
+class Factory {
+  factory Factory.fromJson(Map<String, dynamic> json) => Factory();
+  Factory();
+}
+sealed class Shape {
+  static Shape fromJson(Map<String, dynamic> json) => throw json;
+  Shape fromJsonCopy() => this;
+}
+class Instance {
+  Instance fromJson() => this;
+}
+class Applied = Object with Mx;
+"#;
+        let tree = parse_snippet(code);
+        let directives = extract_directives(tree.root_node(), code);
+        let summary: Vec<(DirectiveKind, &str, Option<&str>)> = directives
+            .iter()
+            .map(|d| (d.kind, d.uri.as_str(), d.prefix.as_deref()))
+            .collect();
+        assert_eq!(
+            summary,
+            vec![
+                (DirectiveKind::Import, "dart:convert", None),
+                (DirectiveKind::Import, "src/money.dart", Some("m")),
+                (DirectiveKind::Import, "package:app/a.dart", None),
+                (DirectiveKind::Export, "src/color.dart", None),
+            ]
+        );
+        assert_eq!(directives[2].show, vec!["A".to_string(), "B".to_string()]);
+        assert_eq!(directives[2].hide, vec!["C".to_string()]);
+
+        let found = extract_declarations(tree.root_node(), code);
+        let declarations: Vec<(&str, DeclarationKind, bool, bool)> = found
+            .iter()
+            .map(|d| (d.name.as_str(), d.kind, d.has_from_json, d.has_to_json))
+            .collect();
+        assert_eq!(
+            declarations,
+            vec![
+                ("Json", DeclarationKind::TypeAlias, false, false),
+                ("Mx", DeclarationKind::Mixin, false, false),
+                ("Id", DeclarationKind::ExtensionType, false, false),
+                ("Color", DeclarationKind::Enum, false, false),
+                ("Model", DeclarationKind::Class, true, true),
+                ("Plain", DeclarationKind::Class, false, false),
+                ("Factory", DeclarationKind::Class, true, false),
+                // A static `fromJson` also works as `Shape.fromJson(...)`; an instance method doesn't.
+                ("Shape", DeclarationKind::Class, true, false),
+                ("Instance", DeclarationKind::Class, false, false),
+                ("Applied", DeclarationKind::Class, false, false),
+            ]
+        );
+
+        let part = "part of 'model.dart';\n";
+        let tree = parse_snippet(part);
+        assert_eq!(
+            extract_part_of(tree.root_node(), part),
+            Some("model.dart".to_string())
+        );
     }
 
     #[test]

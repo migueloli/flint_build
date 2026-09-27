@@ -7,6 +7,49 @@ pub struct ParsedFile {
     pub enums: Vec<DartEnum>,
     /// URIs of the file's `part '...';` directives, without quotes.
     pub part_directives: Vec<String>,
+    /// The library this file is a part of (`part of '...';`), if it is a part file.
+    pub part_of: Option<String>,
+    /// `import` and `export` directives, in source order (spec 0005).
+    pub directives: Vec<Directive>,
+    /// Every top-level type declaration, annotated or not (spec 0005).
+    pub declarations: Vec<Declaration>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub enum DirectiveKind {
+    Import,
+    Export,
+}
+
+/// `import 'src/money.dart' as m show Money;` →
+/// `{ kind: Import, uri: "src/money.dart", prefix: Some("m"), show: ["Money"], hide: [] }`.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Directive {
+    pub kind: DirectiveKind,
+    pub uri: String,
+    pub prefix: Option<String>,
+    pub show: Vec<String>,
+    pub hide: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub enum DeclarationKind {
+    Class,
+    Enum,
+    Mixin,
+    TypeAlias,
+    ExtensionType,
+}
+
+/// A top-level type declared in a file.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Declaration {
+    pub name: String,
+    pub kind: DeclarationKind,
+    /// Classes only: declares a `fromJson` constructor or factory.
+    pub has_from_json: bool,
+    /// Classes only: declares a `toJson` method.
+    pub has_to_json: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -18,7 +61,10 @@ pub enum TypeKind {
     DateTime,
     List(Box<DartType>),
     Map(Box<DartType>, Box<DartType>),
+    /// A named type Flint doesn't know, possibly prefixed (`Money`, `m.Money`).
     Custom(String),
+    /// A type Flint can't serialize (records, function types) or a field with no declared type (empty).
+    Unsupported(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -31,6 +77,8 @@ pub struct DartType {
 #[derive(Debug, Clone, Serialize)]
 pub struct DartField {
     pub name: String,
+    /// 1-based line of the field declaration, for diagnostics.
+    pub line: usize,
     pub dart_type: DartType,
     pub is_final: bool,
     pub from_json_expr: Option<String>,
@@ -86,7 +134,7 @@ impl Display for DartType {
             TypeKind::DateTime => write!(f, "DateTime"),
             TypeKind::List(inner) => write!(f, "List<{}>", inner),
             TypeKind::Map(key, value) => write!(f, "Map<{}, {}>", key, value),
-            TypeKind::Custom(name) => write!(f, "{}", name),
+            TypeKind::Custom(name) | TypeKind::Unsupported(name) => write!(f, "{}", name),
         }?;
 
         if self.is_nullable {

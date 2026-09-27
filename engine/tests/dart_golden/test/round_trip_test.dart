@@ -4,6 +4,7 @@ import 'package:flint_dart_golden/annotations_model.dart';
 import 'package:flint_dart_golden/enum_values_model.dart';
 import 'package:flint_dart_golden/generic_model.dart';
 import 'package:flint_dart_golden/options_model.dart';
+import 'package:flint_dart_golden/prefixed_model.dart';
 import 'package:flint_dart_golden/user_model.dart';
 import 'package:test/test.dart';
 
@@ -186,6 +187,26 @@ void main() {
       expect(ticket.priority, Priority.high);
       expect(ticket.toggle, Toggle.enabled);
       expect(ticket.quote, Quote.apostrophe);
+    });
+  });
+
+  group('prefixed types and records (spec 0005 step 2)', () {
+    test('m.Money through an import prefix, and a record via @JsonKey hooks', () {
+      final json = {
+        'total': {'cents': 1500, 'currency': 'EUR'},
+        'lines': [
+          {'cents': 1000, 'currency': 'EUR'},
+          {'cents': 500, 'currency': 'EUR'},
+        ],
+        'byTax': {
+          'vat': {'cents': 300, 'currency': 'EUR'},
+        },
+        'pages': [1, 3],
+      };
+      final invoice = Invoice.fromJson(wire(json));
+      expect(invoice.total.cents, 1500);
+      expect(invoice.pages, (1, 3));
+      expect(wire(invoice), json);
     });
   });
 }

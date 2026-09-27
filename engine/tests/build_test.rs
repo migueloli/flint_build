@@ -386,3 +386,23 @@ fn test_broken_template_leaves_its_outputs_untouched() {
     assert_eq!(package.read("lib/only.g.dart"), only);
     assert_eq!(package.read("lib/shared.g.dart"), shared);
 }
+
+#[test]
+fn test_unsupported_field_type_is_reported_with_its_line() {
+    let package = Package::json();
+    let source = USER.replace(
+        "  final int id;\n",
+        "  final int id;\n  final (int, String) pair;\n",
+    );
+    package.write("lib/user.dart", &source);
+
+    let report = package.build(false);
+
+    assert_eq!(report.errors.len(), 1, "{:?}", report.errors);
+    assert!(
+        report.errors[0].contains("user.dart: line 6: field 'pair'"),
+        "{}",
+        report.errors[0]
+    );
+    assert!(!package.exists("lib/user.g.dart"));
+}

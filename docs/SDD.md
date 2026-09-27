@@ -145,11 +145,14 @@ returns a **section** rather than a whole file, so several plugins can share one
 ### 6.1 Current parsed model (`parser::dart_types`)
 
 ```text
-ParsedFile { classes: [DartClass], enums: [DartEnum] }
+ParsedFile { classes: [DartClass], enums: [DartEnum], part_directives, part_of?,
+             directives: [{ kind: Import|Export, uri, prefix?, show, hide }],
+             declarations: [{ name, kind: Class|Enum|Mixin|TypeAlias|ExtensionType, has_from_json, has_to_json }] }
 DartClass  { name, type_parameters: [String], metadata: {String: String}, fields: [DartField] }
-DartField  { name, dart_type: DartType, is_final, metadata: {String: String},
+DartField  { name, line, dart_type: DartType, is_final, metadata: {String: String},
              converter?, from_json_expr?, to_json_expr? }   // last three are emitter scratch state
-DartType   { kind: String|Int|Double|Bool|DateTime|List(T)|Map(K,V)|Custom(name), is_nullable }
+DartType   { kind: String|Int|Double|Bool|DateTime|List(T)|Map(K,V)|Custom(name)|Unsupported(text), is_nullable }
+           // Custom keeps any import prefix ("m.Money"); records and function types are Unsupported
 DartEnum   { name, annotations: [String], values: [{ name, value?, literal?, annotations: [{ name, value?, literal? }] }] }
            // value/literal are set per plugin from its variant_annotations (generators::select_variant_values);
            // literal is the argument's Dart source, so its type survives (R6)

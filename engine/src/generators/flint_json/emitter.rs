@@ -46,6 +46,10 @@ pub fn generate_full_file(
         apply_plugin_defaults(class, plugin);
         let explicit_to_json =
             class.metadata.get("explicitToJson").map(|v| v.as_str()) == Some("true");
+        let creates_factory =
+            class.metadata.get("createFactory").map(|v| v.as_str()) != Some("false");
+        let creates_to_json =
+            class.metadata.get("createToJson").map(|v| v.as_str()) != Some("false");
         for field in &mut class.fields {
             if let Some(converters) = &plugin.converters {
                 for key in field.metadata.keys() {
@@ -55,6 +59,27 @@ pub fn generate_full_file(
                         break;
                     }
                 }
+            }
+
+            if field.converter.is_none()
+                && contains_unsupported(&field.dart_type)
+                && needs_generated_conversion(field, creates_factory, creates_to_json)
+            {
+                let problem = match &field.dart_type.kind {
+                    TypeKind::Unsupported(text) if text.is_empty() => {
+                        "has no declared type".to_string()
+                    }
+                    _ => format!(
+                        "has type '{}', which Flint can't serialize yet",
+                        field.dart_type
+                    ),
+                };
+                return Err(FlintError::UnsupportedType {
+                    line: field.line,
+                    class: class.name.clone(),
+                    field: field.name.clone(),
+                    problem,
+                });
             }
 
             let key = extract_field_name(field, plugin);
@@ -147,6 +172,35 @@ fn prefer_single_quotes(literal: String) -> String {
     }
 }
 
+/// Whether a record, function type or missing type appears anywhere in the type (spec 0005).
+fn contains_unsupported(dart_type: &DartType) -> bool {
+    match &dart_type.kind {
+        TypeKind::Unsupported(_) => true,
+        TypeKind::List(inner) => contains_unsupported(inner),
+        TypeKind::Map(key, value) => contains_unsupported(key) || contains_unsupported(value),
+        _ => false,
+    }
+}
+
+/// Whether the template will emit a generated conversion for this field, on either side. Fields that are
+/// ignored, excluded, or have their own `@JsonKey(fromJson:/toJson:)` hooks don't need one.
+fn needs_generated_conversion(
+    field: &DartField,
+    creates_factory: bool,
+    creates_to_json: bool,
+) -> bool {
+    let is = |key: &str, value: &str| field.metadata.get(key).map(String::as_str) == Some(value);
+    if is("ignore", "true") {
+        return false;
+    }
+    let from = creates_factory
+        && !is("includeFromJson", "false")
+        && !field.metadata.contains_key("fromJson");
+    let to =
+        creates_to_json && !is("includeToJson", "false") && !field.metadata.contains_key("toJson");
+    from || to
+}
+
 /// The enum's name if a map key has an enum type generated in this file.
 fn enum_key<'a>(key: &'a DartType, enum_names: &[String]) -> Option<&'a str> {
     match &key.kind {
@@ -196,6 +250,8 @@ fn generate_from_json_expression(
                 access, key, value, key_expr, value_expr
             )
         }
+        // Only reached when the template won't use the expression (see needs_generated_conversion).
+        TypeKind::Unsupported(_) => access.to_string(),
         TypeKind::Custom(name) => {
             if enum_names.contains(&name.to_string()) {
                 format!(
@@ -312,6 +368,7 @@ mod tests {
     fn test_extract_field_name_casing() {
         let make_field = |name: &str| DartField {
             name: name.to_string(),
+            line: 1,
             dart_type: DartType {
                 kind: TypeKind::String,
                 is_nullable: false,
@@ -403,6 +460,7 @@ mod tests {
     fn test_custom_converters() {
         let field = DartField {
             name: "createdAt".to_string(),
+            line: 1,
             dart_type: DartType {
                 kind: TypeKind::Custom("DateTime".to_string()),
                 is_nullable: false,
@@ -458,6 +516,7 @@ mod tests {
     fn test_explicit_to_json() {
         let field = DartField {
             name: "address".to_string(),
+            line: 1,
             dart_type: DartType {
                 kind: TypeKind::Custom("Address".to_string()),
                 is_nullable: true,
@@ -509,6 +568,7 @@ mod tests {
     fn field(name: &str, kind: TypeKind, is_nullable: bool) -> DartField {
         DartField {
             name: name.to_string(),
+            line: 1,
             dart_type: DartType { kind, is_nullable },
             is_final: true,
             from_json_expr: None,
@@ -589,5 +649,47 @@ mod tests {
 
         let output = generate_full_file("user.dart", user_file(&[], fields()), &base).unwrap();
         assert!(!output.contains("!= null)"));
+    }
+
+    #[test]
+    fn test_unsupported_type_is_an_error_only_when_a_conversion_is_generated() {
+        let plugin = PluginConfig {
+            class_annotations: vec!["@JsonSerializable".to_string()],
+            ..Default::default()
+        };
+        let record = || {
+            field(
+                "pair",
+                TypeKind::Unsupported("(int, String)".to_string()),
+                false,
+            )
+        };
+
+        let error = generate_full_file("user.dart", user_file(&[], vec![record()]), &plugin)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("field 'pair' of 'User'"), "{error}");
+        assert!(error.contains("'(int, String)'"), "{error}");
+
+        let mut ignored = record();
+        ignored
+            .metadata
+            .insert("ignore".to_string(), "true".to_string());
+        let mut hooked = record();
+        hooked
+            .metadata
+            .insert("fromJson".to_string(), "_pairFromJson".to_string());
+        hooked
+            .metadata
+            .insert("toJson".to_string(), "_pairToJson".to_string());
+        for field in [ignored, hooked] {
+            assert!(generate_full_file("user.dart", user_file(&[], vec![field]), &plugin).is_ok());
+        }
+
+        let untyped = field("guess", TypeKind::Unsupported(String::new()), false);
+        let error = generate_full_file("user.dart", user_file(&[], vec![untyped]), &plugin)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("has no declared type"), "{error}");
     }
 }

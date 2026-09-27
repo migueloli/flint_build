@@ -12,6 +12,15 @@ pub enum FlintError {
     },
     #[error("Plugin '{plugin}': {message}")]
     Template { plugin: String, message: String },
+    #[error(
+        "line {line}: field '{field}' of '{class}' {problem}. Use @JsonKey(fromJson: …, toJson: …) or a converter."
+    )]
+    UnsupportedType {
+        line: usize,
+        class: String,
+        field: String,
+        problem: String,
+    },
 }
 
 impl FlintError {

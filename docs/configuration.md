@@ -170,10 +170,12 @@ Rules for writing, keeping and deleting `.g.dart` files ([spec 0001](specs/0001-
 | `String`, `int`, `double`, `bool`, `DateTime` (and nullable) | ✅ | |
 | `List<T>`, `Map<String, V>` (nested, nullable) | ✅ | Non-`String` map keys aren't converted ⚠️ R14 |
 | Nested `@JsonSerializable` classes | ✅ | Called as `Type.fromJson(json as Map<String, dynamic>)` |
+| Classes through an import prefix (`m.Money`) | ✅ | Called as `m.Money.fromJson(...)` |
 | Generic classes `Foo<T>` | ✅ | Always generates `fromJsonT` / `toJsonT` parameters, as with `genericArgumentFactories: true` |
 | `@JsonEnum` enums **in the same file** | ✅ | ⚠️ Enums from other files are treated as classes (R7) |
 | `@JsonValue('x')`, `@JsonValue(1)`, `@JsonValue(true)` | ✅ | The value keeps its type and is emitted as written (plain `"x"` becomes `'x'`). As map keys, enum values are converted to strings, since JSON keys always are |
-| `num`, `dynamic`, `Object`, `Uri`, `BigInt`, `Duration`, `Set`, records | ❌ | Generated as `Type.fromJson(...)`, which doesn't compile (R7) |
+| `num`, `dynamic`, `Object`, `Uri`, `BigInt`, `Duration`, `Set` | ❌ | Generated as `Type.fromJson(...)`, which doesn't compile (R7, [spec 0005](specs/0005-project-symbol-index.md) step 3) |
+| Records, function types, fields without a declared type | ❌ | Reported as an error for that file (with the line), unless the field has `@JsonKey(fromJson:, toJson:)`, a converter, or is ignored |
 | Positional constructors, fields not set by the constructor | ❌ | Always generates named arguments for every field (R8) |
 | Classes and enums with several annotations (`@immutable @JsonSerializable()`) | ✅ | In any order |
 | `@JsonSerializable(explicitToJson: true)` | ✅ | Package-wide default: `explicit_to_json` |
@@ -255,6 +257,7 @@ These variables are available in every template, for both built-in and custom pl
 {
   "name": "id",
   "is_final": true,
+  "line": 12,               // 1-based line of the declaration
   "dart_type": { "kind": "Int", "is_nullable": true },
   "metadata": { "JsonKey": "", "name": "'id_'" },
   "converter": null,        // set by flint_json only
@@ -268,7 +271,8 @@ These variables are available in every template, for both built-in and custom pl
 - `"String"`, `"Int"`, `"Double"`, `"Bool"`, `"DateTime"`
 - `{ "List": <DartType> }`
 - `{ "Map": [<DartType key>, <DartType value>] }`
-- `{ "Custom": "TypeName" }`
+- `{ "Custom": "TypeName" }`, including a prefix if the source has one (`"m.Money"`)
+- `{ "Unsupported": "(int, String)" }` for records and function types (empty text: no declared type)
 
 **Enum**
 

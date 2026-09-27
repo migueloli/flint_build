@@ -187,8 +187,12 @@ Each step is mergeable on its own and keeps CI green.
 1. ✅ A1: compile queries once, plus the benchmark script (`engine/bench/run.sh`). No output changes.
    Measured on 1,000 files, 4 cores: `--force` 1.95 s → ~0.28 s, parse-only 1.67 s → ~64 ms, no-op
    unchanged at ~10 ms. The index pass costs about as much as parse-only, which is within the 100 ms budget.
-2. Parser: keep type prefixes (fixes `mMoney`), `Unsupported` for records and function types with a
-   diagnostic, declarations and directives in `ParsedFile`.
+2. ✅ Parser: keep type prefixes (fixes `mMoney`), `Unsupported` for records and function types with a
+   diagnostic, declarations and directives in `ParsedFile`. The diagnostic only fires when a conversion would
+   be generated (not with `@JsonKey` hooks, a converter or `ignore`). Code review found three more cases,
+   now covered: generic function types (`Function<T>`), classes with a `static fromJson` method, and
+   mixin-application classes (`class M = Object with Mx;`). `Map<K, V>` type arguments are now split at the
+   top-level comma, so `Map<Map<String, int>, int>` parses correctly (part of R14).
 3. `dart:core` table (`num`, `dynamic`, `Object`, `Uri`, `BigInt`, `Duration`, `Set`, `Iterable`). This needs
    no index. Golden fixtures.
 4. `SymbolIndex`, resolution order, ambiguity errors, `Generator` trait change.
