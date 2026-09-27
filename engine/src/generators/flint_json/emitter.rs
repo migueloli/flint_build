@@ -1,4 +1,5 @@
 use crate::error::FlintError;
+use crate::generators::flint_json::members;
 use crate::generators::{
     Generated, Generator, TemplateEngine, retain_annotated, select_enum_values,
     select_variant_values,
@@ -90,6 +91,7 @@ pub fn generate_section(
         .collect();
 
     let mut assumed_external = BTreeSet::new();
+    let mut plans = Vec::new();
     for class in &mut parsed_file.classes {
         log::debug!(
             "Generating code for class: {} ({} fields)",
@@ -104,7 +106,32 @@ pub fn generate_section(
             class.metadata.get("createFactory").map(|v| v.as_str()) != Some("false");
         let creates_to_json =
             class.metadata.get("createToJson").map(|v| v.as_str()) != Some("false");
-        for field in &mut class.fields {
+
+        // Which members are serialized, and how fromJson builds the object (spec 0006).
+        let mut plan = members::plan(class, creates_factory)?;
+        let mut in_from_json = vec![false; plan.members.len()];
+        let mut in_to_json = vec![false; plan.members.len()];
+        if let Some(from) = &plan.from_json {
+            for index in from
+                .arguments
+                .iter()
+                .filter_map(|a| a.member)
+                .chain(from.cascades.iter().copied())
+            {
+                in_from_json[index] = true;
+            }
+        }
+        for &index in &plan.to_json {
+            in_to_json[index] = true;
+        }
+        for (index, member) in plan.members.iter_mut().enumerate() {
+            let field = &mut member.field;
+            if !in_from_json[index] && !in_to_json[index] {
+                continue;
+            }
+            let from_side = in_from_json[index] && !field.metadata.contains_key("fromJson");
+            let to_side =
+                creates_to_json && in_to_json[index] && !field.metadata.contains_key("toJson");
             if let Some(converters) = &plugin.converters {
                 for key in field.metadata.keys() {
                     let full_annotation = format!("@{}", key);
@@ -117,7 +144,7 @@ pub fn generate_section(
 
             if field.converter.is_none()
                 && contains_unsupported(&field.dart_type)
-                && needs_generated_conversion(field, creates_factory, creates_to_json)
+                && (from_side || to_side)
             {
                 let problem = match &field.dart_type.kind {
                     TypeKind::Unsupported(text) if text.is_empty() => {
@@ -137,7 +164,6 @@ pub fn generate_section(
                 });
             }
 
-            let (from_side, to_side) = generated_sides(field, creates_factory, creates_to_json);
             if field.converter.is_none() && (from_side || to_side) {
                 for name in field.dart_type.custom_names() {
                     if class.type_parameters.iter().any(|t| t == name) {
@@ -210,6 +236,16 @@ pub fn generate_section(
                 ));
             }
         }
+        // Custom flint_json templates written before spec 0006 read these from `class.fields`.
+        for field in &mut class.fields {
+            if let Some(member) = plan.members.iter().find(|m| m.field.name == field.name) {
+                field.metadata = member.field.metadata.clone();
+                field.converter = member.field.converter.clone();
+                field.from_json_expr = member.field.from_json_expr.clone();
+                field.to_json_expr = member.field.to_json_expr.clone();
+            }
+        }
+        plans.push(plan);
     }
 
     let template_error = |e: tera::Error| FlintError::template("flint_json", &e);
@@ -223,8 +259,14 @@ pub fn generate_section(
         )
         .map_err(template_error)?;
 
+    let classes: Vec<JsonClass> = parsed_file
+        .classes
+        .iter()
+        .zip(&plans)
+        .map(|(class, plan)| json_class(class, plan))
+        .collect();
     let mut context = Context::new();
-    context.insert("classes", &parsed_file.classes);
+    context.insert("classes", &classes);
     context.insert("enums", &parsed_file.enums);
     context.insert("enum_maps", &enum_maps);
     context.insert("filename", filename);
@@ -236,6 +278,95 @@ pub fn generate_section(
         code,
         assumed_external,
     })
+}
+
+/// A class as the `flint_json` template sees it: the parsed class, plus what spec 0006 worked out.
+#[derive(Serialize)]
+struct JsonClass<'a> {
+    #[serde(flatten)]
+    class: &'a DartClass,
+    /// `None` when `fromJson` isn't generated.
+    from_json: Option<FromJson<'a>>,
+    /// The members `toJson` writes, with their expressions.
+    json_members: Vec<&'a DartField>,
+}
+
+#[derive(Serialize)]
+struct FromJson<'a> {
+    /// `Point` or `Point.create`.
+    constructor: &'a str,
+    arguments: Vec<Value<'a>>,
+    cascades: Vec<Value<'a>>,
+}
+
+/// One constructor argument (`name` is `None` for a positional one) or cascade (`name` is the member).
+/// `field` is `None` for a positional parameter no member fills, passed only to reach a later one.
+#[derive(Serialize)]
+struct Value<'a> {
+    name: Option<&'a str>,
+    value: String,
+    field: Option<&'a DartField>,
+}
+
+/// The Dart expression that reads a member in `fromJson`: its `@JsonKey(fromJson:)` hook (which gets the
+/// raw value, null included, as with `defaultValue`), or its conversion, falling back to
+/// `@JsonKey(defaultValue:)` or else the constructor's default when the key is missing or null.
+fn from_json_value(field: &DartField, constructor_default: Option<&String>) -> String {
+    let key = field.metadata.get("name").unwrap_or(&field.name);
+    if let Some(hook) = field.metadata.get("fromJson") {
+        return format!("{hook}(json['{key}'])");
+    }
+    let expression = field.from_json_expr.as_deref().unwrap_or_default();
+    match field.metadata.get("defaultValue").or(constructor_default) {
+        Some(default) => format!("json['{key}'] == null ? {default} : {expression}"),
+        None => expression.to_string(),
+    }
+}
+
+fn json_class<'a>(class: &'a DartClass, plan: &'a members::Plan) -> JsonClass<'a> {
+    let field = |index: usize| &plan.members[index].field;
+    let from_json = plan.from_json.as_ref().map(|from| FromJson {
+        constructor: &from.constructor,
+        arguments: from
+            .arguments
+            .iter()
+            .map(|argument| {
+                let name = match &argument.slot {
+                    members::Slot::Named(name) => Some(name.as_str()),
+                    members::Slot::Positional => None,
+                };
+                match argument.member.map(field) {
+                    Some(field) => Value {
+                        name,
+                        value: from_json_value(field, argument.default.as_ref()),
+                        field: Some(field),
+                    },
+                    None => Value {
+                        name,
+                        value: argument
+                            .default
+                            .clone()
+                            .unwrap_or_else(|| "null".to_string()),
+                        field: None,
+                    },
+                }
+            })
+            .collect(),
+        cascades: from
+            .cascades
+            .iter()
+            .map(|&index| Value {
+                name: Some(&field(index).name),
+                value: from_json_value(field(index), None),
+                field: Some(field(index)),
+            })
+            .collect(),
+    });
+    JsonClass {
+        class,
+        from_json,
+        json_members: plan.to_json.iter().map(|&i| field(i)).collect(),
+    }
 }
 
 const USE_HOOKS: &str = "Use @JsonKey(fromJson: …, toJson: …) or a converter.";
@@ -321,9 +452,20 @@ fn apply_plugin_defaults(class: &mut DartClass, plugin: &PluginConfig) {
     }
 
     if let Some(include_if_null) = class.metadata.get("includeIfNull") {
-        for field in class.fields.iter_mut().filter(|f| f.dart_type.is_nullable) {
-            field
-                .metadata
+        let metadata = class
+            .fields
+            .iter_mut()
+            .filter(|f| f.dart_type.is_nullable)
+            .map(|f| &mut f.metadata)
+            .chain(
+                class
+                    .getters
+                    .iter_mut()
+                    .filter(|g| g.dart_type.is_nullable)
+                    .map(|g| &mut g.metadata),
+            );
+        for metadata in metadata {
+            metadata
                 .entry("includeIfNull".to_string())
                 .or_insert_with(|| include_if_null.clone());
         }
@@ -355,35 +497,6 @@ fn contains_unsupported(dart_type: &DartType) -> bool {
         TypeKind::Map(key, value) => contains_unsupported(key) || contains_unsupported(value),
         _ => false,
     }
-}
-
-/// Whether the template will emit a generated conversion for this field, on either side. Fields that are
-/// ignored, excluded, or have their own `@JsonKey(fromJson:/toJson:)` hooks don't need one.
-fn needs_generated_conversion(
-    field: &DartField,
-    creates_factory: bool,
-    creates_to_json: bool,
-) -> bool {
-    let (from, to) = generated_sides(field, creates_factory, creates_to_json);
-    from || to
-}
-
-/// Whether the template emits a generated `fromJson` and a generated `toJson` conversion for this field.
-fn generated_sides(
-    field: &DartField,
-    creates_factory: bool,
-    creates_to_json: bool,
-) -> (bool, bool) {
-    let is = |key: &str, value: &str| field.metadata.get(key).map(String::as_str) == Some(value);
-    if is("ignore", "true") {
-        return (false, false);
-    }
-    let from = creates_factory
-        && !is("includeFromJson", "false")
-        && !field.metadata.contains_key("fromJson");
-    let to =
-        creates_to_json && !is("includeToJson", "false") && !field.metadata.contains_key("toJson");
-    (from, to)
 }
 
 /// The enum's name if a map key has an enum type generated in this file.
@@ -459,7 +572,7 @@ fn generate_from_json_expression(
                 access, key, value, key_expr, value_expr
             )
         }
-        // Only reached when the template won't use the expression (see needs_generated_conversion).
+        // Only reached when the template won't use the expression (the field has a hook, or is excluded).
         TypeKind::Unsupported(_) => access.to_string(),
         // A class type parameter shadows an enum with the same name, so it's checked first.
         TypeKind::Custom(name) => {
@@ -750,6 +863,7 @@ mod tests {
 
         let class = DartClass {
             name: "User".to_string(),
+            constructors: vec![named_constructor(std::slice::from_ref(&field))],
             fields: vec![field],
             metadata: {
                 let mut m = std::collections::HashMap::new();
@@ -807,6 +921,7 @@ mod tests {
 
         let class = DartClass {
             name: "User".to_string(),
+            constructors: vec![named_constructor(std::slice::from_ref(&field))],
             fields: vec![field],
             metadata: {
                 let mut m = std::collections::HashMap::new();
@@ -844,6 +959,31 @@ mod tests {
         assert!(output.contains("address?.toJson()"));
     }
 
+    /// `Class({required this.a, required this.b, …})`, as the fixtures declare them.
+    fn named_constructor(fields: &[DartField]) -> crate::parser::dart_types::DartConstructor {
+        use crate::parser::dart_types::{
+            DartConstructor, DartParameter, Initializes, ParameterKind,
+        };
+        DartConstructor {
+            name: None,
+            is_factory: false,
+            is_const: false,
+            line: 1,
+            params: fields
+                .iter()
+                .map(|f| DartParameter {
+                    name: f.name.clone(),
+                    kind: ParameterKind::Named,
+                    // An excluded field can't be a required parameter (spec 0006).
+                    required: !f.metadata.contains_key("ignore"),
+                    default: None,
+                    initializes: Initializes::This,
+                    dart_type: None,
+                })
+                .collect(),
+        }
+    }
+
     fn field(name: &str, kind: TypeKind, is_nullable: bool) -> DartField {
         DartField {
             name: name.to_string(),
@@ -869,6 +1009,7 @@ mod tests {
         ParsedFile {
             classes: vec![DartClass {
                 name: "User".to_string(),
+                constructors: vec![named_constructor(&fields)],
                 fields,
                 metadata,
                 type_parameters: vec![],

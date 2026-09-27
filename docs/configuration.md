@@ -201,6 +201,49 @@ plugins:
 A listed name is used as a class even in a file that imports no other package. Names that *are* declared in
 this package ignore the list.
 
+### Constructors and members
+
+`flint_json` builds `fromJson` from the class's real constructor, like json_serializable (spec 0006):
+
+```dart
+@JsonSerializable()
+class Point {
+  final int x, y;
+  final int z;
+  final List<String> tags = const [];   // can't be set by fromJson, so it isn't serialized
+  String? note;                         // writable, set after construction
+
+  Point(this.x, this.y, [this.z = 0]);
+  …
+}
+
+// generated
+Point _$PointFromJson(Map<String, dynamic> json) => Point(
+      (json['x'] as num).toInt(),
+      (json['y'] as num).toInt(),
+      json['z'] == null ? 0 : (json['z'] as num).toInt(),
+    )
+      ..note = json['note'] as String?;
+```
+
+- **Constructor:** the unnamed one, or the one named by `@JsonSerializable(constructor: 'name')`. A class
+  that declares no constructor uses Dart's implicit one.
+- **Parameters** match members by name, whether they're written `this.x` or `int x`. A missing or null key
+  uses the parameter's default; `@JsonKey(defaultValue:)` wins over it, and a `@JsonKey(fromJson:)` hook gets
+  the raw value, null included. A default that uses a static member of the class is written with the class
+  name (`Limits.defaultLimit`).
+- **An optional positional parameter nothing fills**, before one that is filled, is passed its default (or
+  `null`). json_serializable shifts the later values into its slot instead.
+- **Members:** instance fields (every variable of `final int a, b;`) and getters. Private ones only count with
+  `@JsonKey(includeFromJson: true, includeToJson: true)`. When `fromJson` is generated, members it can't set
+  (a `final` field with an initialiser or set in the initialiser list, a getter without a setter) are left
+  out of `toJson` too, unless they have `@JsonKey(includeToJson: true)`. With `createFactory: false`, every
+  public field and getter is written.
+- **Errors**, for that file:
+  - a required parameter that matches no member, or whose member is excluded from `fromJson`;
+  - a class with constructors but no unnamed one (or no constructor with the requested name);
+  - a `super.x` parameter (superclass members come in spec 0006 step 3).
+
 ## `flint_json` support matrix
 
 | Feature | Status | Notes |
@@ -219,9 +262,13 @@ this package ignore the list.
 | `Set<E>`, `Iterable<E>` | ✅ | Read from and written as JSON lists (`toSet()`, `toList()`) |
 | Records, function types, fields without a declared type | ❌ | Reported as an error for that file (with the line), unless the field has `@JsonKey(fromJson:, toJson:)`, a converter, or is ignored |
 | Mixins, typedefs, extension types | ❌ | Reported as an error for that file, with the same exceptions |
-| Positional constructors, fields not set by the constructor | ❌ | Always generates named arguments for every field (R8) |
+| The real constructor: positional, optional and named parameters, `this.x` and plain `int x` | ✅ | The unnamed constructor, or `@JsonSerializable(constructor: 'name')`. A missing key uses the parameter's default. See [Constructors and members](#constructors-and-members) |
+| Fields the constructor doesn't set | ✅ | Writable ones (non-`final`, `late final` without an initialiser, getter/setter pairs) are set with cascades (`..x = …`); others are left out, as in json_serializable |
+| Getters | ✅ | Written by `toJson` when they match a constructor parameter, have `@JsonKey(includeToJson: true)`, or the class has `createFactory: false` |
+| Private fields (`_x`) | ✅ | Skipped unless `@JsonKey(includeFromJson: true, includeToJson: true)`; the key is then `'_x'` |
 | Several variables in one declaration (`final int a, b;`) | ✅ | Each is a field |
 | Static fields and getters | ✅ | Ignored, as in json_serializable |
+| Fields and constructor parameters from a superclass (`super.x`) | ❌ | An error for now (spec 0006 step 3) |
 | Classes and enums with several annotations (`@immutable @JsonSerializable()`) | ✅ | In any order |
 | `@JsonSerializable(explicitToJson: true)` | ✅ | Package-wide default: `explicit_to_json` |
 | `@JsonSerializable(createFactory: false / createToJson: false)` | ✅ | Package-wide defaults: `create_factory` / `create_to_json` |
@@ -287,6 +334,13 @@ These variables are available in every template, for both built-in and custom pl
 | `enums` | array | Enums carrying one of the plugin's `enum_annotations` |
 | `enum_maps` | array | `flint_json` only: the value maps this file needs, `{ map_name, type_name, values }`, including enums from other files |
 
+For `flint_json`, each class also has `from_json` (null with `createFactory: false`): `{ constructor, arguments,
+cascades }`, where `constructor` is `Point` or `Point.create`, and each argument or cascade is `{ name, value,
+field }` (`name` is null for a positional argument, `value` is the complete Dart expression, `field` is the
+member, or null for a positional placeholder). `json_members` lists the members `toJson` writes. A
+`template_path` for `flint_json` written before spec 0006 can still read `class.fields` and each field's
+`from_json_expr`, but only `from_json` and `json_members` know the constructor's shape.
+
 **Class**
 
 ```jsonc
@@ -300,7 +354,8 @@ These variables are available in every template, for both built-in and custom pl
 }
 ```
 
-Static fields and getters are left out.
+Static fields and getters are left out; `static_members` lists their names. `setters` lists the names of
+instance setters, and `line` is the class's line.
 
 **Constructor**
 

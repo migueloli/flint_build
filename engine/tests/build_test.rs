@@ -390,10 +390,12 @@ fn test_broken_template_leaves_its_outputs_untouched() {
 #[test]
 fn test_unsupported_field_type_is_reported_with_its_line() {
     let package = Package::json();
-    let source = USER.replace(
-        "  final int id;\n",
-        "  final int id;\n  final (int, String) pair;\n",
-    );
+    let source = USER
+        .replace(
+            "  final int id;\n",
+            "  final int id;\n  final (int, String) pair;\n",
+        )
+        .replace("required this.id", "required this.id, required this.pair");
     package.write("lib/user.dart", &source);
 
     let report = package.build(false);
@@ -533,10 +535,16 @@ fn test_output_depends_on_the_files_its_types_come_from() {
     assert_eq!(report.errors.len(), 1, "{:?}", report.errors);
 }
 
-/// `lib/model.dart` with `imports`, and a `@JsonSerializable` class `Model` with one field.
+/// `lib/model.dart` with `imports`, and a `@JsonSerializable` class `Model` with one field, which its
+/// constructor sets (`Model({this.price})`).
 fn model_with_field(imports: &str, field: &str) -> String {
+    let name = field
+        .trim_end_matches(';')
+        .split_whitespace()
+        .last()
+        .unwrap_or_default();
     format!(
-        "{imports}part 'model.g.dart';\n\n@JsonSerializable()\nclass Model {{\n  {field}\n  Model();\n  factory Model.fromJson(Map<String, dynamic> json) => _$ModelFromJson(json);\n}}\n"
+        "{imports}part 'model.g.dart';\n\n@JsonSerializable()\nclass Model {{\n  {field}\n  Model({{this.{name}}});\n  factory Model.fromJson(Map<String, dynamic> json) => _$ModelFromJson(json);\n}}\n"
     )
 }
 
@@ -794,4 +802,64 @@ fn test_templates_see_constructors_getters_and_field_flags() {
             "missing {line:?} in:\n{generated}"
         );
     }
+}
+
+#[test]
+fn test_constructor_errors_name_the_parameter_and_leave_the_output() {
+    let package = Package::json();
+    for (source, expected) in [
+        (
+            "part 'model.g.dart';\n\n@JsonSerializable()\nclass Bad {\n  final int x;\n  Bad({required this.x, required int extra});\n}\n",
+            "model.dart: line 6: constructor 'Bad' has a required parameter 'extra' that doesn't match a field or getter, so fromJson can't fill it. Give it a default, make it optional, or add a field named 'extra'.",
+        ),
+        (
+            "part 'model.g.dart';\n\n@JsonSerializable()\nclass Ign {\n  @JsonKey(includeFromJson: false)\n  final int x;\n  Ign(this.x);\n}\n",
+            "model.dart: line 7: constructor 'Ign' has a required parameter 'x', but field 'x' is excluded from fromJson (includeFromJson: false). Make the parameter optional, or include the field.",
+        ),
+        (
+            "part 'model.g.dart';\n\n@JsonSerializable()\nclass OnlyNamed {\n  final int x;\n  OnlyNamed.make(this.x);\n}\n",
+            "model.dart: line 6: class 'OnlyNamed' has no unnamed constructor. Add one, or pick one with @JsonSerializable(constructor: 'make').",
+        ),
+        (
+            "part 'model.g.dart';\n\nclass Base {\n  final int id;\n  Base(this.id);\n}\n\n@JsonSerializable()\nclass Child extends Base {\n  final String name;\n  Child(super.id, this.name);\n}\n",
+            "model.dart: line 11: constructor 'Child' sets 'id' through its superclass",
+        ),
+    ] {
+        package.write(
+            "lib/model.g.dart",
+            "// flint_build 0.1.0\n// previous output\n",
+        );
+        package.write("lib/model.dart", source);
+
+        let report = package.build(true);
+
+        assert_eq!(report.errors.len(), 1, "{:?}", report.errors);
+        assert!(report.errors[0].contains(expected), "{}", report.errors[0]);
+        assert_eq!(
+            package.read("lib/model.g.dart"),
+            "// flint_build 0.1.0\n// previous output\n"
+        );
+    }
+}
+
+#[test]
+fn test_custom_flint_json_template_still_sees_field_expressions() {
+    // Templates written before spec 0006 iterate `class.fields` and read the expressions from it.
+    let package = Package::new("plugins:\n  flint_json:\n    template_path: old.tera\n");
+    package.write(
+        "old.tera",
+        "{% for class in classes %}{% for f in class.fields %}// {{ f.metadata.name }}: {{ f.from_json_expr }} / {{ f.to_json_expr }}\n{% endfor %}{% endfor %}",
+    );
+    package.write("lib/user.dart", USER);
+
+    let report = package.build(false);
+
+    assert!(report.errors.is_empty(), "{:?}", report.errors);
+    assert!(
+        package
+            .read("lib/user.g.dart")
+            .contains("// id: (json['id'] as num).toInt() / instance.id"),
+        "{}",
+        package.read("lib/user.g.dart")
+    );
 }

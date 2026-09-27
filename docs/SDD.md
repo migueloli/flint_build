@@ -164,6 +164,7 @@ ParsedFile { classes: [DartClass], enums: [DartEnum], part_directives, part_of?,
 // plus (not in the template context) the declaring path, an enum's declaration, and possibly_external.
 DartClass  { name, type_parameters: [String], metadata: {String: String}, fields: [DartField],
              getters: [{ name, line, dart_type, metadata }],
+             setters: [String], static_members: [String], line,
              constructors: [{ name?, is_factory, is_const, line,
                               params: [{ name, kind: Positional|OptionalPositional|Named, required, default?,
                                          initializes: This|Super|Plain, dart_type? }] }] }   // spec 0006
@@ -190,7 +191,7 @@ SourceUnit  { path, part_directives: [String], library_name?, classes, enums, sp
 Annotation  { name, prefix?, positional: [Literal|Expr], named: {String: Literal|Expr}, span }
 Literal     = String(s) | Int(i) | Double(f) | Bool(b) | Null | Expr(raw)   // enum values already keep raw source (R6)
 DartClass   { name, type_parameters, annotations: [Annotation], fields, constructors: [Constructor], span }
-Constructor { name?, params: [Param{ name, kind: positional|named|this, required, default? }] }  // R8
+// Constructor: Current since spec 0006 (see §6.1); flint_json builds fromJson from it (members::plan).
 DartField   { name, type: DartType, is_final, is_static, is_late, has_initializer, annotations, span }
 DartType    { name, args: [DartType], nullable, resolved?: SymbolKind }   // filled in by the index
 ```

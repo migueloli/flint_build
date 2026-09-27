@@ -69,7 +69,7 @@ The full support matrix and the `flint.yaml` reference are in [docs/configuratio
 These are the most important ones. All of them are tracked in [docs/REVIEW.md](docs/REVIEW.md) and scheduled
 in the [roadmap](docs/ROADMAP.md).
 
-- Constructors are assumed to take every field as a named parameter (R8).
+- Fields and `super.x` parameters from a superclass aren't supported yet (spec 0006 step 3).
 - Up-to-date checks use modification times, not content hashes, so unusual mtimes (some checkouts or
   caches) can leave stale output; `build --force` fixes it (R11).
 

@@ -213,10 +213,37 @@ Each step is mergeable on its own and keeps CI green.
      getter); steps 2 and 3 extend it.
    - Benchmark (`engine/bench/run.sh 1000 5`): no-op 85–97 ms typical, the same as before this step measured
      in the same session (82–110 ms). The machine's run-to-run spread already reaches the 100 ms budget.
-2. **Constructor-aware `fromJson`/`toJson`** for a class's own members: constructor choice, positional and
+2. ✅ **Constructor-aware `fromJson`/`toJson`** for a class's own members: constructor choice, positional and
    named arguments, constructor defaults, cascades, member rules (private, unsettable, getters), the three
-   errors. Golden `constructors_model.dart`. `super.x` parameters and plain parameters that match nothing in
-   the class get the “superclass” error until step 3.
+   errors. Golden `constructors_model.dart`. `super.x` parameters get the “superclass” error until step 3;
+   plain parameters that match nothing get the “required parameter” error when required, and are left out
+   when optional. Notes:
+   - **Implemented as designed:** `flint_json::members::plan` returns the constructor, arguments (with the
+     member each one takes), cascades and `toJson` members; the emitter builds each value in Rust and the
+     template renders it. Every row of the json_serializable table is a unit test of the plan and, where it
+     compiles, a golden round trip; the error rows are build tests. Existing snapshots and the example are
+     unchanged.
+   - **Deviation found while testing, better than json_serializable:** an optional positional parameter that
+     no member fills, before one that is filled (`Gap(this.x, [int s = 0, this.a = 1])`), is passed its
+     default (or `null`). json_serializable (checked on 2026-09-27) passes `a`'s value into `s`'s slot.
+   - **A class that declares no constructor** uses Dart's implicit unnamed one (every field by cascade).
+     A class whose only constructors are named (such as `fromJson`) gets the “no unnamed constructor” error.
+   - **Code review** (`/code-review`, steps 1 and 2 together) found, and these are fixed and tested:
+     - a constructor default that uses a static member (`this.limit = defaultLimit`) didn't compile in the
+       top-level function; static member names are now parsed (`class.static_members`) and qualified
+       (`Limits.defaultLimit`), skipping string literals;
+     - a getter/setter pair was treated as read-only and silently dropped; setters are parsed
+       (`class.setters`) and make the getter writable (a cascade);
+     - a `template_path` for `flint_json` written before this spec lost `class.fields[*].from_json_expr`;
+       the expressions are copied back to `class.fields`;
+     - an untyped getter (`get x => 1`) in a `createFactory: false` class was an error; it's now `dynamic`;
+     - an error for a class without constructors reported line 0; classes now record their `line`;
+     - a required `this._x` for a private field suggested adding the field that already exists; the
+       message now points at `@JsonKey(includeFromJson: true, includeToJson: true)`;
+     - `includeIfNull` defaults were applied in two places; `apply_plugin_defaults` now covers getters.
+     Not changed: a `@JsonKey(fromJson:)` hook still gets the raw value, null included, rather than the
+     constructor's default, the same as with `defaultValue` today.
+   - Benchmark (`engine/bench/run.sh 1000 5`): no-op 86–91 ms, `--force` 251–286 ms.
 3. **Superclass members** from the same package through the index, with the dependency rule; errors for
    other packages, generic superclasses and mixins with fields. Golden `inheritance_model.dart`.
 4. **Docs:** support matrix, template context, SDD §4/§6, roadmap, review; spec Done.

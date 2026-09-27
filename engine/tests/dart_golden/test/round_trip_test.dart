@@ -334,5 +334,70 @@ void main() {
       expect([pair.a, pair.b], [1, 2]);
       expect(wire(pair), json);
     });
+
+    // Expected JSON is what json_serializable produces for the same classes (spec 0006's table).
+    test('positional arguments, a constructor default, cascades; unsettable members left out', () {
+      final point = Coords.fromJson(wire({'x': 1, 'y': 2, 'label': 'l', 'note': null, 'count': 3}));
+      expect([point.x, point.y, point.z, point.doubled, point.label, point.count], [1, 2, 0, 2, 'l', 3]);
+      expect(wire(point), {'x': 1, 'y': 2, 'z': 0, 'label': 'l', 'note': null, 'count': 3});
+    });
+
+    test('positional and named parameters with defaults', () {
+      expect(wire(Opts.fromJson(wire({'a': 1, 'b': 2, 'c': null}))), {'a': 1, 'b': 2, 'c': null, 'd': 7});
+      expect(wire(Opts.fromJson(wire({'a': 1, 'b': 2, 'c': 'x', 'd': 4}))), {'a': 1, 'b': 2, 'c': 'x', 'd': 4});
+    });
+
+    test('a private field behind a getter that matches the constructor parameter', () {
+      expect(wire(Secret.fromJson(wire({'visible': 1}))), {'visible': 1, 'secret': 0});
+      expect(Secret.fromJson(wire({'visible': 1, 'secret': 5})).secret, 5);
+    });
+
+    test('constructor: picks a named factory', () {
+      expect(wire(Made.fromJson(wire({'x': 3}))), {'x': 3});
+    });
+
+    test('plain parameters match fields by name', () {
+      expect(wire(Plain.fromJson(wire({'x': 1}))), {'x': 1, 'y': 3});
+    });
+
+    test('a private field included by @JsonKey keeps its name as the key', () {
+      final key = PrivKey.fromJson(wire({'_hidden': 4}));
+      expect(key.hidden, 4);
+      expect(wire(key), {'_hidden': 4});
+    });
+
+    test('late final cascade, and includeToJson on an unsettable field and a getter', () {
+      expect(wire(LateFinal.fromJson(wire({'x': 1, 'y': 'a'}))), {'x': 1, 'y': 'a', 'derived': 2});
+      expect(wire(Twice.fromJson(wire({'x': 2}))), {'x': 2, 'twice': 4});
+    });
+
+    test('@JsonKey(defaultValue:) wins over the constructor default', () {
+      expect(wire(Renamed.fromJson(wire({}))), {'the_x': 5, 'items': [1]});
+      expect(wire(Renamed.fromJson(wire({'the_x': 1, 'items': [2]}))), {'the_x': 1, 'items': [2]});
+    });
+
+    test('without fromJson, initialised finals and getters are written, private fields are not', () {
+      expect(wire(ToOnly(3)), {'x': 3, 'tags': [], 'sum': 4, 'untyped': 'u'});
+    });
+
+    test('@JsonKey(name:) on a positional parameter, and an optional positional', () {
+      expect(wire(PosKey.fromJson(wire({'X': 1}))), {'X': 1, 'y': null});
+    });
+
+    test("spec 0006's Problem model", () {
+      final point = ProblemPoint.fromJson(wire({'x': 1, 'y': 2, 'label': 'l', 'b': 5}));
+      expect([point.z, point.a, point.b, point.sum], [0, 1, 5, 3]);
+      expect(wire(point), {'x': 1, 'y': 2, 'z': 0, 'label': 'l', 'a': 1, 'b': 5});
+    });
+
+    test('a getter/setter pair, and a static member in a constructor default', () {
+      final limits = Limits.fromJson(wire({'level': 3}));
+      expect([limits.limit, limits.level], [20, 3]);
+      expect(wire(limits), {'limit': 20, 'level': 3});
+    });
+
+    test("Dart's implicit constructor, every field by cascade", () {
+      expect(wire(Implicit.fromJson(wire({'a': 'q', 'b': 2}))), {'a': 'q', 'b': 2});
+    });
   });
 }

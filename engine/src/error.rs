@@ -20,6 +20,9 @@ pub enum FlintError {
         problem: String,
         fix: &'static str,
     },
+    /// `fromJson` can't be built from the class's constructor (spec 0006).
+    #[error("line {line}: {message}.")]
+    Constructor { line: usize, message: String },
 }
 
 impl FlintError {

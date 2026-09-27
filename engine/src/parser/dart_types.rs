@@ -112,6 +112,13 @@ pub struct DartClass {
     pub getters: Vec<DartGetter>,
     /// Every constructor, in declaration order (spec 0006).
     pub constructors: Vec<DartConstructor>,
+    /// Names of instance setters (`set x(int v)`), so a getter/setter pair counts as writable.
+    pub setters: Vec<String>,
+    /// Names of static fields, getters, setters and methods, so a constructor default that uses one
+    /// (`{this.limit = defaultLimit}`) can be qualified in generated code.
+    pub static_members: Vec<String>,
+    /// 1-based line of the class declaration.
+    pub line: usize,
 }
 
 /// An instance getter. Static getters are left out.

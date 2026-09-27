@@ -47,14 +47,18 @@ fn compiled(query: &'static LazyLock<Result<Query, QueryError>>) -> Result<&'sta
 pub fn parse_file(path: &Path) -> Result<ParsedFile> {
     log::debug!("Tree-Sitter: Parsing file {:?}", path);
     let content = fs::read_to_string(path)?;
+    parse_source(&content, path)
+}
 
+/// Parses Dart source; `path` is only used in messages.
+pub fn parse_source(content: &str, path: &Path) -> Result<ParsedFile> {
     let mut parser = Parser::new();
     parser
         .set_language(&tree_sitter_dart::LANGUAGE.into())
         .context("Error loading Dart grammar")?;
 
     let tree = parser
-        .parse(&content, None)
+        .parse(content, None)
         .context("Could not parse file")?;
 
     if tree.root_node().has_error()
@@ -74,8 +78,8 @@ pub fn parse_file(path: &Path) -> Result<ParsedFile> {
         .into());
     }
 
-    let classes = extract_classes(tree.root_node(), &content)?;
-    let enums = extract_enums(tree.root_node(), &content)?;
+    let classes = extract_classes(tree.root_node(), content)?;
+    let enums = extract_enums(tree.root_node(), content)?;
 
     if classes.is_empty() {
         log::debug!("No classes with matching annotations found in {:?}", path);
@@ -92,10 +96,10 @@ pub fn parse_file(path: &Path) -> Result<ParsedFile> {
     Ok(ParsedFile {
         classes,
         enums,
-        part_directives: extract_part_directives(tree.root_node(), &content),
-        part_of: extract_part_of(tree.root_node(), &content),
-        directives: extract_directives(tree.root_node(), &content),
-        declarations: extract_declarations(tree.root_node(), &content),
+        part_directives: extract_part_directives(tree.root_node(), content),
+        part_of: extract_part_of(tree.root_node(), content),
+        directives: extract_directives(tree.root_node(), content),
+        declarations: extract_declarations(tree.root_node(), content),
     })
 }
 
@@ -345,15 +349,20 @@ fn read_annotations(node: Node, content: &str) -> (Vec<String>, HashMap<String, 
     (names, metadata)
 }
 
-/// The members of a class body that matter for serialization: instance fields (one per variable), instance
-/// getters, and constructors (spec 0006). Static members are skipped.
-fn extract_members(
-    body: Node,
-    content: &str,
-) -> (Vec<DartField>, Vec<DartGetter>, Vec<DartConstructor>) {
-    let mut fields = Vec::new();
-    let mut getters = Vec::new();
-    let mut constructors = Vec::new();
+/// What a class body declares that matters for serialization (spec 0006).
+#[derive(Default)]
+struct ClassMembers {
+    fields: Vec<DartField>,
+    getters: Vec<DartGetter>,
+    constructors: Vec<DartConstructor>,
+    setters: Vec<String>,
+    static_members: Vec<String>,
+}
+
+/// Instance fields (one per variable), getters, setters and constructors, plus the names of static
+/// members, which are otherwise skipped.
+fn extract_members(body: Node, content: &str) -> ClassMembers {
+    let mut members = ClassMembers::default();
     let mut cursor = body.walk();
     for member in body.children(&mut cursor) {
         let nodes: Vec<Node> = if member.kind() == "class_member" {
@@ -367,9 +376,6 @@ fn extract_members(
                 "declaration" | "field_declaration" | "method_signature" => {}
                 _ => continue,
             }
-            if has_child(node, "static") {
-                continue;
-            }
             let mut c = node.walk();
             let signature = node.named_children(&mut c).find(|n| {
                 matches!(
@@ -379,23 +385,68 @@ fn extract_members(
                         | "factory_constructor_signature"
                         | "redirecting_factory_constructor_signature"
                         | "getter_signature"
+                        | "setter_signature"
+                        | "function_signature"
                 )
             });
+            // `static set x(…)` puts `static` inside the setter's signature.
+            let is_static = has_child(node, "static")
+                || signature.is_some_and(|s| {
+                    s.kind() == "setter_signature" && text(s, content).starts_with("static")
+                });
+            if is_static {
+                members
+                    .static_members
+                    .extend(static_names(node, signature, content));
+                continue;
+            }
             match signature {
                 Some(getter) if getter.kind() == "getter_signature" => {
                     if let Some(getter) = parse_getter(member, getter, content) {
-                        getters.push(getter);
+                        members.getters.push(getter);
                     }
                 }
-                Some(signature) => constructors.push(parse_constructor(signature, content)),
+                Some(setter) if setter.kind() == "setter_signature" => {
+                    if let Some(name) = setter.child_by_field_name("name") {
+                        members.setters.push(text(name, content).to_string());
+                    }
+                }
+                Some(method) if method.kind() == "function_signature" => {}
+                Some(signature) => members
+                    .constructors
+                    .push(parse_constructor(signature, content)),
                 None if node.kind() != "method_signature" => {
-                    fields.extend(parse_fields(node, content))
+                    members.fields.extend(parse_fields(node, content))
                 }
                 None => {}
             }
         }
     }
-    (fields, getters, constructors)
+    members
+}
+
+/// The names a static declaration introduces: every variable of a field declaration, or the getter's,
+/// setter's or method's name.
+fn static_names(node: Node, signature: Option<Node>, content: &str) -> Vec<String> {
+    if let Some(name) = signature.and_then(|s| s.child_by_field_name("name")) {
+        return vec![text(name, content).to_string()];
+    }
+    let mut names = Vec::new();
+    let mut cursor = node.walk();
+    for list in node.children(&mut cursor).filter(|n| {
+        matches!(
+            n.kind(),
+            "initialized_identifier_list" | "static_final_declaration_list"
+        )
+    }) {
+        let mut c = list.walk();
+        for variable in list.named_children(&mut c) {
+            if let Some(name) = variable.child_by_field_name("name") {
+                names.push(text(name, content).to_string());
+            }
+        }
+    }
+    names
 }
 
 fn has_child(node: Node, kind: &str) -> bool {
@@ -859,6 +910,7 @@ fn extract_classes(root: Node, content: &str) -> Result<Vec<DartClass>> {
         let mut class_body_node = None;
         let mut metadata = HashMap::new();
         let mut type_parameters = Vec::new();
+        let mut class_line = 0;
 
         for capture in m.captures {
             let node = capture.node;
@@ -866,7 +918,10 @@ fn extract_classes(root: Node, content: &str) -> Result<Vec<DartClass>> {
             let text = &content[node.start_byte()..node.end_byte()];
 
             match capture_name {
-                "class_decl" => metadata = read_annotations(node, content).1,
+                "class_decl" => {
+                    metadata = read_annotations(node, content).1;
+                    class_line = node.start_position().row + 1;
+                }
                 "class_name" => class_name = text.to_string(),
                 "type_params" => type_parameters = extract_type_parameters(node, content),
                 "class_body" => class_body_node = Some(node),
@@ -874,17 +929,20 @@ fn extract_classes(root: Node, content: &str) -> Result<Vec<DartClass>> {
             }
         }
 
-        let (fields, getters, constructors) = class_body_node
+        let members = class_body_node
             .map(|body| extract_members(body, content))
             .unwrap_or_default();
 
         classes.push(DartClass {
             name: class_name,
-            fields,
+            fields: members.fields,
             metadata,
             type_parameters,
-            getters,
-            constructors,
+            getters: members.getters,
+            constructors: members.constructors,
+            setters: members.setters,
+            static_members: members.static_members,
+            line: class_line,
         });
     }
     Ok(classes)
