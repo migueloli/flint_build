@@ -14,7 +14,7 @@ generators are Tera templates today, and Dart or YAML generators are planned
 
 ```text
 engine/   Rust crate "flint_build" (lib + bin). All the logic lives here.
-  src/main.rs            clap commands: build | watch | clean
+  src/main.rs            clap commands: build | watch | clean | dump-model
   src/builder.rs         orchestration: discover → parse once → run plugins → write/delete owned outputs
   src/output.rs          .g.dart header, ownership marker, section assembly
   src/index.rs           project symbol index: resolve type names across files (spec 0005)
@@ -42,6 +42,7 @@ cargo test                       # unit + integration + snapshot tests
 cargo insta review               # inspect snapshot changes (cargo install cargo-insta)
 cargo clippy --all-targets -- -D warnings
 cargo fmt
+cargo llvm-cov --summary-only --fail-under-lines 90   # coverage gate (rule 10; cargo install cargo-llvm-cov)
 ```
 
 Dart golden check (needs a Dart SDK): `engine/tests/dart_golden/check.sh`. It builds the engine, regenerates
@@ -81,6 +82,13 @@ With the Dart SDK: `cd cli/example && dart pub get && dart run flint_build build
    `docs/SDD.md` (Current vs Target), `docs/ROADMAP.md` status, and the READMEs **in the same change**.
 9. **No unmeasured performance claims.** Numbers in the docs must come from a benchmark in the repo, with the
    method stated (engine-only vs `dart run` end to end).
+10. **Every functionality has tests, and coverage doesn't drop below the floor.** A new feature, option, CLI
+    command, error message or generator ships with tests in the same change: unit tests for its logic, a
+    pipeline or snapshot test for its output, and a Dart golden round trip when it generates Dart (rule 3). A
+    bug fix ships with a test that failed before it. The engine's line coverage must stay **at or above
+    90%** (`cargo llvm-cov`, enforced by CI). Raise the floor as coverage grows; lowering it is an owner
+    decision. Code that can't be reached from a test (the `main.rs` edge, the watcher's event loop) is
+    covered by an end-to-end test instead, and the gap is listed in `docs/HANDOFF.md`.
 
 ## Conventions
 

@@ -342,11 +342,15 @@ depends on sorted paths and config order, never on which thread finishes first.
 | **Dart golden** (H7) | `engine/tests/dart_golden/check.sh`: `dart analyze --fatal-infos` on generated fixtures, then `dart test` round-trips against expected JSON | The output **compiles** and produces the expected JSON |
 | **Differential** (Target; the golden round-trips cover part of it by hand) | Round-trip the same fixtures through json_serializable and Flint, compare JSON | The output **behaves the same** |
 | End-to-end | Scratch project + CLI | `build`/`watch`/`clean` behaviour, file ownership |
-| Benchmarks | `hyperfine` on synthetic projects (10/100/1000 files) | Performance claims (see D3) |
+| Benchmarks | `engine/bench/run.sh` on a synthetic project (engine only) | Performance claims (see D3) |
+| Coverage | `cargo llvm-cov --fail-under-lines 90` | Every part of the engine is exercised by some test; the floor is AGENTS.md rule 10 |
+| Launcher | `dart run flint_build build` in `cli/example`, in CI | The Dart CLI finds the engine and forwards arguments (unit tests come with D1) |
 
-Rule: every bug fix in the emitter comes with a fixture that failed before the fix: an insta fixture for the
-text, and a model plus round-trip expectations in the Dart golden package for behaviour. CI runs all layers
-except benchmarks on every push (`.github/workflows/ci.yml`).
+Rules: every functionality has tests in the same change, and the engine's line coverage stays at or above
+90% (AGENTS.md rule 10; 95% at spec 0007 step 1). Every bug fix in the emitter comes with a fixture that
+failed before the fix: an insta fixture for the text, and a model plus round-trip expectations in the Dart
+golden package for behaviour. CI runs all layers except benchmarks on every push (`.github/workflows/ci.yml`).
+Every built-in generator will also need the differential layer against its original package.
 
 ## 15. Design decisions
 
@@ -370,8 +374,9 @@ except benchmarks on every push (`.github/workflows/ci.yml`).
 2. ~~Should `field_rename: camel` mean PascalCase or be removed?~~ **Resolved:** it means lowerCamelCase,
    and unknown values are errors. See [spec 0003](specs/0003-field-rename-camel.md) and DD7.
 3. ~~Should the parsed model be exposed as JSON so people can write generators in any language?~~
-   **Yes**, as the versioned generator model of [spec 0007](specs/0007-generator-platform.md) (draft), which
-   Dart generators receive and `flint_build dump-model` prints.
+   **Yes**, as the versioned generator model of [spec 0007](specs/0007-generator-platform.md) (accepted; model
+   v1 and `flint_build dump-model` are implemented), which Dart generators will receive.
 4. Is sharing one `.g.dart` (DD5) compatible with projects that run build_runner alongside Flint during a
-   migration? **No:** build_runner's source_gen merges its generators into the same `x.g.dart`. Spec 0007
-   proposes a separate shared part for Flint during migration.
+   migration? **No:** build_runner's source_gen merges its generators into the same `x.g.dart`. **Resolved**
+   in spec 0007: during a migration Flint writes its shared part to `x.flint.dart`
+   (`shared_part_extension: .flint.dart`).

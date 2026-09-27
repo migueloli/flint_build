@@ -9,7 +9,7 @@ For the design as a whole (current vs target), see [docs/SDD.md](../docs/SDD.md)
 ## Pipeline
 
 ```text
-main.rs (clap: build | watch | clean)
+main.rs (clap: build | watch | clean | dump-model)
    │
    ▼
 builder::build ──► config      pubspec.yaml, flint.yaml (plugins, in order), build.yaml
@@ -98,10 +98,13 @@ before accepting it. Snapshots prove the output is stable, not that it compiles.
 `dart analyze --fatal-infos`, and runs JSON round-trip tests (`tests/dart_golden/check.sh`, needs a Dart
 SDK; CI runs it on every push).
 
-Coverage, if you have [`cargo-llvm-cov`](https://github.com/taiki-e/cargo-llvm-cov) installed:
+Coverage, with [`cargo-llvm-cov`](https://github.com/taiki-e/cargo-llvm-cov)
+(`rustup component add llvm-tools-preview && cargo install cargo-llvm-cov --locked`). CI fails if line
+coverage drops below **90%** ([AGENTS.md](../AGENTS.md) rule 10: every functionality ships with tests):
 
 ```bash
-cargo llvm-cov --html    # report in target/llvm-cov/html/index.html
+cargo llvm-cov --summary-only --fail-under-lines 90   # the CI gate
+cargo llvm-cov --html                                 # report in target/llvm-cov/html/index.html
 ```
 
 ## License

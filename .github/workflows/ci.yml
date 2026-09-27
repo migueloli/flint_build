@@ -29,6 +29,25 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test --locked
 
+  coverage:
+    name: Engine test coverage (at least 90% of lines)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      # The floor is AGENTS.md rule 10. Raise it as coverage grows; lowering it is an owner decision.
+      - run: cargo llvm-cov --locked --summary-only --fail-under-lines 90
+
   msrv:
     name: Engine builds on its minimum Rust (1.88)
     runs-on: ubuntu-latest
@@ -64,6 +83,13 @@ jobs:
         working-directory: cli/example
         run: |
           ../../engine/target/release/flint_build build --force
+          git diff --exit-code -- lib
+      # End-to-end test of the Dart launcher: `dart run flint_build` finds the engine and forwards arguments.
+      - name: Launcher runs the engine (dart run flint_build)
+        working-directory: cli/example
+        run: |
+          dart pub get
+          dart run flint_build build --force
           git diff --exit-code -- lib
       - name: Analyze CLI and example
         working-directory: cli

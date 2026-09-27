@@ -10,5 +10,9 @@
   (the latest version is in `.../channels/stable/release/latest/VERSION`), then put on `PATH` for
   `engine/tests/dart_golden/check.sh`. Without it, the engine can still be checked end to end by running
   `engine/target/release/flint_build build --force` inside `cli/example` and diffing the output.
-- Before finishing a change to `engine/`, run `cargo fmt`, `cargo clippy --all-targets -- -D warnings`, and `cargo test`.
-  Use `/code-review` on the diff for anything that changes generated output.
+- Before finishing a change to `engine/`, run `cargo fmt`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
+  and `cargo llvm-cov --summary-only --fail-under-lines 90` (AGENTS.md rule 10: new functionality comes with its
+  tests). `cargo-llvm-cov` isn't preinstalled in cloud sessions: `rustup component add llvm-tools-preview &&
+  cargo install cargo-llvm-cov --locked`. Use `/code-review` on the diff for anything that changes generated output.
+- The docs are the project's memory: there is no other persistent memory between sessions. Decisions go into
+  the spec's *Decisions* section and `docs/HANDOFF.md` §5, not only into the conversation.

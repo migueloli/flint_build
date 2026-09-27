@@ -125,10 +125,12 @@ yet; it's on the [roadmap](docs/ROADMAP.md#phase-5-incremental-and-fast-at-scale
 ```bash
 cd engine
 cargo fmt && cargo clippy --all-targets -- -D warnings && cargo test
+cargo llvm-cov --summary-only --fail-under-lines 90   # coverage floor (cargo install cargo-llvm-cov)
 tests/dart_golden/check.sh     # generated Dart compiles and round-trips (needs a Dart SDK)
 ```
 
-CI runs all of these on every push ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
+Every functionality ships with tests, and the engine's line coverage must stay at or above 90%. CI runs all of
+these on every push ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
 
 Changes to generated output, `flint.yaml`, CLI flags or the template context start with a spec. See the
 [spec workflow](docs/specs/README.md). Snapshot changes are reviewed with `cargo insta review`.

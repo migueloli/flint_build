@@ -95,6 +95,7 @@ dart run flint_build build           # generate changed files
 dart run flint_build build --force   # regenerate everything (alias: -d)
 dart run flint_build watch           # rebuild on changes under lib/
 dart run flint_build clean           # delete the .g.dart files Flint generated
+dart run flint_build dump-model lib/user.dart   # print the generator model as JSON (--schema: its JSON Schema)
 ```
 
 ## Custom generators

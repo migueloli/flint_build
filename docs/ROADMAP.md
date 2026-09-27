@@ -30,6 +30,8 @@ Phase 5, and “Phase 4” (distribution) is now Phase 6.
 | ✅ | Use `tempfile` in tests instead of fixed temp paths | H6 |
 | ✅ | Fix `cli/pubspec.yaml` metadata (description, version `0.1.0` like the engine, repository, `publish_to: none` until D1) and `CHANGELOG.md`; move the example to `dev_dependencies`; drop unused dependencies | D5 |
 | ✅ | Accurate READMEs, SDD, configuration reference, agent instructions | H4 |
+| ✅ | Tests for every functionality, with a coverage floor: CI fails if the engine's line coverage drops below 90% (`cargo llvm-cov`; 95% today). CI also runs the Dart launcher end to end on the example | H8 |
+| ⬜ | Close the coverage gaps: the watcher (38%), `builder.rs` watch/report paths (77%), `main.rs`; unit tests for the Dart launcher (with D1) | H8 |
 
 ## Phase 1: Safe to run (P0)
 

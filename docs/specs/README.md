@@ -21,7 +21,8 @@ Bug fixes, refactors inside one module with no behaviour change, docs and tests 
 2. **Draft** it. Link the review IDs it resolves. Status: `Draft`.
 3. **Agree** on it. Resolve the open questions. Status: `Accepted`.
 4. **Implement** it, following the *Plan* section, with one commit (or PR) per step where you can. The
-   acceptance criteria become tests. Status: `In progress`.
+   acceptance criteria become tests, and every functionality the step adds has tests in the same commit
+   (AGENTS.md rule 10; CI fails below 90% engine line coverage). Status: `In progress`.
 5. **Close** it. Update [SDD.md](../SDD.md), [configuration.md](../configuration.md), the roadmap and the
    READMEs. Status: `Done`.
 

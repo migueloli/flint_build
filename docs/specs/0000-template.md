@@ -26,7 +26,9 @@ How it works inside the engine/CLI. Reference [SDD](../SDD.md) sections and say 
 
 ## Acceptance criteria
 
-Each item must be checkable by a test.
+Each item must be checkable by a test, and each becomes one (AGENTS.md rule 10). Say where the tests go: unit
+tests, build or snapshot tests, Dart golden round trips, differential tests against the original package.
+The engine's coverage floor (90% of lines) must still hold when the spec is done.
 
 - [ ] Given …, when …, then …
 

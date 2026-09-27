@@ -1,6 +1,6 @@
 # Handoff — state of the project and what comes next
 
-**Last updated:** 2026-09-27, on branch `claude/nice-turing-eu8mvu`, after spec 0007 step 1. CI green.
+**Last updated:** 2026-09-27, on branch `claude/nice-turing-eu8mvu`, after spec 0007 step 1 and the testing rule (AGENTS.md rule 10). CI green.
 Read this first, then [AGENTS.md](../AGENTS.md) for the rules and [ROADMAP.md](ROADMAP.md) for the full plan.
 Update this file whenever you finish a step, change priorities, or leave work half done.
 
@@ -24,8 +24,8 @@ flutter_gen, mockito, go_router_builder, envied. **Later:** auto_route, retrofit
 | ---- | ----- |
 | Branch / PR | All work is on `claude/nice-turing-eu8mvu`; PR [migueloli/flint_build#1](https://github.com/migueloli/flint_build/pull/1) is open, not merged |
 | Version | Engine and CLI both `0.1.0` (unreleased). A bump to `0.2.0` has been suggested, not decided (§5) |
-| CI | `.github/workflows/ci.yml`: fmt, clippy `-D warnings`, `cargo test --locked`, MSRV 1.88, Dart golden check, `dart analyze` on `cli/` and the example, example output current. Runs on PRs, pushes to `main`, manual dispatch |
-| Tests | 104 Rust tests (unit, build pipeline, insta snapshots, model schema), 32 Dart golden round-trip tests. All pass |
+| CI | `.github/workflows/ci.yml`: fmt, clippy `-D warnings`, `cargo test --locked`, MSRV 1.88, Dart golden check, `dart analyze` on `cli/` and the example, example output current, the Dart launcher run end to end (`dart run flint_build build`), and **engine line coverage ≥ 90%** (`cargo llvm-cov`). Runs on PRs, pushes to `main`, manual dispatch |
+| Tests | 104 Rust tests (unit, build pipeline, insta snapshots, model schema), 32 Dart golden round-trip tests. All pass. Engine coverage **95.0% of lines** (floor 90%). Weakest files: `watcher` 38%, `builder.rs` 77%, `main.rs` 0% (§3 item 9) |
 | Performance | `engine/bench/run.sh 1000 5`, 4 cores, engine only: `--force` ~0.27 s, no-op ~86–91 ms (budget 100 ms, tight, see §4) |
 | Roadmap | Phase 0 done except the LICENSE placeholders · Phase 1 done · Phase 2 (json_serializable) in progress, spec 0006 · Phase 3 (generator platform) drafted as spec 0007 · Phases 4–7 not started, apart from the parts noted in the roadmap |
 
@@ -45,7 +45,7 @@ flutter_gen, mockito, go_router_builder, envied. **Later:** auto_route, retrofit
 
 - **Fixed:** R1, R2, R3, R4, R5, R6, R7, R12, R13, H2, H3, H4, H5, H6, H7 (golden check; differential tests
   still open), D5.
-- **Mostly fixed:** R8 (superclass members left, spec 0006 step 3), R11 (config, templates, engine binary and
+- **Mostly fixed:** H8 (coverage floor and launcher run in CI; the gaps in §3 item 9 are open), R8 (superclass members left, spec 0006 step 3), R11 (config, templates, engine binary and
   the files a type is declared in count as inputs; content hashes still open), A1 (templates still compiled
   per file).
 - **Open:** R9 (`field_annotations` unused; every annotation's named arguments merge into field metadata),
@@ -139,7 +139,14 @@ Each item links to where it's tracked.
 7. **Differential tests (rest of H7):** automate what was done by hand for spec 0006: build fixtures with the
    original generator too and compare. Every built-in generator will need this, so build it generically.
 8. **Distribution (Phase 6, D1, D2):** the CLI only works inside this repo. Prebuilt binaries, a version
-   check, then pub.dev and crates.io.
+   check, then pub.dev and crates.io. The launcher gets unit tests in the same change (H8): today it is one
+   `main()` that calls `exit()`, so it is only tested end to end in CI.
+9. **Coverage gaps (H8, AGENTS.md rule 10).** No spec needed; tests only. The watcher's event loop (38%):
+   drive `watcher` with a temp directory and a short debounce, and check that writes trigger a rebuild while
+   reads and `.g.dart` events don't. `builder.rs` (77%): the watch entry point and the summary printing.
+   `main.rs`: an end-to-end test that runs the built binary (`build`, `clean`, `dump-model`, a bad flag).
+   Once these land, raise the CI floor (`--fail-under-lines` in `ci.yml`, and the number in AGENTS.md rule 10)
+   to just below the new total.
 
 Owner decisions that don't block engineering are in §5.
 
@@ -148,7 +155,7 @@ Owner decisions that don't block engineering are in §5.
 ## 4. Known limitations and risks (not bugs, but worth knowing)
 
 - **No-op budget margin.** ~90 ms of 100 ms on 1,000 files; noisy machines already touch 100 ms. The fix is
-  the index cache (§3 item 3), not micro-optimisation.
+  the index cache (§3 item 5), not micro-optimisation.
 - **Warnings only on regeneration.** The `external_types` warning is printed when a file is generated, not on
   up-to-date builds (spec 0005).
 - **Re-export chains** aren't dependencies: changing a file in the middle of an `export` chain doesn't
@@ -180,12 +187,33 @@ Owner decisions that don't block engineering are in §5.
 
 ---
 
+### Decisions already made (don't reopen without the owner)
+
+| Decision | Where it's recorded |
+| -------- | ------------------- |
+| Flint replaces `build_runner` as a platform, not only json_serializable | SDD §1–2, DD9 |
+| Popular generators are reimplemented, not hosted as build_runner builders | SDD DD10 |
+| Built-in generators use the same public API as custom ones | AGENTS.md rule 6, SDD DD9 |
+| Custom generators in Rust (built-in), Dart, YAML or Tera | spec 0007 Decisions |
+| Coexistence with build_runner during migration: Flint's shared part goes to `x.flint.dart` | spec 0007 Decisions, SDD open question 4 |
+| Generator order: json_serializable, riverpod_generator, freezed, drift, flutter_gen, mockito, go_router_builder, envied; later auto_route, retrofit, injectable, slang | ROADMAP “Generators” |
+| `flint_json` follows json_serializable's member rules; the deviations are listed in §4 | spec 0006 |
+| `field_rename: camel` is lowerCamelCase; `build.yaml` options are read | specs 0002, 0003 |
+| Every functionality has tests; engine line coverage ≥ 90% in CI, raised as coverage grows, lowered only by the owner | AGENTS.md rule 10, REVIEW H8 |
+
+---
+
 ## 6. How to work on this repo
 
 **Always:** `cargo fmt`, `cargo clippy --all-targets -- -D warnings`, `cargo test` (from `engine/`), then
 `engine/tests/dart_golden/check.sh`, then the example check (`cd cli/example &&
 ../../engine/target/release/flint_build build --force && git status --short .`). Any change to generated
 output gets a snapshot diff you read line by line, a golden fixture, and `/code-review`.
+
+**Tests and coverage (AGENTS.md rule 10).** Every functionality ships with its tests in the same commit.
+Before pushing, from `engine/`: `cargo llvm-cov --summary-only --fail-under-lines 90`. In a cloud session,
+install it first: `rustup component add llvm-tools-preview && cargo install cargo-llvm-cov --locked` (about a
+minute). Look at the per-file table too: new code should not be the part that's uncovered.
 
 **Dart SDK in a cloud session.** Not preinstalled. Read the version from
 `https://storage.googleapis.com/dart-archive/channels/stable/release/latest/VERSION`, download
